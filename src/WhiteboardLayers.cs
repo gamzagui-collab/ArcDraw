@@ -841,6 +841,7 @@ namespace gInk
         {
             if (e.Button != MouseButtons.Left) return;
             manager.SetActive(this);
+            EndTextInputFromHeader();
             dragging = true;
             mouseStart = System.Windows.Forms.Cursor.Position;
             boundsStart = Bounds;

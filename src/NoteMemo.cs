@@ -25,6 +25,17 @@ namespace gInk
             if(MemoItem!=null)QueueHistorySnapshot();manager.NotesChanged();paper.Invalidate();return true;
         }
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
+        private void EndTextInputFromHeader()
+        {
+            MemoTargetMode=false;
+            FinishEditing(true);
+            Root root=manager.CurrentRoot;
+            if(root.ToolSelected==Tools.txtLeftAligned||root.ToolSelected==Tools.txtRightAligned)
+                root.FormCollection.SelectTool(Tools.Hand,Filling.Empty);
+            else SyncInkTool(root);
+            // The next key belongs to the drawing shortcuts, not the old EDIT.
+            if(!paper.IsDisposed)paper.Focus();
+        }
         private bool CanOpenMemo()
         {
             DrawingSession session=manager.CurrentRoot.DrawingSession;
