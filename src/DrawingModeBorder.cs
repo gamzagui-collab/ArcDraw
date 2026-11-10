@@ -7,41 +7,66 @@ using System.Windows.Forms;
 
 namespace gInk
 {
-    // Four tiny static alpha strips per display, never a full-screen bitmap.
+    // Four tiny alpha strips around the actual target, never a full-screen bitmap.
     // They are outside Ink and accept neither pointer input nor activation.
     internal sealed class DrawingModeBorder : IDisposable
     {
         private readonly Root root;
         private readonly List<EdgeWindow> edges = new List<EdgeWindow>();
         private bool visible;
+        private bool updating;
+        private WhiteboardLayerForm trackedNote;
+        private readonly List<Rectangle> frames=new List<Rectangle>();
         internal DrawingModeBorder(Root root) { this.root = root; }
         internal void Update(bool show)
         {
-            if (visible == show) return;
-            visible = show;
-            if (!show) { foreach (EdgeWindow edge in edges) edge.Hide(); return; }
-            foreach (EdgeWindow edge in edges) edge.Dispose();
-            edges.Clear();
-            foreach (Screen screen in Screen.AllScreens)
+            if(updating)return;
+            updating=true;
+            try
             {
-                Rectangle r = screen.Bounds;
-                Add(new Rectangle(r.Left, r.Top, r.Width, 4), 0);
-                Add(new Rectangle(r.Left, r.Bottom - 4, r.Width, 4), 1);
-                Add(new Rectangle(r.Left, r.Top + 4, 4, Math.Max(1, r.Height - 8)), 2);
-                Add(new Rectangle(r.Right - 4, r.Top + 4, 4, Math.Max(1, r.Height - 8)), 3);
+                if(!show){visible=false;Watch(null);foreach(EdgeWindow edge in edges)edge.Hide();return;}
+                WhiteboardLayerForm note=root.Whiteboards==null?null:root.Whiteboards.ActiveNote;
+                if(note!=null&&(note.IsDisposed||!note.Visible))note=null;
+                bool targetChanged=trackedNote!=note;Watch(note);
+                var next=new List<Rectangle>();
+                if(note!=null)next.Add(note.Bounds);else foreach(Screen screen in Screen.AllScreens)next.Add(screen.Bounds);
+                bool changed=!visible||targetChanged||frames.Count!=next.Count;
+                if(!changed)for(int i=0;i<next.Count;i++)if(frames[i]!=next[i]){changed=true;break;}
+                if(!changed)return;
+                visible=true;frames.Clear();frames.AddRange(next);
+                while(edges.Count>next.Count*4){int last=edges.Count-1;edges[last].Dispose();edges.RemoveAt(last);}
+                Form owner=note==null?(Form)root.FormCollection:note;
+                for(int i=0;i<next.Count;i++)
+                {
+                    Rectangle r=next[i];Rectangle[] strips={new Rectangle(r.Left,r.Top,r.Width,4),new Rectangle(r.Left,r.Bottom-4,r.Width,4),
+                        new Rectangle(r.Left,r.Top+4,4,Math.Max(1,r.Height-8)),new Rectangle(r.Right-4,r.Top+4,4,Math.Max(1,r.Height-8))};
+                    for(int side=0;side<4;side++)
+                    {
+                        int index=i*4+side;
+                        if(index==edges.Count)edges.Add(new EdgeWindow(strips[side],side));
+                        else if(edges[index].IsDisposed)edges[index]=new EdgeWindow(strips[side],side);
+                        EdgeWindow edge=edges[index];if(edge.Owner!=owner){edge.Owner=null;edge.Owner=owner;}
+                        edge.Place(strips[side]);if(!edge.Visible)edge.Show();edge.RaiseWithoutFocus();
+                    }
+                }
             }
+            finally{updating=false;}
         }
-        private void Add(Rectangle bounds, int side)
+        private void Watch(WhiteboardLayerForm note)
         {
-            var edge = new EdgeWindow(bounds, side);
-            edges.Add(edge); edge.Show(); edge.SetPixels();
+            if(trackedNote==note)return;
+            if(trackedNote!=null){trackedNote.LocationChanged-=TargetChanged;trackedNote.SizeChanged-=TargetChanged;trackedNote.VisibleChanged-=TargetChanged;trackedNote.Disposed-=TargetChanged;}
+            trackedNote=note;
+            if(note!=null){note.LocationChanged+=TargetChanged;note.SizeChanged+=TargetChanged;note.VisibleChanged+=TargetChanged;note.Disposed+=TargetChanged;}
         }
-        public void Dispose() { foreach (EdgeWindow edge in edges) edge.Dispose(); edges.Clear(); }
+        private void TargetChanged(object sender,EventArgs e){if(visible)Update(true);}
+        public void Dispose() { visible=false;Watch(null);foreach (EdgeWindow edge in edges) edge.Dispose(); edges.Clear(); }
 
         private sealed class EdgeWindow : Form
         {
             private readonly int side;
-            private readonly Rectangle anchor;
+            private Rectangle anchor;
+            private bool pixelsReady;
             internal EdgeWindow(Rectangle bounds, int side)
             {
                 this.side = side; this.anchor = bounds; Name = "ArcDrawDrawingBorder"; Text = "ArcDraw drawing mode";
@@ -56,6 +81,14 @@ namespace gInk
                 if (m.Msg == 0x21) { m.Result = new IntPtr(3); return; }
                 base.WndProc(ref m);
             }
+            internal void Place(Rectangle bounds)
+            {
+                if(!IsHandleCreated){IntPtr created=Handle;}
+                Size old=Size;anchor=bounds;Bounds=bounds;
+                if(side==1)Top=anchor.Bottom-Height;if(side==3)Left=anchor.Right-Width;
+                if(!pixelsReady||old!=Size){SetPixels();pixelsReady=true;}
+            }
+            internal void RaiseWithoutFocus(){SetWindowPos(Handle,new IntPtr(-1),0,0,0,0,0x1|0x2|0x10);}
             internal void SetPixels()
             {
                 // WinForms may enforce a 6px native minimum at the current scale.
@@ -102,6 +135,7 @@ namespace gInk
             [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
             [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
             [DllImport("user32.dll", SetLastError = true)] private static extern bool UpdateLayeredWindow(IntPtr window, IntPtr screen, ref POINT target, ref SIZE size, IntPtr source, ref POINT origin, int key, ref BLEND blend, int flags);
+            [DllImport("user32.dll")]private static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
         }
     }
 }

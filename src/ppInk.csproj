@@ -204,6 +204,7 @@
     <Compile Include="ToolbarKeyTips.cs" />
     <Compile Include="DrawingCursorHalo.cs" />
     <Compile Include="DrawingModeBorder.cs" />
+    <Compile Include="DrawingTargetSwitcher.cs" />
     <Compile Include="RenderCache.cs" />
     <Compile Include="MagneticCache.cs" />
     <Compile Include="DirtyRendering.cs" />

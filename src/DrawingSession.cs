@@ -19,6 +19,9 @@ namespace gInk
         private readonly ToolbarKeyTips keyTips;
         private readonly DrawingCursorHalo cursorHalo;
         private readonly DrawingModeBorder modeBorder;
+        private readonly DrawingTargetSwitcher targetSwitcher;
+        private bool targetSwitching;
+        private int targetSwitchEpoch;
         private int modifiers;
         private IntPtr hook;
         private bool capsDown, applying, disposed;
@@ -30,11 +33,12 @@ namespace gInk
         public bool CapsOn { get; private set; }
         public bool ToolbarHidden { get; private set; }
         public bool OptionsOpen { get; private set; }
+        public bool SelectingTarget {get{return targetSwitching||targetSwitcher.IsOpen;}}
         public ToolbarAppearance Appearance { get; private set; }
         public bool DrawingEnabled { get { return Running && CapsOn && root.FormCollection!=null&&!root.FormCollection.EntryPreparing; } }
         public bool Editing
         {
-            get { return (root.Whiteboards != null && root.Whiteboards.IsEditingText) ||
+            get { return SelectingTarget || (root.Whiteboards != null && root.Whiteboards.IsEditingText) ||
                 ModalWindowOpen() || OptionsOpen ||
                 (root.FormOptions != null && root.FormOptions.Visible); }
         }
@@ -58,6 +62,7 @@ namespace gInk
             keyTips=new ToolbarKeyTips(root);
             cursorHalo=new DrawingCursorHalo(root);
             modeBorder=new DrawingModeBorder(root);
+            targetSwitcher=new DrawingTargetSwitcher(root);
             hookCallback = KeyboardHook;
             timer = new Timer { Interval = 30 };
             timer.Tick += delegate { if(!Running&&!disposed)RememberForegroundApplication();else ApplyMode(); };
@@ -118,6 +123,7 @@ namespace gInk
         {
             if(disposed)return;
             Running = false;
+            targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             keyTips.Hide();
             cursorHalo.Stop();
             modeBorder.Update(false);
@@ -147,10 +153,29 @@ namespace gInk
                     if (down && !capsDown) { if(!CapsOn)RememberForegroundApplication();CapsOn = !CapsOn; Post(ApplyMode); }
                     if (down || up) capsDown = down;
                 }
+                if(up&&(bit&48)!=0&&(modifiers&48)==0&&targetSwitching)
+                {
+                    int epoch=targetSwitchEpoch;targetSwitching=false;
+                    Post(delegate {if(epoch==targetSwitchEpoch&&DrawingEnabled){targetSwitcher.Commit();RefreshDrawingTarget();}});
+                }
                 // Always release swallowed keys, even if Caps/modifiers changed
                 // before key-up. Nothing is intercepted while Caps is off.
                 if (up && consumed.Remove(key)) return new IntPtr(1);
                 if (down && consumed.Contains(key)) return new IntPtr(1);
+                bool altHeld=(modifiers&48)!=0;
+                if(down&&firstPress&&DrawingEnabled&&key==9&&altHeld&&(modifiers&(12|192))==0&&
+                    root.Snapping==0&&!root.UponTakingSnap&&(!Editing||SelectingTarget))
+                {
+                    bool begin=!targetSwitching,reverse=(modifiers&3)!=0;
+                    if(begin)targetSwitchEpoch++;
+                    int epoch=targetSwitchEpoch;targetSwitching=true;consumed.Add(key);
+                    Post(delegate {BeginTargetStep(epoch,begin,reverse);});return new IntPtr(1);
+                }
+                if(down&&SelectingTarget&&key==0x1b)
+                {
+                    int epoch=++targetSwitchEpoch;targetSwitching=false;consumed.Add(key);
+                    Post(delegate {if(epoch==targetSwitchEpoch)CancelTargetSelection(true);});return new IntPtr(1);
+                }
                 if (down && firstPress && DrawingEnabled && !Editing)
                 {
                     // Track modifier messages in order. Querying asynchronous
@@ -204,10 +229,11 @@ namespace gInk
         public void ApplyMode()
         {
             if (!Running || disposed || applying || root.FormCollection == null || !root.FormCollection.Visible||root.FormCollection.EntryPreparing) return;
+            if(SelectingTarget&&(!CapsOn||OptionsOpen||ModalWindowOpen()||(root.FormOptions!=null&&root.FormOptions.Visible)))CancelTargetSelection(false);
             root.FormCollection.UpdateCompactStatus();
             bool editing=Editing;
             keyTips.Update((modifiers&48)!=0&&!editing&&root.Snapping==0);
-            modeBorder.Update(DrawingEnabled&&!editing&&root.Snapping==0&&!root.UponTakingSnap);
+            RefreshDrawingTarget();
             // Stable mode needs no Ink COM polling or repeated note updates.
             if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
             {
@@ -257,6 +283,32 @@ namespace gInk
             keybd_event(0x14, 0x3a, 2, UIntPtr.Zero);
         }
 
+        private void BeginTargetStep(int epoch,bool begin,bool reverse)
+        {
+            if(epoch!=targetSwitchEpoch)return;
+            if(!DrawingEnabled||OptionsOpen||ModalWindowOpen()||(root.Whiteboards!=null&&root.Whiteboards.IsEditingText)||
+                root.FingerInAction||root.FormCollection.IsToolbarDragging||root.FormCollection.ScreenContentBusy||
+                root.FormCollection.IC.CollectingInk||(root.Whiteboards!=null&&root.Whiteboards.HasBusyInk))
+            {CancelTargetSelection(false);return;}
+            if(begin)targetSwitcher.Cancel();keyTips.Hide();targetSwitcher.Step(reverse);RefreshDrawingTarget();
+        }
+        private void CancelTargetSelection(bool suppressKeys)
+        {
+            targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
+            if(suppressKeys&&root.Whiteboards!=null)root.Whiteboards.TextEditingEnded();
+            RefreshDrawingTarget();
+        }
+        internal void DrawingTargetChanged()
+        {
+            if(SelectingTarget)CancelTargetSelection(false);
+            else RefreshDrawingTarget();
+        }
+        internal void RefreshDrawingTarget()
+        {
+            bool modal=OptionsOpen||ModalWindowOpen()||(root.FormOptions!=null&&root.FormOptions.Visible);
+            modeBorder.Update(DrawingEnabled&&!modal&&root.Snapping==0&&!root.UponTakingSnap);
+        }
+
         public void ToggleToolbar()
         {
             if (!DrawingEnabled || Editing) return;
@@ -277,6 +329,7 @@ namespace gInk
         public void ShowAppearanceOptions()
         {
             if (OptionsOpen) return;
+            if(SelectingTarget)CancelTargetSelection(false);
             OptionsOpen = true;
             try { root.Settings.ShowOptions(); }
             finally
@@ -297,6 +350,7 @@ namespace gInk
             keyTips.Dispose();
             cursorHalo.Dispose();
             modeBorder.Dispose();
+            targetSwitcher.Dispose();
             timer.Dispose();
         }
 

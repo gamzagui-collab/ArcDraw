@@ -57,7 +57,8 @@ namespace gInk
         {
             get { foreach (WhiteboardLayerForm note in notes.ToArray()) if (note.HasBusyInk) return true; return false; }
         }
-        public void SelectScreen() { if (active == null) return; active = null; bar.UpdateSelection(); }
+        public void SelectScreen() { if(active!=null){active=null;bar.UpdateSelection();}NotifyDrawingTarget(); }
+        private void NotifyDrawingTarget(){if(root.DrawingSession!=null)root.DrawingSession.DrawingTargetChanged();}
         public bool HandleSelectedContent(bool clear, bool redo = false)
         {
             WhiteboardLayerForm note = ActiveNote;
@@ -197,6 +198,7 @@ namespace gInk
             bar.QueueRebuild();
             KeepWindowsOnTop();
             note.Activate();
+            NotifyDrawingTarget();
         }
 
         private Rectangle DefaultNoteBounds()
@@ -236,6 +238,7 @@ namespace gInk
                 note.Activate();
             }
             if(wasHidden)bar.QueueRebuild();else bar.UpdateSelection();
+            NotifyDrawingTarget();
         }
 
         public void ToggleVisibility(WhiteboardLayerForm note)
@@ -255,6 +258,7 @@ namespace gInk
             if (!note.UserHidden) active = note;
             bar.QueueRebuild();
             KeepWindowsOnTop();
+            NotifyDrawingTarget();
         }
 
         public void ToggleActive()
@@ -271,6 +275,7 @@ namespace gInk
             if (active == note) active = null;
             bar.QueueRebuild();
             KeepWindowsOnTop();
+            NotifyDrawingTarget();
         }
 
         public void RefreshInkTools()

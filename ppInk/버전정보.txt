@@ -1,3 +1,3 @@
-﻿ArcDraw v0.18 — 노트 프리셋 도형·선 모양·정렬
-2026-11-10 20:48:15 KST
-EXE SHA256: f5b91729facfaaf89122598bbd48cd0655b858a1c139d81b268a57ede0b711f9
+﻿ArcDraw v0.19 — 필기 대상 네온·Alt+Tab 전환
+2026-11-10 21:18:01 KST
+EXE SHA256: 3ddc3476b6a8461127f0d9d50860805dbea2096ab2dcc2bcb9293442ecc48394
