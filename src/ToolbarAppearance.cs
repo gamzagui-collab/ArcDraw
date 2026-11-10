@@ -212,6 +212,32 @@ namespace gInk
         public Size CompactDockSize { get { return compactHeaderSize; } }
         public void ToggleToolbarFold() { ToolbarMoved=false;btDock_Click(null,EventArgs.Empty); }
 
+        internal void SetToolbarFold(bool folded)
+        {
+            if(Root.Docked==folded)return;
+            if(!folded)
+            {
+                // A folded header can be dragged farther left than the full bar.
+                Rectangle work=Screen.FromRectangle(RectangleToScreen(gpButtons.Bounds)).WorkingArea;
+                gpButtonsLeft=Math.Max(work.Left-Left,Math.Min(gpButtonsLeft,work.Right-Left-gpButtonsWidth));
+                gpButtonsTop=Math.Max(work.Top-Top,Math.Min(gpButtonsTop,work.Bottom-Top-gpButtonsHeight));
+                Root.gpButtonsLeft=gpButtonsLeft;Root.gpButtonsTop=gpButtonsTop;
+            }
+            gpSubTools.Visible=false;LastTickTime=DateTime.Now;
+            if(folded)Root.Dock();else Root.UnDock();
+        }
+
+        internal bool BeginPointerToolbarDrag(Control captureOwner,MouseEventArgs e)
+        {
+            if(!Root.PointerMode || e.Button!=MouseButtons.Left || toolbarMoveGrip==null ||
+                !toolbarMoveGrip.Visible || !toolbarMoveGrip.Bounds.Contains(e.Location))return false;
+            gpButtons_MouseDown(captureOwner,e);
+            toolbarGripDragging=true;
+            return IsToolbarDragging;
+        }
+        internal void MovePointerToolbarDrag() {gpButtons_MouseMove(toolbarDragControl,null);}
+        internal void EndPointerToolbarDrag() {gpButtons_MouseUp(toolbarDragControl,null);}
+
         private bool IsCompactHeader(Control control) {return control==btDock||control==toolbarMoveGrip||control==toolbarCaps;}
         private void RestoreFoldedTools()
         {

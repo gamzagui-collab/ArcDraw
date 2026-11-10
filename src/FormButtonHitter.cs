@@ -14,6 +14,8 @@ namespace gInk
 	{
 		Root Root;
 		FormCollection FC;
+        private bool pointerToolbarDrag,suppressToolbarClick;
+        protected override bool ShowWithoutActivation {get{return true;}}
         // DateTime MouseTimeDown;
 		// http://www.csharp411.com/hide-form-from-alttab/
 		protected override CreateParams CreateParams
@@ -22,7 +24,7 @@ namespace gInk
 			{
 				CreateParams cp = base.CreateParams;
 				// turn on WS_EX_TOOLWINDOW style bit
-				cp.ExStyle |= 0x80;
+				cp.ExStyle |= 0x80 | 0x08000000;
 				return cp;
 			}
 		}
@@ -32,6 +34,8 @@ namespace gInk
 			Root = root;
 			FC = Root.FormCollection;
 			InitializeComponent();
+            MouseMove+=PointerToolbarMouseMove;
+            MouseUp+=PointerToolbarMouseUp;
 
             Initialize();
 
@@ -48,6 +52,8 @@ namespace gInk
 
         protected override void WndProc(ref Message msg)
         {
+            if(msg.Msg==0x21 && Root.DrawingSession!=null && Root.DrawingSession.Running)
+            {msg.Result=new IntPtr(3);return;} // MA_NOACTIVATE: keep the desktop/game focused.
             //if ((msg.Msg == 0x001C) || (msg.Msg == 6)) //WM_ACTIVATEAPP : generated through alt+tab
             if ((msg.Msg == 6)) //WM_ACTIVATE : generated through alt+tab
             {
@@ -76,15 +82,16 @@ namespace gInk
 
         private void FormButtonHitter_Click(object sender, EventArgs e)
 		{
+            if(suppressToolbarClick)return;
 			MouseEventArgs m = (MouseEventArgs)e;
             TimeSpan tsp= DateTime.Now - Root.FormCollection.MouseTimeDown;
             //MessageBox.Show(string.Format("t = {0:N3}",tsp.TotalSeconds));
 			foreach (Control control in FC.gpButtons.Controls)
 			{
-				if (control.GetType() == typeof(Button))
+				if (control is Button && control.Visible && control.Enabled)
 				{
 					if (m.X >= control.Left && m.X <= control.Right && m.Y >= control.Top && m.Y <= control.Bottom)
-						((Button)control).PerformClick();
+					{ ((Button)control).PerformClick();break; }
 				}
 			}
 		}
@@ -96,7 +103,7 @@ namespace gInk
 			UInt32 dwExStyle = GetWindowLong(this.Handle, -20);
 			SetWindowLong(this.Handle, -20, dwExStyle | 0x00080000);
 			//SetLayeredWindowAttributes(this.Handle, 0x00FFFFFF, 200, 0x2);
-			SetWindowPos(this.Handle, (IntPtr)(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0020);
+			SetWindowPos(this.Handle, (IntPtr)(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0020 | 0x0010);
 		}
 
 		public void timer1_Tick(object sender, EventArgs e)
@@ -104,11 +111,13 @@ namespace gInk
             if(Root.DrawingSession!=null&&Root.DrawingSession.ToolbarHidden) { if(Visible)Hide();return; }
 			if (true||this.Visible)  // we force resizing weither visible or not in order to have the good size during alt+tab
 			{
-				this.Left = FC.gpButtons.Left + FC.Left;
-				this.Top = FC.gpButtons.Top + FC.Top;
                 Size s = FC.VisibleToolbar;
-                this.Width = s.Width;
-				this.Height = s.Height;
+                Rectangle next=new Rectangle(FC.gpButtons.Left+FC.Left,FC.gpButtons.Top+FC.Top,s.Width,s.Height);
+                if(Bounds!=next)
+                {
+                    if(IsHandleCreated)SetWindowPos(Handle,IntPtr.Zero,next.Left,next.Top,next.Width,next.Height,0x0010|0x0004);
+                    else Bounds=next;
+                }
 			}
 		}
 
@@ -125,6 +134,15 @@ namespace gInk
         {
             //Console.WriteLine("BH", (sender as Control).Name);
             Root.FormCollection.MouseTimeDown = DateTime.Now;
+            pointerToolbarDrag=FC.BeginPointerToolbarDrag(this,e);
+            suppressToolbarClick=pointerToolbarDrag;
+        }
+        private void PointerToolbarMouseMove(object sender,MouseEventArgs e)
+        { if(pointerToolbarDrag)FC.MovePointerToolbarDrag(); }
+        private void PointerToolbarMouseUp(object sender,MouseEventArgs e)
+        {
+            if(!pointerToolbarDrag)return;
+            FC.MovePointerToolbarDrag();FC.EndPointerToolbarDrag();pointerToolbarDrag=false;
         }
     }
 }

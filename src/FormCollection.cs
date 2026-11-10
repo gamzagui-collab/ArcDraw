@@ -4713,16 +4713,16 @@ namespace gInk
             LastTickTime = DateTime.Now;
             if (!Root.Docked)
             {
-                Root.Dock();
+                SetToolbarFold(true);
             }
             else
             {
-                if (Root.PointerMode)
+                if (Root.PointerMode && (Root.DrawingSession==null || !Root.DrawingSession.Running))
                 {
                     btPointer_Click(null, null);
                     Root.UponButtonsUpdate |= 0x7;
                 }
-                Root.UnDock();
+                SetToolbarFold(false);
             }
         }
 
@@ -6393,6 +6393,7 @@ namespace gInk
 		}
 
         private Control toolbarDragControl;
+        private bool toolbarGripDragging;
         private Point toolbarDragOrigin,toolbarCursorOrigin;
         internal bool IsToolbarDragging {get{return IsMovingToolbar!=0;}}
 		int IsMovingToolbar = 0;
@@ -6408,6 +6409,7 @@ namespace gInk
 			ToolbarMoved = false;
             IsMovingToolbar = 1;
             toolbarDragControl=sender as Control;
+            toolbarGripDragging=sender==toolbarMoveGrip;
             if(toolbarDragControl!=null)toolbarDragControl.Capture=true;
 			HitMovingToolbareXY.X = MousePosition.X;
 			HitMovingToolbareXY.Y = MousePosition.Y;
@@ -6418,7 +6420,7 @@ namespace gInk
 		{            
 			if (IsMovingToolbar == 1)
 			{
-				if (Math.Abs(MousePosition.X - HitMovingToolbareXY.X) > (sender==toolbarMoveGrip?4:20) || Math.Abs(MousePosition.Y - HitMovingToolbareXY.Y) > (sender==toolbarMoveGrip?4:20))
+				if (Math.Abs(MousePosition.X - HitMovingToolbareXY.X) > (toolbarGripDragging?4:20) || Math.Abs(MousePosition.Y - HitMovingToolbareXY.Y) > (toolbarGripDragging?4:20))
                     IsMovingToolbar = 2;
             }
             if(IsMovingToolbar==2)MoveToolbarWithCursor();
@@ -6441,6 +6443,7 @@ namespace gInk
             Root.gpButtonsLeft=gpButtonsLeft;Root.gpButtonsTop=gpButtonsTop;
             ToolbarMoved=true;Root.UponButtonsUpdate|=0x5;
             Root.FormDisplay.QueueToolbarMove();
+            if(Root.PointerMode && Root.FormButtonHitter!=null)Root.FormButtonHitter.timer1_Tick(null,EventArgs.Empty);
         }
 
 		private void gpButtons_MouseUp(object sender, MouseEventArgs e)

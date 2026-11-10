@@ -76,6 +76,7 @@ namespace gInk
             if(Down(0x5b))modifiers|=64;if(Down(0x5c))modifiers|=128;
             applied = null;
             ToolbarHidden = false;
+            root.Docked=!CapsOn;
             if (hook == IntPtr.Zero)
             {
                 hook = SetWindowsHookEx(13, hookCallback, GetModuleHandle(null), 0);
@@ -207,13 +208,14 @@ namespace gInk
             applying = true;
             try
             {
-                if (Editing || root.FingerInAction || root.FormCollection.ScreenContentBusy || root.FormCollection.IC.CollectingInk || (root.Whiteboards != null && root.Whiteboards.HasBusyInk)) return;
+                if (Editing || root.FingerInAction || root.FormCollection.IsToolbarDragging || root.FormCollection.ScreenContentBusy || root.FormCollection.IC.CollectingInk || (root.Whiteboards != null && root.Whiteboards.HasBusyInk)) return;
                 if(!CapsOn)RememberForegroundApplication();
                 bool restoreApplication=!CapsOn&&!root.PointerMode;
                 if (CapsOn) { if (root.PointerMode) root.UnPointer(); }
                 else { if (!root.PointerMode) root.Pointer(); }
                 if (applied != CapsOn)
                 {
+                    root.FormCollection.SetToolbarFold(!CapsOn);
                     applied = CapsOn;
                     if (root.Whiteboards != null) root.Whiteboards.SetInputPassThrough(!CapsOn);
                     restoreApplication|=!CapsOn;
