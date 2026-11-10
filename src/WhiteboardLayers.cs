@@ -139,6 +139,9 @@ namespace gInk
                 if(followedToolbar!=null){followedToolbar.LocationChanged-=ToolbarPositionChanged;followedToolbar.SizeChanged-=ToolbarPositionChanged;}
                 followedToolbar=toolbar;toolbar.LocationChanged+=ToolbarPositionChanged;toolbar.SizeChanged+=ToolbarPositionChanged;
             }
+            // Keep the card above its canvas when Ink restores drawing focus.
+            // Rebind as well when StopInk/ReinitForms replaced the host window.
+            if(bar.Owner!=root.FormCollection)bar.Owner=root.FormCollection;
             bar.Show();
             foreach (WhiteboardLayerForm note in notes)
             {
@@ -411,13 +414,6 @@ namespace gInk
                 cp.ExStyle |= 0x00000080 | 0x08000000; // TOOLWINDOW | NOACTIVATE
                 return cp;
             }
-        }
-
-        protected override void OnActivated(EventArgs e)
-        {
-            base.OnActivated(e);
-            DrawingSession session=manager.CurrentRoot.DrawingSession;
-            if(session!=null)session.QueueDrawingFocus();
         }
 
         protected override void WndProc(ref Message m)
