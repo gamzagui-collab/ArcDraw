@@ -274,6 +274,8 @@ namespace gInk
             if(button==btDock)return "TAB";
             if(button==toolbarCaps)return "CAPS";
             if(button==toolbarRedo)return "Ctrl+Shift+Z";
+            if(button==btUndo)return "Delete / Ctrl+Z";
+            if(button==btClear)return "Ctrl+Delete";
             Hotkey key=null;int pen;
             if(button.Name.StartsWith("pen")&&Int32.TryParse(button.Name.Substring(3),out pen)&&pen<Root.Hotkey_Pens.Length)key=Root.Hotkey_Pens[pen];
             else switch(button.Name)

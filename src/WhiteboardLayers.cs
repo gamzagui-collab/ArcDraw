@@ -144,6 +144,7 @@ namespace gInk
             {
                 if (!note.UserHidden)
                 {
+                    if(note.Owner!=root.FormCollection)note.Owner=root.FormCollection;
                     if (note.Owner == null) note.Show(root.FormCollection);
                     else note.Show();
                 }
@@ -159,9 +160,11 @@ namespace gInk
             if (disposed) return;
             open = false;
             followTimer.Stop();
+            ProcessContentActions();
             foreach (WhiteboardLayerForm note in notes)
             {
                 note.FinishEditing(true);
+                note.SuspendForSession();
                 note.Hide();
             }
             bar.Hide();
@@ -466,7 +469,7 @@ namespace gInk
                 old.Dispose();
             }
 
-            Button appearance=NewButton("테마",inner);appearance.Name="ToolbarAppearance";
+            Button appearance=NewButton("⚙ 설정",inner);appearance.Name="DrawingSettings";
             appearance.Click+=delegate { if(manager.CurrentRoot.DrawingSession!=null)manager.CurrentRoot.DrawingSession.ShowAppearanceOptions(); };
             items.Controls.Add(appearance);
             Button add = NewButton("＋ 노트", inner);add.Name="AddWhiteboardNote";
@@ -795,7 +798,7 @@ namespace gInk
 
         public void SyncInkTool(Root root)
         {
-            if (closing || root == null || root.FormCollection == null) return;
+            if (closing || sessionSuspended || root == null || root.FormCollection == null) return;
             InkOverlay ink;
             if (!BeginInkUse(out ink))
             {
@@ -824,7 +827,9 @@ namespace gInk
                     lastEraser = eraser;
                 }
                 if (root.CurrentPen != lastPen || drawing.Width != lastWidth ||
-                    drawing.Color != lastColor || drawing.Transparency != lastTransparency)
+                    drawing.Color != lastColor || drawing.Transparency != lastTransparency ||
+                    drawing.PenTip!=ink.DefaultDrawingAttributes.PenTip || drawing.Height!=ink.DefaultDrawingAttributes.Height ||
+                    root.LineStyleToString(drawing.ExtendedProperties)!=root.LineStyleToString(ink.DefaultDrawingAttributes.ExtendedProperties))
                 {
                     if (!ink.CollectingInk && !closing)
                     {

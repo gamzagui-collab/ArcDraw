@@ -28,3 +28,6 @@ crash*.txt
 ppInk/toolbar-ui.ini
 
 ppInk/ArcDraw.exe
+
+# Personal drawing presets and font preferences
+**/drawing-settings.xml*

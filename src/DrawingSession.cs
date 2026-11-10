@@ -24,6 +24,7 @@ namespace gInk
         private bool capsDown, applying, disposed;
         private bool? applied;
         private IntPtr previousApplication;
+        private int pendingPreset=-1;
         private readonly uint ownProcessId=(uint)Process.GetCurrentProcess().Id;
         public bool Running { get; private set; }
         public bool CapsOn { get; private set; }
@@ -124,6 +125,7 @@ namespace gInk
             consumed.Clear();
             heldReservedKeys.Clear();
             pendingScreenActions.Clear();
+            pendingPreset=-1;
             if (hook != IntPtr.Zero) { UnhookWindowsHookEx(hook); hook = IntPtr.Zero; }
             applied = null;
             ToolbarHidden = false;
@@ -162,11 +164,18 @@ namespace gInk
                         WhiteboardLayerForm target=root.Whiteboards==null?null:root.Whiteboards.ActiveNote;
                         action=delegate {RunContentAction(target,false,true);};
                     }
-                    if (!other && key == 0x2e && (ctrl ^ shift))
+                    if (!other && key == 0x2e)
                     {
                         WhiteboardLayerForm target = root.Whiteboards == null ? null : root.Whiteboards.ActiveNote;
-                        bool clear = shift;
-                        action = delegate { RunContentAction(target, clear); };
+                        bool clear = ctrl;
+                        // InkOverlay also recognizes Delete/Cut keystrokes.
+                        // Retire Shift+Delete here so it cannot reach that path.
+                        action = shift ? (Action)delegate { } : delegate { RunContentAction(target, clear); };
+                    }
+                    if(action==null && root.Settings!=null)
+                    {
+                        int preset=root.Settings.MatchShortcut(key,ctrl,alt:(modifiers&48)!=0,shift:shift,win:(modifiers&192)!=0);
+                        if(preset>=0)action=delegate {pendingPreset=preset;ApplyMode();};
                     }
                     if (action != null) { consumed.Add(key); Post(action); return new IntPtr(1); }
                 }
@@ -200,7 +209,7 @@ namespace gInk
             keyTips.Update((modifiers&48)!=0&&!editing&&root.Snapping==0);
             modeBorder.Update(DrawingEnabled&&!editing&&root.Snapping==0&&!root.UponTakingSnap);
             // Stable mode needs no Ink COM polling or repeated note updates.
-            if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0)
+            if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
             {
                 if(!CapsOn)RememberForegroundApplication();
                 return;
@@ -224,7 +233,12 @@ namespace gInk
                 if (root.Whiteboards != null) root.Whiteboards.UpdateSessionDisplay();
                 // Wait on the existing timer, not a self-reposting callback:
                 // posted-message loops can starve the mouse-up that ends Ink.
-                if(!CapsOn)pendingScreenActions.Clear();
+                if(!CapsOn){pendingScreenActions.Clear();pendingPreset=-1;}
+                if(CapsOn&&pendingPreset>=0)
+                {
+                    int preset=pendingPreset;pendingPreset=-1;
+                    root.Settings.RecallPreset(preset);
+                }
                 while(CapsOn&&pendingScreenActions.Count>0&&!root.FormCollection.ScreenContentBusy&&!root.FormCollection.IC.CollectingInk)
                 {
                     int action=pendingScreenActions.Dequeue();
@@ -264,7 +278,7 @@ namespace gInk
         {
             if (OptionsOpen) return;
             OptionsOpen = true;
-            try { Appearance.ShowOptions(); }
+            try { root.Settings.ShowOptions(); }
             finally
             {
                 OptionsOpen = false;

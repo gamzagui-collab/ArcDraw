@@ -154,7 +154,7 @@ namespace gInk
                 ? new Point(Math.Max(4, Math.Min(location.X, paper.ClientSize.Width - 8)),
                             Math.Max(4, Math.Min(location.Y, paper.ClientSize.Height - 8)))
                 : item.Position;
-            editorFont = item == null ? new Font("Malgun Gothic", 17f, FontStyle.Regular) : item.CreateFont();
+            editorFont = item == null ? manager.CurrentRoot.Settings.CreateNoteFont() : item.CreateFont();
             NoteTextEditor editor = new NoteTextEditor();
             editor.Multiline = true;
             editor.AcceptsReturn = true;

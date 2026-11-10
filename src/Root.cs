@@ -386,6 +386,7 @@ namespace gInk
 		public FormCollection FormCollection;
 		public FormDisplay FormDisplay;
         public WhiteboardLayerManager Whiteboards;
+        public DrawingSettings Settings;
         public DrawingSession DrawingSession;
 		public FormButtonHitter FormButtonHitter;
 		public FormOptions FormOptions;
@@ -567,6 +568,7 @@ namespace gInk
                 TagSize = TextSize;
             }
             
+            Settings=new DrawingSettings(this);
 			//FormCollection = null;
 			//FormDisplay = null;
             FormCollection = new FormCollection(this);
@@ -710,6 +712,7 @@ namespace gInk
             if (Whiteboards != null) Whiteboards.Show();
             if (DrawingSession != null)DrawingSession.FocusEntryWindow();
             FormCollection.EndInputEntry();
+            if(Whiteboards!=null)Whiteboards.RefreshInkTools();
             if (DrawingSession != null){DrawingSession.ApplyMode();DrawingSession.QueueDrawingFocus();}
             }
             finally {if(FormCollection.EntryPreparing)FormCollection.EndInputEntry();}
@@ -718,7 +721,7 @@ namespace gInk
 		{
             // Suspend native contexts while the HWND is still visible. Never
             // disable a collector from its callback or while it is collecting.
-            if(FormCollection.ScreenContentBusy||FormCollection.IC.CollectingInk)
+            if(FormCollection.ScreenContentBusy||FormCollection.IC.CollectingInk || (Whiteboards!=null&&Whiteboards.HasBusyInk))
             {
                 FormCollection.ButtonsEntering=-9;
                 FormCollection.tiSlide.Enabled=true;

@@ -207,6 +207,9 @@
     <Compile Include="RenderCache.cs" />
     <Compile Include="MagneticCache.cs" />
     <Compile Include="DirtyRendering.cs" />
+    <Compile Include="DrawingSettings.cs" />
+    <Compile Include="DrawingSettingsDialog.cs" />
+    <Compile Include="NoteSession.cs" />
     <Compile Include="ArcDrawBranding.cs" />
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.png"><LogicalName>ArcDraw.Image</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.ico"><LogicalName>ArcDraw.Icon</LogicalName></EmbeddedResource>
