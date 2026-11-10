@@ -13,6 +13,7 @@ namespace gInk
         private TargetWindow window;
         private int selected;
         internal bool IsOpen {get;private set;}
+        internal bool IsVisible {get{return window!=null&&!window.IsDisposed&&window.Visible;}}
         internal DrawingTargetSwitcher(Root root){this.root=root;}
         internal void Step(bool reverse)
         {
@@ -21,15 +22,20 @@ namespace gInk
             foreach(WhiteboardLayerForm note in root.Whiteboards.Notes)if(!note.IsDisposed)targets.Add(note);
             selected=Math.Max(0,targets.IndexOf(previous));selected=(selected+(reverse?targets.Count-1:1))%targets.Count;
             IsOpen=true;
+            RefreshLabels();
+        }
+        internal void RefreshLabels()
+        {
+            if(!IsOpen)return;
             if(window==null||window.IsDisposed)window=new TargetWindow();
-            var labels=new List<string>();foreach(WhiteboardLayerForm note in targets)labels.Add(note==null?"화면 (바탕화면)":"노트 "+note.Number+(note.UserHidden?"  ·  숨김":""));
+            var labels=new List<string>();foreach(WhiteboardLayerForm note in targets)labels.Add(note==null?"화면 (바탕화면)":note.DisplayName+(note.UserHidden?"  ·  숨김":""));
             window.SetTargets(labels,selected,Screen.FromControl(root.FormCollection.gpButtons).WorkingArea);
             if(window.Owner!=root.FormCollection)window.Owner=root.FormCollection;
             if(!window.Visible)window.Show();window.RaiseWithoutFocus();
         }
         internal void Commit()
         {
-            if(!IsOpen)return;
+            if(!IsOpen){Cancel();return;}
             WhiteboardLayerForm target=targets[selected];Cancel();
             if(target!=null&&!target.IsDisposed&&root.Whiteboards.Notes.Contains(target))
             {root.Whiteboards.SetActive(target);target.FocusDrawingSurface();}
@@ -69,7 +75,7 @@ namespace gInk
                     int index=first+row;Rectangle r=new Rectangle(12,48+row*44,Width-24,39);bool current=index==selected;
                     using(var fill=new SolidBrush(current?Color.FromArgb(15,111,132):Color.FromArgb(35,45,60)))g.FillRectangle(fill,r);
                     if(current)using(var edge=new Pen(Color.FromArgb(75,224,248),2))g.DrawRectangle(edge,r);
-                    TextRenderer.DrawText(g,(current?"✓  ":"    ")+labels[index],Font,Rectangle.Inflate(r,-10,0),Color.White,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+                    TextRenderer.DrawText(g,(current?"✓  ":"    ")+labels[index],Font,Rectangle.Inflate(r,-10,0),Color.White,TextFormatFlags.NoPrefix|TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
                 }
                 using(var hint=new Font(Font.FontFamily,8.5f))
                 {

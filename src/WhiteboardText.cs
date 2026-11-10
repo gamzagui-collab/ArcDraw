@@ -22,6 +22,7 @@ namespace gInk
             public float FontSize;
             public FontStyle FontStyle;
             public int LayoutWidth;
+            public bool IsMemo;
 
             public Font CreateFont()
             {
@@ -55,7 +56,7 @@ namespace gInk
             if(manager.CurrentRoot.DrawingSession!=null&&manager.CurrentRoot.DrawingSession.Running&&!manager.CurrentRoot.DrawingSession.DrawingEnabled)return;
             manager.SetActive(this);
             SyncInkTool(manager.CurrentRoot);
-            if (textMode && e.Button == MouseButtons.Left) EditTextAt(e.Location);
+            if (textMode && e.Button == MouseButtons.Left) OpenMemoEditor();
         }
 
         private void QueuePaperRefresh()
@@ -97,6 +98,7 @@ namespace gInk
                 foreach (NoteTextItem item in textItems.ToArray())
                 {
                     if (item == editingText) continue;
+                    if(item.IsMemo)item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);
                     using (Font font = item.CreateFont())
                         TextRenderer.DrawText(e.Graphics, item.Content, font,
                             GetTextBounds(item, font), item.Color, TextFlags);
@@ -140,6 +142,7 @@ namespace gInk
             for (int index = textItems.Count - 1; index >= 0; index--)
             {
                 NoteTextItem candidate = textItems[index];
+                if(candidate.IsMemo)continue;
                 using (Font font = candidate.CreateFont())
                 {
                     Size measured = TextRenderer.MeasureText(candidate.Content, font,
@@ -150,13 +153,19 @@ namespace gInk
                 }
             }
 
-            editingText = item;
             Point origin = item == null
                 ? new Point(Math.Max(4, Math.Min(location.X, paper.ClientSize.Width - 8)),
                             Math.Max(4, Math.Min(location.Y, paper.ClientSize.Height - 8)))
                 : item.Position;
+            StartTextEditor(item,origin,false);
+        }
+
+        private void StartTextEditor(NoteTextItem item,Point origin,bool memo)
+        {
+            editingText=item;editingMemo=memo;
             editorFont = item == null ? manager.CurrentRoot.Settings.CreateNoteFont() : item.CreateFont();
             NoteTextEditor editor = new NoteTextEditor();
+            editor.DocumentMode=memo;
             editor.Multiline = true;
             editor.AcceptsReturn = true;
             editor.WordWrap = true;
@@ -165,12 +174,13 @@ namespace gInk
             editor.MaxLength = 0;
             editor.Font = editorFont;
             editor.ForeColor = item == null ? GetReadableTextColor() : item.Color;
-            editor.BackColor = Color.FromArgb(255, 254, 240);
-            editor.BorderStyle = BorderStyle.FixedSingle;
+            editor.BackColor = memo?Color.White:Color.FromArgb(255, 254, 240);
+            editor.BorderStyle = memo?BorderStyle.None:BorderStyle.FixedSingle;
             editor.Location = origin;
             int width = item == null ? Math.Min(640, Math.Max(90, paper.ClientSize.Width - origin.X - 8))
                 : item.LayoutWidth + SystemInformation.VerticalScrollBarWidth + 4;
             editor.Size = new Size(width, Math.Min(140, Math.Max(44, paper.ClientSize.Height - origin.Y - 8)));
+            if(memo)editor.Size=new Size(Math.Max(20,paper.ClientSize.Width-16),Math.Max(20,paper.ClientSize.Height-16));
             editor.Text = item == null ? String.Empty : item.Content;
             editor.CommitRequested += delegate { FinishEditing(true); };
             editor.CancelRequested += delegate { FinishEditing(false); };
@@ -180,6 +190,7 @@ namespace gInk
             editor.BringToFront();
             editor.Focus();
             editor.SelectionStart = editor.TextLength;
+            if(memo)editor.ScrollToCaret();
             paper.Invalidate();
         }
 
@@ -190,6 +201,7 @@ namespace gInk
             NoteTextEditor old = textEditor;
             NoteTextItem item = editingText;
             bool hadFocus = old.Focused;
+            bool wasMemo=editingMemo;
             bool contentChanged = false;
             try
             {
@@ -199,7 +211,7 @@ namespace gInk
                 if (save && !old.IsDisposed)
                 {
                     string content = old.Text;
-                    if (!String.IsNullOrWhiteSpace(content))
+                    if (editingMemo?content.Length>0:!String.IsNullOrWhiteSpace(content))
                     {
                         if (item == null)
                         {
@@ -210,11 +222,13 @@ namespace gInk
                             item.FontSize = old.Font.SizeInPoints;
                             item.FontStyle = old.Font.Style;
                             item.LayoutWidth = Math.Max(1, old.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 2);
+                            item.IsMemo=editingMemo;
                             textItems.Add(item);
                             contentChanged=true;
                         }
                         if(item.Content!=content)contentChanged=true;
                         item.Content = content;
+                        if(item.IsMemo){item.Position=new Point(8,8);item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);}
                     }
                     else if (item != null) { textItems.Remove(item);contentChanged=true; }
                 }
@@ -223,6 +237,7 @@ namespace gInk
             {
                 textEditor = null;
                 editingText = null;
+                editingMemo=false;
                 paper.Controls.Remove(old);
                 old.Dispose();
                 if (editorFont != null) { editorFont.Dispose(); editorFont = null; }
@@ -232,7 +247,7 @@ namespace gInk
                 if (!paper.IsDisposed)
                 {
                     paper.Invalidate();
-                    if (hadFocus && !closing) paper.Focus();
+                    if (hadFocus && !closing&&!wasMemo) paper.Focus();
                 }
             }
         }
@@ -249,6 +264,7 @@ namespace gInk
             catch { textMode = previous; throw; }
             if (!enabled) FinishEditing(true);
             paper.Cursor = enabled ? Cursors.IBeam : Cursors.Cross;
+            if(enabled)QueueMemoEditor();
             return true;
         }
 
@@ -279,6 +295,7 @@ namespace gInk
 
     internal sealed class NoteTextEditor : TextBox
     {
+        internal bool DocumentMode;
         internal event EventHandler CommitRequested;
         internal event EventHandler CancelRequested;
         private bool composing;
@@ -318,7 +335,8 @@ namespace gInk
             }
             if (keyData == Keys.Escape)
             {
-                QueueCompletion(false);
+                if(DocumentMode&&composing)return base.ProcessCmdKey(ref msg,keyData);
+                QueueCompletion(DocumentMode);
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
@@ -329,7 +347,8 @@ namespace gInk
             // An active IME may deliver these instead of ordinary WM_KEYDOWN.
             if (m.Msg == 0x0290 && (int)m.WParam == (int)Keys.Escape)
             {
-                QueueCompletion(false);
+                if(DocumentMode&&composing){base.WndProc(ref m);return;}
+                QueueCompletion(DocumentMode);
                 return;
             }
             if (m.Msg == 0x0290 && (int)m.WParam == (int)Keys.Enter &&

@@ -57,7 +57,7 @@ namespace gInk
         {
             get { foreach (WhiteboardLayerForm note in notes.ToArray()) if (note.HasBusyInk) return true; return false; }
         }
-        public void SelectScreen() { if(active!=null){active=null;bar.UpdateSelection();}NotifyDrawingTarget(); }
+        public void SelectScreen() { if(active!=null){active.FinishEditing(true);active=null;bar.UpdateSelection();}NotifyDrawingTarget(); }
         private void NotifyDrawingTarget(){if(root.DrawingSession!=null)root.DrawingSession.DrawingTargetChanged();}
         public bool HandleSelectedContent(bool clear, bool redo = false)
         {
@@ -91,6 +91,7 @@ namespace gInk
         public void SetInputPassThrough(bool value)
         {
             foreach(WhiteboardLayerForm note in notes.ToArray())note.SetInputPassThrough(value);
+            if(!value&&ActiveNote!=null)ActiveNote.QueueMemoEditor();
         }
         public void UpdateSessionDisplay() { bar.UpdateSessionDisplay(); }
         public void SetToolbarVisible(bool visible) { if(open) { if(visible)bar.Show();else bar.Hide(); } }
@@ -219,6 +220,7 @@ namespace gInk
         {
             if (disposed || note == null || !notes.Contains(note)) return;
             bool selectionChanged = active != note || note.UserHidden;
+            if(active!=null&&active!=note)active.FinishEditing(true);
             bool wasHidden = note.UserHidden;
             if(selectionChanged&&root.FormCollection!=null)root.FormCollection.ResetScreenSelectionForNote();
             active = note;
@@ -238,6 +240,7 @@ namespace gInk
                 note.Activate();
             }
             if(wasHidden)bar.QueueRebuild();else bar.UpdateSelection();
+            note.QueueMemoEditor();
             NotifyDrawingTarget();
         }
 
@@ -370,7 +373,7 @@ namespace gInk
                 foreach(Control child in control.Controls)
                 {
                     child.BackColor=color;child.ForeColor=selected?Color.White:theme.Text;
-                    if(child.Name=="NoteLayerTitle")child.Text=(selected?"✓ ":"")+"노트 "+note.Number;
+                    if(child.Name=="NoteLayerTitle")child.Text=(selected?"✓ ":"")+note.DisplayName;
                 }
             }
             UpdateSessionDisplay();
@@ -483,8 +486,8 @@ namespace gInk
             items.Controls.Add(add);
 
             Panel arrange=new Panel {Name="ArrangeWhiteboardNotes",Size=new Size(inner,cell)};
-            Button columns=NewButton("좌측 세로",inner/2);columns.Name="ArrangeNotesVertical";
-            Button rows=NewButton("상단 가로",inner-inner/2);rows.Name="ArrangeNotesHorizontal";rows.Left=inner/2;
+            Button columns=NewButton("세로 정렬",inner/2);columns.Name="ArrangeNotesVertical";
+            Button rows=NewButton("가로 정렬",inner-inner/2);rows.Name="ArrangeNotesHorizontal";rows.Left=inner/2;
             columns.Click+=delegate {manager.ArrangeNotes(true);};rows.Click+=delegate {manager.ArrangeNotes(false);};
             arrange.Controls.Add(columns);arrange.Controls.Add(rows);items.Controls.Add(arrange);
 
@@ -505,12 +508,14 @@ namespace gInk
                 chip.BackColor = current == manager.ActiveNote
                     ? theme.Accent : theme.Surface;
                 int small=Math.Max(16,(int)(25*scale));
-                Button title = NewButton("노트 " + current.Number, chipWidth-2*small);title.Name="NoteLayerTitle";
+                Button title = NewButton(current.DisplayName, chipWidth-2*small);title.Name="NoteLayerTitle";title.AutoEllipsis=true;
                 title.Location = new Point(0, 0);
                 title.ForeColor = current.UserHidden ? Color.Gray : theme.Text;
                 title.BackColor = chip.BackColor;
                 title.Click += delegate { manager.SetActive(current); };
-                tips.SetToolTip(title,"노트 "+current.Number);
+                tips.SetToolTip(title,current.DisplayName);
+                var noteMenu=new ContextMenuStrip();noteMenu.Items.Add("이름 변경…",null,delegate {manager.ShowRenameNote(current);});
+                title.ContextMenuStrip=noteMenu;title.Disposed+=delegate {noteMenu.Dispose();};
                 Button visibility = NewButton(current.UserHidden ? "□" : "●", small);
                 visibility.Location = new Point(chipWidth-2*small, 0);
                 visibility.Font = new Font("Malgun Gothic", 9f);
@@ -537,10 +542,11 @@ namespace gInk
                     foreach(WhiteboardLayerForm note in manager.Notes)
                     {
                         WhiteboardLayerForm current=note;
-                        ToolStripMenuItem item=new ToolStripMenuItem("노트 "+current.Number) {Checked=current==manager.ActiveNote};
+                        ToolStripMenuItem item=new ToolStripMenuItem(current.DisplayName.Replace("&","&&")) {Checked=current==manager.ActiveNote};
                         item.Click+=delegate {manager.SetActive(current);};
                         item.DropDownItems.Add(current.UserHidden?"표시":"숨김",null,delegate {manager.ToggleVisibility(current);});
                         item.DropDownItems.Add("삭제",null,delegate {manager.Remove(current);});menu.Items.Add(item);
+                        item.DropDownItems.Add("이름 변경…",null,delegate {manager.ShowRenameNote(current);});
                     }
                     menu.Closed+=delegate {menu.Dispose();};menu.Show(more,new Point(0,more.Height));
                 };
@@ -572,6 +578,7 @@ namespace gInk
         {
             Button b = new Button();
             b.Text = text;
+            b.UseMnemonic=false;
             b.Size = new Size(width, 32);
             b.Margin = new Padding(1, 0, 1, 0);
             b.FlatStyle = FlatStyle.Flat;
@@ -635,6 +642,7 @@ namespace gInk
             paper = new NotePaper();
             paper.BackColor = Color.White;
             paper.Dock = DockStyle.Fill;
+            paper.SizeChanged+=delegate {ResizeMemoEditor();};
             paper.Cursor = Cursors.Cross;
             InitializeNoteShapes();
             paper.MouseDown += PaperMouseDown;
@@ -679,9 +687,15 @@ namespace gInk
 
             Controls.Add(paper);
             Controls.Add(titleBar);
+            InitializeNoteIdentity();
             AddResizeGrips();
             SizeChanged += delegate { PositionGrips(); };
-            Activated += delegate { manager.SetActive(this); };
+            Activated += delegate {
+                // Showing the non-activating switcher can reactivate an owned
+                // note. That is not a pointer selection and must not cancel it.
+                DrawingSession session=manager.CurrentRoot.DrawingSession;
+                if(session==null||!session.SelectingTarget)manager.SetActive(this);
+            };
             PositionGrips();
 
             // Independent ink collector attached only to the paper, never to the title bar.

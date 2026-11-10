@@ -22,6 +22,9 @@ namespace gInk
         private readonly DrawingTargetSwitcher targetSwitcher;
         private bool targetSwitching;
         private int targetSwitchEpoch;
+        private sealed class TargetCommand {internal int Epoch;internal bool Begin,Reverse,Commit;}
+        private readonly Queue<TargetCommand> targetCommands=new Queue<TargetCommand>();
+        private bool processingTargets,targetCommitQueued,repairTargetHook,targetCancelPending;
         private int modifiers;
         private IntPtr hook;
         private bool capsDown, applying, disposed;
@@ -33,7 +36,7 @@ namespace gInk
         public bool CapsOn { get; private set; }
         public bool ToolbarHidden { get; private set; }
         public bool OptionsOpen { get; private set; }
-        public bool SelectingTarget {get{return targetSwitching||targetSwitcher.IsOpen;}}
+        public bool SelectingTarget {get{return targetSwitching||targetSwitcher.IsOpen||targetSwitcher.IsVisible||targetCommands.Count>0;}}
         public ToolbarAppearance Appearance { get; private set; }
         public bool DrawingEnabled { get { return Running && CapsOn && root.FormCollection!=null&&!root.FormCollection.EntryPreparing; } }
         public bool Editing
@@ -124,6 +127,7 @@ namespace gInk
             if(disposed)return;
             Running = false;
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
+            targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
             cursorHalo.Stop();
             modeBorder.Update(false);
@@ -142,6 +146,7 @@ namespace gInk
             if (code >= 0 && Running)
             {
                 int key = Marshal.ReadInt32(data);
+                int eventFlags=Marshal.ReadInt32(data,8);
                 bool down = message.ToInt32() == 0x100 || message.ToInt32() == 0x104;
                 bool up = message.ToInt32() == 0x101 || message.ToInt32() == 0x105;
                 int bit=ModifierBit(key);
@@ -155,21 +160,23 @@ namespace gInk
                 }
                 if(up&&(bit&48)!=0&&(modifiers&48)==0&&targetSwitching)
                 {
-                    int epoch=targetSwitchEpoch;targetSwitching=false;
-                    Post(delegate {if(epoch==targetSwitchEpoch&&DrawingEnabled){targetSwitcher.Commit();RefreshDrawingTarget();}});
+                    targetSwitching=false;QueueTargetCommit();
                 }
                 // Always release swallowed keys, even if Caps/modifiers changed
                 // before key-up. Nothing is intercepted while Caps is off.
                 if (up && consumed.Remove(key)) return new IntPtr(1);
                 if (down && consumed.Contains(key)) return new IntPtr(1);
-                bool altHeld=(modifiers&48)!=0;
+                // The event context remains reliable when a modifier-up was missed.
+                bool altHeld=key==9?(eventFlags&0x20)!=0:(modifiers&48)!=0;
+                if(key==9&&!altHeld)modifiers&=~48;
                 if(down&&firstPress&&DrawingEnabled&&key==9&&altHeld&&(modifiers&(12|192))==0&&
                     root.Snapping==0&&!root.UponTakingSnap&&(!Editing||SelectingTarget))
                 {
                     bool begin=!targetSwitching,reverse=(modifiers&3)!=0;
                     if(begin)targetSwitchEpoch++;
-                    int epoch=targetSwitchEpoch;targetSwitching=true;consumed.Add(key);
-                    Post(delegate {BeginTargetStep(epoch,begin,reverse);});return new IntPtr(1);
+                    targetSwitching=true;consumed.Add(key);
+                    targetCommands.Enqueue(new TargetCommand {Epoch=targetSwitchEpoch,Begin=begin,Reverse=reverse});
+                    Post(ProcessTargetCommands);return new IntPtr(1);
                 }
                 if(down&&SelectingTarget&&key==0x1b)
                 {
@@ -229,6 +236,8 @@ namespace gInk
         public void ApplyMode()
         {
             if (!Running || disposed || applying || root.FormCollection == null || !root.FormCollection.Visible||root.FormCollection.EntryPreparing) return;
+            ReconcileTargetKeys();ProcessTargetCommands();
+            if(!CapsOn&&applied!=CapsOn&&root.Whiteboards!=null)root.Whiteboards.FinishMemoEditors();
             if(SelectingTarget&&(!CapsOn||OptionsOpen||ModalWindowOpen()||(root.FormOptions!=null&&root.FormOptions.Visible)))CancelTargetSelection(false);
             root.FormCollection.UpdateCompactStatus();
             bool editing=Editing;
@@ -283,21 +292,74 @@ namespace gInk
             keybd_event(0x14, 0x3a, 2, UIntPtr.Zero);
         }
 
-        private void BeginTargetStep(int epoch,bool begin,bool reverse)
+        private void QueueTargetCommit()
         {
-            if(epoch!=targetSwitchEpoch)return;
-            if(!DrawingEnabled||OptionsOpen||ModalWindowOpen()||(root.Whiteboards!=null&&root.Whiteboards.IsEditingText)||
-                root.FingerInAction||root.FormCollection.IsToolbarDragging||root.FormCollection.ScreenContentBusy||
-                root.FormCollection.IC.CollectingInk||(root.Whiteboards!=null&&root.Whiteboards.HasBusyInk))
-            {CancelTargetSelection(false);return;}
-            if(begin)targetSwitcher.Cancel();keyTips.Hide();targetSwitcher.Step(reverse);RefreshDrawingTarget();
+            if(targetCommitQueued)return;
+            targetCommitQueued=true;targetCommands.Enqueue(new TargetCommand {Epoch=targetSwitchEpoch,Commit=true});Post(ProcessTargetCommands);
+        }
+        private void ReconcileTargetKeys()
+        {
+            // Poll outside the low-level hook, after Windows updates key state.
+            if(!Down(9)){heldReservedKeys.Remove(9);consumed.Remove(9);}
+            bool alt=Down(0x12)||Down(0xa4)||Down(0xa5);
+            if(!alt)
+            {
+                modifiers&=~48;
+                if(SelectingTarget&&!targetCommitQueued)
+                {targetSwitching=false;repairTargetHook=true;QueueTargetCommit();}
+            }
+            if(repairTargetHook&&!SelectingTarget&&!alt&&!Down(9)&&!processingTargets)
+            {
+                // Windows can silently remove a timed-out hook. Recover our own
+                // hook only after an unmatched release, with the gesture finished.
+                repairTargetHook=false;
+                if(hook!=IntPtr.Zero)UnhookWindowsHookEx(hook);
+                hook=SetWindowsHookEx(13,hookCallback,GetModuleHandle(null),0);
+                if(hook==IntPtr.Zero)Stop();
+            }
+        }
+        private void ProcessTargetCommands()
+        {
+            if(processingTargets||targetCommands.Count==0)return;
+            processingTargets=true;
+            try
+            {
+                while(targetCommands.Count>0)
+                {
+                    TargetCommand command=targetCommands.Dequeue();if(command.Epoch!=targetSwitchEpoch)continue;
+                    if(!DrawingEnabled||OptionsOpen||ModalWindowOpen()||(root.Whiteboards!=null&&root.Whiteboards.IsEditingText))
+                    {CancelTargetSelection(false);break;}
+                    if(command.Commit)
+                    {
+                        targetCommitQueued=false;targetSwitching=false;
+                        targetSwitcher.Commit();RefreshDrawingTarget();continue;
+                    }
+                    // Native COM calls can pump a release while opening the list.
+                    // Reentrant dispatch only enqueues it; this outer loop commits
+                    // after Step has completely finished constructing the window.
+                    if(command.Begin&&(root.FingerInAction||root.FormCollection.IsToolbarDragging||root.FormCollection.ScreenContentBusy||
+                        root.FormCollection.IC.CollectingInk||(root.Whiteboards!=null&&root.Whiteboards.HasBusyInk)))
+                    {CancelTargetSelection(false);break;}
+                    if(command.Epoch!=targetSwitchEpoch)continue;
+                    if(command.Begin)targetSwitcher.Cancel();keyTips.Hide();targetSwitcher.Step(command.Reverse);
+                    if(command.Epoch!=targetSwitchEpoch)targetSwitcher.Cancel();
+                }
+            }
+            finally
+            {
+                processingTargets=false;
+                if(targetCancelPending){targetCancelPending=false;targetSwitcher.Cancel();}
+                if(!targetSwitching&&targetCommands.Count==0&&targetCommitQueued)targetCommitQueued=false;
+            }
         }
         private void CancelTargetSelection(bool suppressKeys)
         {
-            targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
+            targetSwitching=false;targetSwitchEpoch++;targetCommands.Clear();targetCommitQueued=false;
+            if(processingTargets)targetCancelPending=true;else targetSwitcher.Cancel();
             if(suppressKeys&&root.Whiteboards!=null)root.Whiteboards.TextEditingEnded();
             RefreshDrawingTarget();
         }
+        internal void NoteLabelChanged(){targetSwitcher.RefreshLabels();}
         internal void DrawingTargetChanged()
         {
             if(SelectingTarget)CancelTargetSelection(false);

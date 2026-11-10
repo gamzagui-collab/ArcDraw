@@ -164,7 +164,8 @@ namespace gInk
                 // Layout dimensions are device pixels. Point fonts would be
                 // scaled again by Windows and truncate compact labels.
                 using(var font=new Font("Malgun Gothic",skin.Labels?11f:12f,FontStyle.Regular,GraphicsUnit.Pixel))
-                    TextRenderer.DrawText(g,text,font,textArea,button.ForeColor,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine|TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g,text,font,textArea,button.ForeColor,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine|TextFormatFlags.NoPadding|
+                        (button.UseMnemonic?TextFormatFlags.Default:TextFormatFlags.NoPrefix));
             }
             if(shortcut!="")
             {

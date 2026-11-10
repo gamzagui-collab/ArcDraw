@@ -33,7 +33,7 @@ namespace gInk
             List<NoteTextItem> result = new List<NoteTextItem>();
             foreach (NoteTextItem item in items) result.Add(new NoteTextItem {
                 Position=item.Position, Content=item.Content, Color=item.Color, FontFamily=item.FontFamily,
-                FontSize=item.FontSize, FontStyle=item.FontStyle, LayoutWidth=item.LayoutWidth });
+                FontSize=item.FontSize, FontStyle=item.FontStyle, LayoutWidth=item.LayoutWidth, IsMemo=item.IsMemo });
             return result;
         }
 
