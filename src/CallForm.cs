@@ -18,11 +18,16 @@ namespace gInk
         public bool FirstActivation = true;
         private int AltTabPressed = 0;
         private Image backImg = null;
+        private bool drawingStartPending;
         public CallForm(Root r)
         {
             InitializeComponent();
             Root = r;
-            backImg = FormCollection.getImgFromDiskOrRes("FloatingCall");
+            Text=ArcDrawBranding.Name;
+            BackColor=Color.Magenta;TransparencyKey=Color.Magenta;
+            Icon=ArcDrawBranding.CreateIcon();
+            backImg=ArcDrawBranding.CreateImage();
+            Disposed+=delegate {backImg.Dispose();Icon.Dispose();};
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -39,7 +44,7 @@ namespace gInk
         private void CallForm_KeyPress(object sender, KeyPressEventArgs e)
         {
             if(e.KeyChar=='\n' || e.KeyChar==' ')
-                Root.callshortcut();
+                QueueDrawingStart();
         }
 
         private void CallForm_Activated(object sender, EventArgs e)
@@ -57,7 +62,18 @@ namespace gInk
         private void CallForm_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
-                Root.callshortcut();
+                QueueDrawingStart();
+        }
+
+        private void QueueDrawingStart()
+        {
+            if(drawingStartPending||IsDisposed)return;
+            drawingStartPending=true;
+            // Let the launcher release mouse capture before activating Ink.
+            BeginInvoke(new Action(delegate {
+                drawingStartPending=false;
+                if(!IsDisposed)Root.callshortcut();
+            }));
         }
 
         private void _MouseMove(object sender, MouseEventArgs e)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Collections.Generic;
 using System.Text;
@@ -106,7 +106,24 @@ namespace gInk
             {
                 //Keys key = (Keys)(((int)m.LParam >> 16) & 0xFFFF);                  // The key of the hotkey that was pressed.
                 //int modifier = (int)m.LParam & 0xFFFF;       // The modifier of the hotkey that was pressed.
+                if (m.Msg == 0x0312 && Root != null && Root.Whiteboards != null &&
+                    Root.Whiteboards.SuppressKeyboardShortcuts) return true;
+                if (m.Msg == 0x0312 && Root != null && Root.DrawingSession != null && Root.DrawingSession.Editing) return true;
                 int id = (m.Msg == 0x0312)?m.WParam.ToInt32():0;                                        // The id of the hotkey that was pressed.
+                if (id == 2) // Whiteboard note: Ctrl+Shift+B
+                {
+                    if (Root != null)
+                    {
+                        if (Root.FormCollection == null || !Root.FormCollection.Visible) Root.StartInk();
+                        if (Root.Whiteboards != null) Root.Whiteboards.AddNote();
+                    }
+                    return true;
+                }
+                if (id == 3) // Toggle current note: Ctrl+Shift+H
+                {
+                    if (Root != null && Root.Whiteboards != null) Root.Whiteboards.ToggleActive();
+                    return true;
+                }
                 if(id ==1)      // Hotkey_CreateIndex;
                 {
                     Root?.FormCollection?.AddM3UEntry(null);
@@ -368,6 +385,8 @@ namespace gInk
 		public ContextMenu trayMenu;
 		public FormCollection FormCollection;
 		public FormDisplay FormDisplay;
+        public WhiteboardLayerManager Whiteboards;
+        public DrawingSession DrawingSession;
 		public FormButtonHitter FormButtonHitter;
 		public FormOptions FormOptions;
 
@@ -554,12 +573,14 @@ namespace gInk
             FormButtonHitter = new FormButtonHitter(this);
             FormDisplay = new FormDisplay(this);  // FormDisplay is created at the end to ensure other objects are created.
             UndoStrokes = new Ink[8];
+            Whiteboards = new WhiteboardLayerManager(this);
+            DrawingSession = new DrawingSession(this);
 
             APIRest = new APIRest(this);
 
             Size size = SystemInformation.SmallIconSize;
 			trayIcon = new NotifyIcon();
-			trayIcon.Text = "ppInk";
+			trayIcon.Text = ArcDrawBranding.Name;
 			trayIcon.ContextMenu = trayMenu;
 			trayIcon.Visible = true;
 			trayIcon.MouseClick += TrayIcon_Click;
@@ -635,6 +656,7 @@ namespace gInk
 
 		public void StartInk()
 		{
+            if (DrawingSession != null) DrawingSession.RememberForegroundApplication();
             
             if (FormCollection == null)
                 FormCollection = new FormCollection(this);
@@ -646,10 +668,12 @@ namespace gInk
                 UndoStrokes = new Ink[8];           
             if (FormDisplay.Visible|| FormCollection.Visible)
 				return;
+            FormCollection.BeginInputEntry();
+            try
+            {
             FormCollection.Initialize();
             FormButtonHitter.Initialize();
             FormDisplay.Initialize();
-
             Docked = KeepDockedAtOpen;//false;
             PointerMode = false; // we have to reset pointer mode when starting drawing;
             ResizeDrawingWindow = false;
@@ -668,9 +692,8 @@ namespace gInk
 			SelectPen(CurrentPen);
 			SetInkVisible(true);
 			FormCollection.ButtonsEntering = 1;
-			FormDisplay.Show();
+            // The almost-transparent input window stays click-through until ready.
 			FormCollection.Show();
-			FormDisplay.DrawButtons(true);
 
             for (int i = 0; i < UndoStrokes.Length; i++)
                 UndoStrokes[i] = null;
@@ -678,10 +701,32 @@ namespace gInk
             UndoDepth = 0;
             UndoP = 0;
 
-            SetForegroundWindow(FormCollection.Handle);
+            if (DrawingSession != null) DrawingSession.Start();
+            FormCollection.PrepareEntryLayout();
+            FormDisplay.ClearCanvus();FormDisplay.DrawStrokes();FormDisplay.DrawButtons(true);
+            FormDisplay.UpdateFormDisplay(true);
+            UponAllDrawingUpdate=false;UponButtonsUpdate=0;
+            FormDisplay.Show();
+            if (Whiteboards != null) Whiteboards.Show();
+            if (DrawingSession != null)DrawingSession.FocusEntryWindow();
+            FormCollection.EndInputEntry();
+            if (DrawingSession != null){DrawingSession.ApplyMode();DrawingSession.QueueDrawingFocus();}
+            }
+            finally {if(FormCollection.EntryPreparing)FormCollection.EndInputEntry();}
         }
         public void StopInk()
 		{
+            // Suspend native contexts while the HWND is still visible. Never
+            // disable a collector from its callback or while it is collecting.
+            if(FormCollection.ScreenContentBusy||FormCollection.IC.CollectingInk)
+            {
+                FormCollection.ButtonsEntering=-9;
+                FormCollection.tiSlide.Enabled=true;
+                return;
+            }
+            if(FormCollection.IC.Enabled)FormCollection.IC.Enabled=false;
+            if (DrawingSession != null) DrawingSession.Stop();
+            if (Whiteboards != null) Whiteboards.Hide();
             FormCollection.Initializing = true;
             try { FormCollection.Hide(); FormCollection.tiSlide.Enabled = false; } catch { }
             try { FormDisplay.Hide(); FormDisplay.timer1.Enabled = false; } catch { }
@@ -818,6 +863,7 @@ namespace gInk
 
 		public void RedoInk()
 		{
+            if (Whiteboards != null && Whiteboards.HandleSelectedContent(false, true)) return;
 			if (RedoDepth <= 0)
 				return;
 
@@ -1022,23 +1068,12 @@ namespace gInk
             AutoSaveStrokesAtExit = true;
 		}
 
-		public void SetTrayIconColor()
-		{
-			if (WhiteTrayIcon)
-			{
-				if (File.Exists("icon_white.ico"))
-					trayIcon.Icon = new Icon("icon_white.ico");
-				else
-					trayIcon.Icon = global::gInk.Properties.Resources.icon_white;
-			}
-			else
-			{
-				if (File.Exists("icon_red.ico"))
-					trayIcon.Icon = new Icon("icon_red.ico");
-				else
-					trayIcon.Icon = global::gInk.Properties.Resources.icon_red;
-			}
-		}
+        public void SetTrayIconColor()
+        {
+            Icon previous=trayIcon.Icon;
+            trayIcon.Icon=ArcDrawBranding.CreateIcon();
+            if(previous!=null)previous.Dispose();
+        }
 
         private int GetPenNumber(string sName)
         {
@@ -2702,8 +2737,7 @@ namespace gInk
 
 		private void OnAbout(object sender, EventArgs e)
 		{
-			FormAbout FormAbout = new FormAbout();
-			FormAbout.Show();
+            ArcDrawBranding.ShowInfo(FormCollection);
 		}
 		/*
 		private void OnPenSetting(object sender, EventArgs e)
@@ -2725,8 +2759,12 @@ namespace gInk
 		}
 
         public void SetHotkey()
-		{
-			int modifier = 0;
+        {
+            // Register two additional global shortcuts without changing ppInk's originals.
+            // If another app owns the shortcut, the layer toolbar buttons still work.
+            RegisterHotKey(IntPtr.Zero, 2, 0x2 | 0x4, (int)Keys.B);
+            RegisterHotKey(IntPtr.Zero, 3, 0x2 | 0x4, (int)Keys.H);
+            int modifier = 0;
 			if (Hotkey_Global.Control) modifier |= 0x2;
 			if (Hotkey_Global.Alt) modifier |= 0x1;
 			if (Hotkey_Global.Shift) modifier |= 0x4;
@@ -2748,7 +2786,9 @@ namespace gInk
         public void UnsetHotkey()
 		{
             try {  UnregisterHotKey(IntPtr.Zero, 0); } catch { }
-            try { UnregisterHotKey(IntPtr.Zero, 1); } catch { }
+            try {  UnregisterHotKey(IntPtr.Zero, 1); } catch { }
+            try {  UnregisterHotKey(IntPtr.Zero, 2); } catch { }
+            try {  UnregisterHotKey(IntPtr.Zero, 3); } catch { }
         }
 
         public void ChangeLanguage(string filename)
@@ -2764,9 +2804,11 @@ namespace gInk
 
 		private void OnExit(object sender, EventArgs e)
 		{
+			if (DrawingSession != null) DrawingSession.Dispose();
 			UnsetHotkey();
 
-			trayIcon.Dispose();
+			            if (Whiteboards != null) Whiteboards.Dispose();
+            trayIcon.Dispose();
 			Application.Exit();
 		}
 
@@ -2902,7 +2944,8 @@ public int PixelToHiMetric(double pi)
 
         public void AppGetFocus()
         {
-            SetForegroundWindow(Process.GetCurrentProcess().MainWindowHandle);
+            IntPtr target=FormCollection!=null&&FormCollection.Visible?FormCollection.Handle:Process.GetCurrentProcess().MainWindowHandle;
+            SetForegroundWindow(target);
         }
 
         public bool ContainsInsensitive(StringCollection Arr, string key)

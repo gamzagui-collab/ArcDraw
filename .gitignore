@@ -16,3 +16,13 @@ ppinks
 .vs/
 media/
 src/obj/x64/
+
+# Local development / personal ink data
+_whiteboard_backup_*/
+**/obj/
+**/bin/
+snapshots/
+**/snapshots/
+*.strokes.txt
+crash*.txt
+ppInk/toolbar-ui.ini

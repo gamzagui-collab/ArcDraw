@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -89,6 +89,7 @@ namespace gInk
         public void Initialize() 
         /// part of the Constructor to be called everytime the window is displayed at startInking
         {
+            ReleaseCanvasResources();
             if (Root.WindowRect.Width <= 0 || Root.WindowRect.Height <= 0)
             {
                 this.Left = SystemInformation.VirtualScreen.Left;
@@ -148,7 +149,7 @@ namespace gInk
             //this.DoubleBuffered = true;
 
             int gpheight = (int)(Screen.PrimaryScreen.Bounds.Height * Root.ToolbarHeight);
-            gpButtonsImage = new Bitmap(2000, 2000, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            gpButtonsImage = new Bitmap(Math.Max(1,Root.FormCollection.gpButtonsWidth), Math.Max(1,Root.FormCollection.gpButtonsHeight), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             gpPenWidthImage = new Bitmap(200, 200, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             gpSubToolsImage = new Bitmap(500, 500, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             TransparentBrush = new SolidBrush(Color.Transparent);
@@ -228,6 +229,7 @@ namespace gInk
 
 		public void ClearCanvus()
 		{
+            InvalidateRenderCache();
             //gCanvus.Clear(Color.Transparent);
             ClearCanvus(gCanvus);
 		}
@@ -281,7 +283,7 @@ namespace gInk
 
         public void DrawButtons(Graphics g, bool redrawbuttons=true, bool exiting = false)
 		{
-			if (Root.AlwaysHideToolbar)
+			if (Root.AlwaysHideToolbar || (Root.DrawingSession != null && Root.DrawingSession.ToolbarHidden))
 				return;
 
 			int top, height, left, width;
@@ -299,6 +301,13 @@ namespace gInk
 			if (left + width > gpbl + fullwidth)
 				drawwidth = gpbl + fullwidth - left;
 
+            if (gpButtonsImage.Width < Root.FormCollection.gpButtonsWidth || gpButtonsImage.Height < Root.FormCollection.gpButtonsHeight)
+            {
+                Bitmap previous = gpButtonsImage;
+                gpButtonsImage = new Bitmap(Root.FormCollection.gpButtonsWidth, Root.FormCollection.gpButtonsHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                previous.Dispose();
+                redrawbuttons = true;
+            }
             if (redrawbuttons && Root.FormCollection.gpButtons.Width>0 && Root.FormCollection.gpButtons.Height>0)
                 Root.FormCollection.gpButtons.DrawToBitmap(gpButtonsImage, new Rectangle(0, 0, Root.FormCollection.gpButtonsWidth, Root.FormCollection.gpButtonsHeight));
 
@@ -1128,6 +1137,8 @@ namespace gInk
         private bool MemoSpotLight = false;
 		public void UpdateFormDisplay(bool draw,bool prepared=false)
 		{
+            if(!prepared||renderingToolbarMove)handFrameValid=false;
+            if(!renderingToolbarMove){toolbarUnderlayValid=false;toolbarMovePending=false;}
 			IntPtr screenDc = GetDC(IntPtr.Zero);
             IntPtr blankcanvusDc = new IntPtr(0) ;
             //Display-rectangle
@@ -1196,6 +1207,8 @@ namespace gInk
             DXAllUpdate |= Root.UponAllDrawingUpdate;
             if (Root.FormCollection == null || !Root.FormCollection.Visible)
                 return; // the initialisation is not yet completed. we wait for
+            if(Root.FormCollection.EntryPreparing||Root.FormCollection.ScreenContentBusy)return;
+            if(!Root.FormCollection.IC.CollectingInk)handFrameValid=false;
 			Tick++;
 
             /*
@@ -1239,11 +1252,12 @@ namespace gInk
                     }
                 }
 
+            if(TryRenderToolbarMove())return;
             if (Root.UponAllDrawingUpdate)
             {
                 ClearCanvus();
                 DrawStrokes();
-                DrawButtons(Root.UponButtonsUpdate > 0);
+                DrawButtons((Root.UponButtonsUpdate & 0x2) != 0);
                 Root.UponButtonsUpdate = 0;
                 if (Root.Snapping > 0)
                     DrawSnapping(Root.SnappingRect);
@@ -1321,11 +1335,9 @@ namespace gInk
 					Stroke stroke = Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count - 1];
 					if ((!stroke.Deleted) && (!Root.FormCollection.ZoomCapturing)&&(Root.ToolSelected == Tools.Hand))
                     {
-                        BitBlt(OutcanvusDc, 0, 0, this.Width, this.Height, canvusDc, 0, 0, 0x00CC0020);
-                        //Root.FormCollection.IC.Renderer.Draw(gOutCanvus, stroke, Root.FormCollection.IC.DefaultDrawingAttributes);
-                        DrawOneStroke(gOutCanvus, stroke, Root.FormCollection.IC.DefaultDrawingAttributes);
+                        if(PrepareHandFrame(stroke))UpdateFormDisplay(true,true);
                     }
-                    UpdateFormDisplay(true, (Root.ToolSelected == Tools.Hand) && (!Root.FormCollection.ZoomCapturing));
+                    else UpdateFormDisplay(true);
                     
                 }
             }
@@ -1478,33 +1490,32 @@ namespace gInk
         }
 
         private void FormDisplay_FormClosed(object sender, FormClosedEventArgs e)
-		{
-			DeleteObject(Canvus);
-            DeleteObject(OutCanvus);
-            DeleteObject(OneStrokeCanvus);
-            //DeleteObject(BlankCanvus);
-            DeleteDC(canvusDc);
-            DeleteDC(OutcanvusDc);
-            DeleteDC(onestrokeDc);
-            if (gpButtonsImage != null)
-                gpButtonsImage.Dispose();
-            if (gpPenWidthImage != null)
-                gpPenWidthImage.Dispose();
-            if (gpSubToolsImage != null)
-                gpSubToolsImage.Dispose();
-            if (TransparentBrush != null)
-                TransparentBrush.Dispose();
-            if (SemiTransparentBrush != null)
-                SemiTransparentBrush.Dispose();
+        {
+            ReleaseCanvasResources();
+        }
 
-            if (Root.AutoScroll)
-			{
-				DeleteObject(hScreenBitmap);
-				DeleteDC(memscreenDc);
-			}
-		}
-
-
+        private void ReleaseCanvasResources()
+        {
+            ReleaseToolbarUnderlay();InvalidateRenderCache();
+            // Graphics objects hold their HDC; bitmaps selected into a DC cannot
+            // be deleted. Release graphics, then DCs, then the selected bitmaps.
+            if (gCanvus != null) { gCanvus.Dispose(); gCanvus = null; }
+            if (gOneStrokeCanvus != null) { gOneStrokeCanvus.Dispose(); gOneStrokeCanvus = null; }
+            if (gOutCanvus != null) { gOutCanvus.Dispose(); gOutCanvus = null; }
+            if (canvusDc != IntPtr.Zero) { DeleteDC(canvusDc); canvusDc = IntPtr.Zero; }
+            if (onestrokeDc != IntPtr.Zero) { DeleteDC(onestrokeDc); onestrokeDc = IntPtr.Zero; }
+            if (OutcanvusDc != IntPtr.Zero) { DeleteDC(OutcanvusDc); OutcanvusDc = IntPtr.Zero; }
+            if (memscreenDc != IntPtr.Zero) { DeleteDC(memscreenDc); memscreenDc = IntPtr.Zero; }
+            if (Canvus != IntPtr.Zero) { DeleteObject(Canvus); Canvus = IntPtr.Zero; }
+            if (OneStrokeCanvus != IntPtr.Zero) { DeleteObject(OneStrokeCanvus); OneStrokeCanvus = IntPtr.Zero; }
+            if (OutCanvus != IntPtr.Zero) { DeleteObject(OutCanvus); OutCanvus = IntPtr.Zero; }
+            if (hScreenBitmap != IntPtr.Zero) { DeleteObject(hScreenBitmap); hScreenBitmap = IntPtr.Zero; }
+            if (gpButtonsImage != null) { gpButtonsImage.Dispose(); gpButtonsImage = null; }
+            if (gpPenWidthImage != null) { gpPenWidthImage.Dispose(); gpPenWidthImage = null; }
+            if (gpSubToolsImage != null) { gpSubToolsImage.Dispose(); gpSubToolsImage = null; }
+            if (TransparentBrush != null) { TransparentBrush.Dispose(); TransparentBrush = null; }
+            if (SemiTransparentBrush != null) { SemiTransparentBrush.Dispose(); SemiTransparentBrush = null; }
+        }
 
 
         public bool HasFocus()

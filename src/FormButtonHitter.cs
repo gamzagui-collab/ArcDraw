@@ -60,7 +60,7 @@ namespace gInk
                 Form f = Control.FromHandle(msg.LParam) as Form;
                 if (DateTime.Now < Root.PointerChangeDate || (msg.WParam == IntPtr.Zero && msg.LParam == IntPtr.Zero) || (msg.WParam == IntPtr.Zero && msg.LParam != IntPtr.Zero && f!=null && f?.CompanyName != CompanyName))
                     return;
-                if (Root.PointerMode)
+                if (Root.PointerMode && (Root.DrawingSession == null || !Root.DrawingSession.Running))
                 {
                     //Console.WriteLine("activating from hitter " + (Root.PointerMode ? "pointer" : "not") + (Root.Docked ? "docked" : "not"));
                     Root.FormCollection.AltTabActivate();
@@ -101,6 +101,7 @@ namespace gInk
 
 		public void timer1_Tick(object sender, EventArgs e)
 		{
+            if(Root.DrawingSession!=null&&Root.DrawingSession.ToolbarHidden) { if(Visible)Hide();return; }
 			if (true||this.Visible)  // we force resizing weither visible or not in order to have the good size during alt+tab
 			{
 				this.Left = FC.gpButtons.Left + FC.Left;

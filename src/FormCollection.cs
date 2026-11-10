@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.IO;
 using System.Collections.Generic;
@@ -213,6 +213,8 @@ namespace gInk
                 scale = float.Parse(namesize[1], CultureInfo.InvariantCulture);
             try
             {
+            try
+            {
                 {
                     string[] exts = { ".cur", ".ico" };
                     foreach (string ext in exts)
@@ -243,7 +245,9 @@ namespace gInk
                             try
                             {
                                 curs = new System.Windows.Forms.Cursor(filename);
-                                return curs;
+                                System.Windows.Forms.Cursor animated = curs;
+                                curs = null;
+                                return animated;
                             }
                             catch (Exception e)
                             {
@@ -307,11 +311,18 @@ namespace gInk
             {
                 bmp.MakeTransparent(bmp.GetPixel(0, 0));
             }
-            Bitmap imgout = new Bitmap((int)Math.Round(cursorsize[0] * scale), (int)Math.Round(cursorsize[1] * scale), PixelFormat.Format32bppArgb);
-            Graphics myGraphics = Graphics.FromImage(imgout);
-            myGraphics.DrawImage(bmp, 0, 0, imgout.Width, imgout.Height);
-            myGraphics.Dispose();
-            return CreateCursorFromBitmap(imgout, (int)Math.Round(hotSpot[0] * scale), (int)Math.Round(hotSpot[1] * scale));
+            using (Bitmap imgout = new Bitmap((int)Math.Round(cursorsize[0] * scale), (int)Math.Round(cursorsize[1] * scale), PixelFormat.Format32bppArgb))
+            {
+                using (Graphics myGraphics = Graphics.FromImage(imgout))
+                    myGraphics.DrawImage(bmp, 0, 0, imgout.Width, imgout.Height);
+                return CreateCursorFromBitmap(imgout, (int)Math.Round(hotSpot[0] * scale), (int)Math.Round(hotSpot[1] * scale));
+            }
+            }
+            finally
+            {
+                if (bmp != null) bmp.Dispose();
+                if (curs != null) curs.Dispose();
+            }
         }
 
         string[] ImageExts = { ".png" };
@@ -379,6 +390,7 @@ namespace gInk
             Pen p = new Pen(col, 2);
             g.DrawLine(p, (1F - .25F * i / 150.0F) * b.Width, (.25F * i / 150.0F) * b.Height, (.25F * j / 150.0F) * b.Width, (1F - .25F * j / 150.0F) * b.Height);
             b1.Dispose();
+            p.Dispose();
             g.Dispose();
             return b;
         }
@@ -458,6 +470,8 @@ namespace gInk
             g.DrawImage(Overlay, new Rectangle(0, 0, img.Width, img.Height), 0, 0, img.Width, img.Height, GraphicsUnit.Pixel);
             Overlay.Dispose();
             fg.Dispose();
+            g.Dispose();
+            imageAttributes.Dispose();
             return img;
         }
 
@@ -478,16 +492,8 @@ namespace gInk
         /// Create a cursor from a bitmap, with the hot spot in the middle
         public static System.Windows.Forms.Cursor CreateCursorFromBitmap(Bitmap bmp, int hotX = -1, int hotY = -1)
         {
-            IntPtr ptr = (bmp).GetHicon();
-            IconInfo tmp = new IconInfo();
-            GetIconInfo(ptr, ref tmp);
-            tmp.xHotspot = hotX >= 0 ? hotX : (bmp.Width / 2);
-            tmp.yHotspot = hotY >= 0 ? hotY : (bmp.Height / 2);
-            tmp.fIcon = false;
-            ptr = CreateIconIndirect(ref tmp);
-            System.Windows.Forms.Cursor cu = new System.Windows.Forms.Cursor(ptr);
-            cu.Tag = 2;
-            return cu;
+            return CreateOwnedCursor(bmp, hotX >= 0 ? hotX : bmp.Width / 2,
+                hotY >= 0 ? hotY : bmp.Height / 2);
         }
 
         public Bitmap buildColorPicker(Color col, int transparency)
@@ -509,6 +515,8 @@ namespace gInk
             Graphics g = Graphics.FromImage(dest);
             g.DrawImage(img, new Rectangle(0, 0, img.Width, img.Height), 0, 0, img.Width, img.Height, GraphicsUnit.Pixel, imageAttributes);
             img.Dispose();
+            g.Dispose();
+            imageAttributes.Dispose();
             return dest;
         }
 
@@ -523,6 +531,7 @@ namespace gInk
 
             //Console.WriteLine("A=" + (DateTime.Now.Ticks/1e7).ToString());
             InitializeComponent();
+            Disposed += delegate { DisposePenTip(); DisposeToolbarFonts(); };
 
             //Console.WriteLine("B=" + (DateTime.Now.Ticks/1e7).ToString());
             ClipartsDlg = new ImageLister(Root);
@@ -563,13 +572,13 @@ namespace gInk
             IC.AutoRedraw = false;
             IC.DynamicRendering = false;
             IC.EraserMode = InkOverlayEraserMode.StrokeErase;
-            IC.CursorInRange += IC_CursorInRange;
-            IC.MouseDown += IC_MouseDown;
-            IC.MouseMove += IC_MouseMove;
-            IC.MouseUp += IC_MouseUp;
-            IC.CursorDown += IC_CursorDown;
-            IC.MouseWheel += IC_MouseWheel;
-            IC.Stroke += IC_Stroke;
+            IC.CursorInRange += (sender, args) => RunScreenInkWork(delegate { IC_CursorInRange(sender,args); });
+            IC.MouseDown += (sender, args) => RunScreenInkWork(delegate { IC_MouseDown(sender,args); });
+            IC.MouseMove += (sender, args) => RunScreenInkWork(delegate { IC_MouseMove(sender,args); });
+            IC.MouseUp += (sender, args) => RunScreenInkWork(delegate { IC_MouseUp(sender,args); });
+            IC.CursorDown += (sender, args) => RunScreenInkWork(delegate { IC_CursorDown(sender,args); });
+            IC.MouseWheel += (sender, args) => RunScreenInkWork(delegate { IC_MouseWheel(sender,args); });
+            IC.Stroke += (sender, args) => RunScreenInkWork(delegate { IC_Stroke(sender,args); });
 
             StrokesSelection = IC.Ink.CreateStrokes();
 
@@ -872,7 +881,7 @@ namespace gInk
                 btClipArt.Width = dim1s;
                 btClipArt.Visible = true;
                 btClipArt.Text = "";
-                btClipArt.Font = new Font(btClipArt.Font.Name, dim1s * .5F, btClipArt.Font.Style);
+                ReplaceClipFont(new Font(btClipArt.Font.Name, dim1s * .5F, btClipArt.Font.Style));
                 SetButtonPosition(btText, btClipArt, dim3);
                 btClip1.Height = dim1s;
                 btClip1.Width = dim1s;
@@ -884,13 +893,12 @@ namespace gInk
                 {
                     if ((btClip1.Tag as ClipArtData)?.ImageStamp != Root.ImageStamp1.ImageStamp)
                     {
-                        btClip1.BackgroundImage.Dispose();
                         throw (new Exception("Renew button"));
                     }
                 }
                 catch
                 {
-                    btClip1.BackgroundImage = getImgFromDiskOrRes(Root.ImageStamp1.ImageStamp, ImageExts);
+                    ReplaceButtonImage(btClip1, getImgFromDiskOrRes(Root.ImageStamp1.ImageStamp, ImageExts));
                     //btClip1.Tag = new ClipArtData { ImageStamp = Root.ImageStamp1.ImageStamp, X=Root.ImageStamp1.Wstored, Y = Root.ImageStamp1.Hstored, Filling = Root.ImageStamp1.Filling };
                     btClip1.Tag = Root.ImageStamp1.Clone();
                 }
@@ -904,13 +912,12 @@ namespace gInk
                 {
                     if ((btClip2.Tag as ClipArtData)?.ImageStamp != Root.ImageStamp2.ImageStamp)
                     {
-                        btClip2.BackgroundImage.Dispose();
                         throw (new Exception("Renew button"));
                     }
                 }
                 catch
                 {
-                    btClip2.BackgroundImage = getImgFromDiskOrRes(Root.ImageStamp2.ImageStamp, ImageExts);
+                    ReplaceButtonImage(btClip2, getImgFromDiskOrRes(Root.ImageStamp2.ImageStamp, ImageExts));
                     //btClip2.Tag = new ClipArtData { ImageStamp = Root.ImageStamp2.ImageStamp, X = Root.ImageStamp2.Wstored, Y = Root.ImageStamp2.Wstored, Filling = Root.ImageStamp2.Filling };
                     btClip2.Tag = Root.ImageStamp2.Clone();
                 }
@@ -924,13 +931,12 @@ namespace gInk
                 {
                     if ((btClip3.Tag as ClipArtData)?.ImageStamp != Root.ImageStamp3.ImageStamp)
                     {
-                        btClip3.BackgroundImage.Dispose();
                         throw (new Exception("Renew button"));
                     }
                 }
                 catch
                 {
-                    btClip3.BackgroundImage = getImgFromDiskOrRes(Root.ImageStamp3.ImageStamp, ImageExts);
+                    ReplaceButtonImage(btClip3, getImgFromDiskOrRes(Root.ImageStamp3.ImageStamp, ImageExts));
                     //btClip3.Tag = new ClipArtData { ImageStamp = Root.ImageStamp3.ImageStamp, X = Root.ImageStamp3.Wstored, Y = Root.ImageStamp3.Wstored, Filling = Root.ImageStamp3.Filling};
                     btClip3.Tag = Root.ImageStamp3.Clone();
                 }
@@ -980,7 +986,7 @@ namespace gInk
                 btPan.Height = dim1s;
                 btPan.Width = dim1s;
                 btPan.Visible = true;
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan", ImageExts));
                 SetSmallButtonNext(prev, btPan, dim2s);
 
                 btEdit.Height = dim1s;
@@ -1324,7 +1330,7 @@ namespace gInk
             }
 
             IC.Ink.Strokes.Clear();
-            IC.Enabled = true;
+            // StartInk enables collection after the window and input area are ready.
 
             LastTickTime = DateTime.Parse("1987-01-01");
             tiSlide.Enabled = true;
@@ -1428,6 +1434,7 @@ namespace gInk
             PageMax = 0;
 
             Console.WriteLine("C=" + (DateTime.Now.Ticks / 1e7).ToString());
+            CaptureToolbarAppearanceBase();
         }
 
         private void SetSubBarPosition(Panel Tb, Button RefButton)
@@ -1628,7 +1635,7 @@ namespace gInk
                 if (Root.FormDisplay == null || !Root.FormDisplay.Visible)
                     return;
 
-                if (!Root.AltTabPointer || DateTime.Now < Root.PointerChangeDate)
+                if ((Root.DrawingSession != null && Root.DrawingSession.Running) || !Root.AltTabPointer || DateTime.Now < Root.PointerChangeDate)
                     return;
 
                 if (msg.WParam == IntPtr.Zero)      // WParam = 0 => losing Focus ; WParam = 1 => Getting Focus
@@ -3073,6 +3080,9 @@ namespace gInk
 
         private void IC_CursorDown(object sender, InkCollectorCursorDownEventArgs e)
         {
+            Control hit = Control.FromHandle(WindowFromPoint(System.Windows.Forms.Cursor.Position));
+            if (Root.Whiteboards != null && hit != null && hit.FindForm() == this &&
+                !gpButtons.ClientRectangle.Contains(gpButtons.PointToClient(System.Windows.Forms.Cursor.Position))) Root.Whiteboards.SelectScreen();
             Console.WriteLine("CursorDown :" + e.Cursor.Tablet.DeviceKind.ToString());
             if (e.Cursor.Inverted)
             {
@@ -3853,6 +3863,47 @@ namespace gInk
                 return string.Format(MeasureNumberFormat, Root.Local.FormaTotalLength, ConvertMeasureLength(sum), Root.Measure2Unit, c);
         }
 
+        internal bool EntryPreparing {get;private set;}
+        internal void BeginInputEntry()
+        {
+            // Finish layout and the input rectangle before accepting a native stroke.
+            EntryPreparing=true;
+            ToThrough();
+            if(IC.Enabled)IC.Enabled=false;
+        }
+        internal void PrepareEntryLayout()
+        {
+            SetCompactHeaderGeometry(Root.Docked);
+            Size size=Root.Docked?CompactDockSize:new Size(gpButtonsWidth,gpButtonsHeight);
+            Point position=new Point(gpButtonsLeft,gpButtonsTop);
+            if(Root.Docked&&Root.ToolbarOrientation<=Orientation.Horizontal)position.X+=gpButtonsWidth-size.Width;
+            gpButtons.Bounds=new Rectangle(position,size);VisibleToolbar=size;
+            PrepareOpeningBackground();
+            ButtonsEntering=0;LastTickTime=DateTime.Now;
+            ActivateStrokesInput(true);
+            SetWindowInputRectFlag=false;
+        }
+        internal void EndInputEntry()
+        {
+            if(!EntryPreparing)return;
+            if(!IC.Enabled)IC.Enabled=true;
+            EntryPreparing=false;Initializing=false;
+            if(Root.DrawingSession!=null&&Root.DrawingSession.DrawingEnabled)ToUnThrough();
+        }
+
+        private void PrepareOpeningBackground()
+        {
+            // Keep the original optional board-at-opening behavior during entry.
+            if (Root.Snapping != 0 || IC.Ink.Strokes.Count != 0) return;
+            if (Root.BoardAtOpening == 1 || (Root.BoardAtOpening == 4 && Root.BoardSelected == 1))
+                AddBackGround(255, 255, 255, 255);
+            else if (Root.BoardAtOpening == 2 || (Root.BoardAtOpening == 4 && Root.BoardSelected == 2))
+                AddBackGround(Root.Gray1[0], Root.Gray1[1], Root.Gray1[2], Root.Gray1[3]);
+            else if (Root.BoardAtOpening == 3 || (Root.BoardAtOpening == 4 && Root.BoardSelected == 3))
+                AddBackGround(255, 0, 0, 0);
+            if (Root.BoardAtOpening != 4) Root.BoardSelected = Root.BoardAtOpening;
+        }
+
         public void ActivateStrokesInput(bool active)
         {
             // note: the "rectangle" defines the area IC is covering : when active, the cursor is IC.Cursor but it is this.Cursor when not active
@@ -3904,6 +3955,7 @@ namespace gInk
 
         public void ToUnThrough()
         {
+            if(EntryPreparing)return;
             UInt32 dwExStyle = GetWindowLong(this.Handle, -20);
             //SetWindowLong(this.Handle, -20, (uint)(dwExStyle & ~0x00080000 & ~0x0020));
             SetWindowLong(this.Handle, -20, (uint)(dwExStyle & ~0x0020));
@@ -3927,12 +3979,12 @@ namespace gInk
                 {
                     if (enter)
                     {
-                        IC.EditingMode = InkOverlayEditingMode.Delete;
+                        if(IC.EditingMode!=InkOverlayEditingMode.Delete)IC.EditingMode=InkOverlayEditingMode.Delete;
                         Root.EraserMode = true;
                     }
                     else
                     {
-                        IC.EditingMode = InkOverlayEditingMode.Ink;
+                        if(IC.EditingMode!=InkOverlayEditingMode.Ink)IC.EditingMode=InkOverlayEditingMode.Ink;
                         Root.EraserMode = false;
                     }
                 }
@@ -3957,8 +4009,7 @@ namespace gInk
             btOval.BackgroundImage = getImgFromDiskOrRes("tool_oval", ImageExts);
             if (tool != Tools.StartArrow && tool != Tools.EndArrow)
             {
-                btArrow.BackgroundImage.Dispose();
-                btArrow.BackgroundImage = BuildArrowBtn(Root.ArrowHead[Root.CurrentArrow], Root.ArrowTail[Root.CurrentArrow], Color.Black);
+                ReplaceButtonImage(btArrow, BuildArrowBtn(Root.ArrowHead[Root.CurrentArrow], Root.ArrowTail[Root.CurrentArrow], Color.Black));
             }
             btNumb.BackgroundImage = getImgFromDiskOrRes("tool_numb", ImageExts);
             btText.BackgroundImage = getImgFromDiskOrRes("tool_txtL", ImageExts);
@@ -4106,8 +4157,7 @@ namespace gInk
                 if (Root.ToolSelected == Tools.StartArrow || Root.ToolSelected == Tools.EndArrow)
                     if (++Root.CurrentArrow >= Root.ArrowHead.Count)
                         Root.CurrentArrow = 0;
-                btArrow.BackgroundImage.Dispose();
-                btArrow.BackgroundImage = BuildArrowBtn(Root.ArrowHead[Root.CurrentArrow], Root.ArrowTail[Root.CurrentArrow], Color.Orange);
+                ReplaceButtonImage(btArrow, BuildArrowBtn(Root.ArrowHead[Root.CurrentArrow], Root.ArrowTail[Root.CurrentArrow], Color.Orange));
                 if (gpSubTools.Visible && subTools_title.Contains("Arrow"))
                     changeActiveTool(0, false, 1);
             }
@@ -4207,7 +4257,7 @@ namespace gInk
             {
                 //SelectPen(LastPenSelected);
                 ModifyStrokesSelection(AppendToSelection, ref InprogressSelection, StrokesSelection);
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan1_act", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan1_act", ImageExts));
                 try
                 {
                     IC.Cursor = cursorred;
@@ -4221,7 +4271,7 @@ namespace gInk
             {
                 //SelectPen(LastPenSelected);
                 ModifyStrokesSelection(AppendToSelection, ref InprogressSelection, StrokesSelection);
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan_copy", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan_copy", ImageExts));
                 try
                 {
                     IC.Cursor = cursorred;
@@ -4304,6 +4354,8 @@ namespace gInk
             }
             Root.UponButtonsUpdate |= 0x2;
             Root.ToolSelected = tool;
+            if (Root.Whiteboards != null) Root.Whiteboards.RefreshInkTools();
+            if (Root.DrawingSession != null) Root.DrawingSession.ApplyMode();
         }
 
         public void SelectPen(int pen)
@@ -4314,7 +4366,6 @@ namespace gInk
             btEraser.BackgroundImage = image_eraser;
             btPointer.BackgroundImage = image_pointer;
             btLasso.BackgroundImage = image_lasso;
-            btPan.BackgroundImage.Dispose();    // will be set after
                                                 //Console.WriteLine("SelectPen : " + pen.ToString());
                                                 //System.Diagnostics.StackTrace t = new System.Diagnostics.StackTrace();
                                                 //Console.WriteLine(t.ToString());
@@ -4343,7 +4394,7 @@ namespace gInk
                 btLasso.BackgroundImage = image_lasso_act;
                 EnterEraserMode(false);
                 Root.UnPointer();
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan", ImageExts));
                 Root.PanMode = false;
                 Root.LassoMode = true;
                 StrokesSelection.Clear();
@@ -4360,8 +4411,6 @@ namespace gInk
                 }
                 try
                 {
-                    if (IC.Cursor?.Tag != null && (int)IC.Cursor?.Tag == 2)
-                        IC.Cursor?.Dispose();
                     IC.Cursor = cursorred;
                 }
                 catch
@@ -4389,7 +4438,7 @@ namespace gInk
                                                             Root.LineStyleToString(Root.PenAttr[b + FirstPenDisplayed].ExtendedProperties), Root.PenAttr[b + FirstPenDisplayed].Width);// image_pen[b];                    
                 }*/
                 recomputePensSet();
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan_act", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan_act", ImageExts));
                 EnterEraserMode(false);
                 Root.UnPointer();
                 Root.PanMode = true;
@@ -4420,7 +4469,7 @@ namespace gInk
                                                             Root.PenAttr[b + FirstPenDisplayed].Width);// image_pen[b];
                 */
                 recomputePensSet();
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan", ImageExts));
                 btPointer.BackgroundImage = image_pointer_act;
                 EnterEraserMode(false);
                 Root.Pointer();
@@ -4446,7 +4495,7 @@ namespace gInk
                                                             Root.PenAttr[b + FirstPenDisplayed].Width);// image_pen[b];
                 */
                 recomputePensSet();
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan", ImageExts));
                 btEraser.BackgroundImage = image_eraser_act;
                 EnterEraserMode(true);
                 Root.UnPointer();
@@ -4495,7 +4544,7 @@ namespace gInk
             else if (pen >= 0)
             {
                 // clearing selection or not depends on tools :  if pen is selected, action will be defined in SelectTool
-                btPan.BackgroundImage = getImgFromDiskOrRes("pan", ImageExts);
+                ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan", ImageExts));
                 if (AltKeyPressed() && Root.AltAsOneCommand >= 1 && pen != LastPenSelected)
                 {
                     if (Root.PenAttr[Root.SavedPenDA] != null)
@@ -4587,6 +4636,8 @@ namespace gInk
 
             if (pen != -2)
                 Root.LastPen = pen;
+            if (Root.Whiteboards != null) Root.Whiteboards.RefreshInkTools();
+            if (Root.DrawingSession != null) Root.DrawingSession.ApplyMode();
         }
 
         public void RetreatAndExit(bool Quick = false)
@@ -4715,6 +4766,11 @@ namespace gInk
             if (ToolbarMoved)
             {
                 ToolbarMoved = false;
+                return;
+            }
+            if (Root.DrawingSession != null && Root.DrawingSession.Running)
+            {
+                Root.DrawingSession.ToggleCaps();
                 return;
             }
 
@@ -5116,8 +5172,9 @@ namespace gInk
 
         private void SetPenTipCursor()
         {
-            Bitmap bitmaptip = (Bitmap)(gInk.Properties.Resources._null).Clone();
-            Graphics g = Graphics.FromImage(bitmaptip);
+            using (Bitmap bitmaptip = (Bitmap)(gInk.Properties.Resources._null).Clone())
+            using (Graphics g = Graphics.FromImage(bitmaptip))
+            {
             DrawingAttributes dda = IC.DefaultDrawingAttributes;
             Brush cbrush;
             Point widt;
@@ -5153,6 +5210,7 @@ namespace gInk
             }
             catch  // not in good context. considered to be able to stop processing at that time
             {
+                cbrush.Dispose();
                 return;
             }
 
@@ -5165,22 +5223,18 @@ namespace gInk
             ReleaseDC(IntPtr.Zero, screenDc);
 
             int dia = Math.Max((int)(widt.X * ScreenScalingFactor), 2);
-            g.FillEllipse(cbrush, 64 - dia / 2, 64 - dia / 2, dia, dia);
+            using (cbrush) g.FillEllipse(cbrush, 64 - dia / 2, 64 - dia / 2, dia, dia);
             if (dia <= 5)
             {
-                Pen cpen = new Pen(Color.FromArgb(50, 128, 128, 128), 2);
-                dia += 6;
-                g.DrawEllipse(cpen, 64 - dia / 2, 64 - dia / 2, dia, dia);
+                using (Pen cpen = new Pen(Color.FromArgb(50, 128, 128, 128), 2))
+                {
+                    dia += 6;
+                    g.DrawEllipse(cpen, 64 - dia / 2, 64 - dia / 2, dia, dia);
+                }
             }
-            try
-            {
-                if (IC.Cursor?.Tag != null && (int)IC.Cursor?.Tag == 2)
-                    IC.Cursor?.Dispose();
-            }
-            catch { }
-            IC.Cursor = new System.Windows.Forms.Cursor(bitmaptip.GetHicon());
-            IC.Cursor.Tag = 2;
+            ReplacePenTip(CreateCursorFromBitmap(bitmaptip));
             System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
+            }
         }
 
         short LastESCStatus = 0;
@@ -5246,6 +5300,7 @@ namespace gInk
         int Tick;
         private void tiSlide_Tick(object sender, EventArgs e)
         {
+            if(EntryPreparing)return;
             Initializing = false;
             Tick++;
 
@@ -5271,33 +5326,20 @@ namespace gInk
 
             //if (Tick % 50 == 0) Console.WriteLine("AW."+Tick.ToString()+"="+ GetCaptionOfActiveWindow());
 
+            bool dragButtonDown=(GetAsyncKeyState(1)&0x8000)!=0||(GetAsyncKeyState(2)&0x8000)!=0;
+            if(IsMovingToolbar==1&&dragButtonDown)
+                gpButtons_MouseMove(toolbarDragControl,new MouseEventArgs(MouseButtons.Left,0,0,0,0));
+            if(IsMovingToolbar==1&&!dragButtonDown)gpButtons_MouseUp(toolbarDragControl,null);
             if (IsMovingToolbar == 2)
             {
-                if (MouseButtons.Equals(MouseButtons.None))
+                if (!dragButtonDown)
                 {
-                    IsMovingToolbar = 0;
+                    gpButtons_MouseUp(toolbarDragControl,null);
                     return;
                 }
                 if (MousePosition.X != HitMovingToolbareXY.X || MousePosition.Y != HitMovingToolbareXY.Y)
                 {
-                    int newleft = gpButtons.Left + MousePosition.X - HitMovingToolbareXY.X;
-                    int newtop = gpButtons.Top + MousePosition.Y - HitMovingToolbareXY.Y;
-
-                    if (IsInsideVisibleScreen(newleft, newtop) && IsInsideVisibleScreen(newleft + gpButtons.Width, newtop) &&
-                        IsInsideVisibleScreen(newleft, newtop + gpButtons.Height) && IsInsideVisibleScreen(newleft + gpButtons.Width, newtop + gpButtons.Height))
-                    {
-                        gpButtonsLeft = gpButtonsLeft + newleft - gpButtons.Left;
-                        gpButtonsTop = gpButtonsTop + newtop - gpButtons.Top;
-                        gpButtons.Left = newleft;
-                        gpButtons.Top = newtop;
-                        Root.UponAllDrawingUpdate = true;
-                        Root.UponButtonsUpdate |= 0x5;
-                        ToolbarMoved = true;
-                        Root.gpButtonsLeft = gpButtonsLeft;
-                        Root.gpButtonsTop = gpButtonsTop;
-                    }
-                    HitMovingToolbareXY.X = MousePosition.X;
-                    HitMovingToolbareXY.Y = MousePosition.Y;
+                    MoveToolbarWithCursor();
                     return;
                 }
             }
@@ -5339,32 +5381,14 @@ namespace gInk
             if (Root.FFmpegProcess != null && Root.FFmpegProcess.HasExited)
             {
                 Root.VideoRecInProgress = VideoRecInProgress.Stopped;
-                try
-                {
-                    btVideo.BackgroundImage.Dispose();
-                }
-                catch { }
-                finally
-                {
-                    btVideo.BackgroundImage = getImgFromDiskOrRes("VidStop", ImageExts);
-                }
+                ReplaceButtonImage(btVideo, getImgFromDiskOrRes("VidStop", ImageExts));
                 Root.UponButtonsUpdate |= 0x2;
             }
-            try
+            if(SetWindowInputRectFlag&&!ScreenContentBusy&&!Root.FingerInAction&&!IC.CollectingInk)
             {
-                if (SetWindowInputRectFlag) // alternative to prevent some error when trying to call this function from WM_ACTIVATE event handler
-                    try
-                    {
-                        ActivateStrokesInput(true);
-                    }
-                    catch
-                    {
-                        // as a backup we assert the flag to do it later... 
-                        ;// overwriten just below SetWindowInputRectFlag = true;
-                    }
-                SetWindowInputRectFlag = false;
+                try {ActivateStrokesInput(true);SetWindowInputRectFlag=false;}
+                catch { /* Keep pending; retry on the existing timer after Ink is idle. */ }
             }
-            catch { }
             // ignore the first tick
             if (LastTickTime.Year == 1987)
             {
@@ -5520,8 +5544,24 @@ namespace gInk
                     + gpButtons.Height.ToString() + " " + VisibleToolbar.Height.ToString() + " " + AimedSize.Height.ToString()  
                     + " = " + ButtonsEntering.ToString());
             */
+            // Compact toolbars retain both the fold button and move grip at the
+            // same anchor. Snapshot/exit folding keeps the upstream path.
+            bool compactFold=toolbarMoveGrip!=null&&Root.Snapping==0&&(ButtonsEntering==-1||ButtonsEntering==1);
+            if(compactFold)
+            {
+                AimedPos=new Point(gpButtonsLeft,gpButtonsTop);
+                AimedSize=Root.Docked?CompactDockSize:new Size(gpButtonsWidth,gpButtonsHeight);
+                if(Root.Docked&&Root.ToolbarOrientation<=Orientation.Horizontal)AimedPos.X+=gpButtonsWidth-AimedSize.Width;
+                SetCompactHeaderGeometry(Root.Docked);
+            }
             if ((gpButtons.Left != AimedPos.X) || (gpButtons.Top != AimedPos.Y) || (VisibleToolbar.Width != AimedSize.Width) || (VisibleToolbar.Height != AimedSize.Height))
             {
+                if(compactFold)
+                {
+                    gpButtons.Bounds=new Rectangle(AimedPos,AimedSize);VisibleToolbar=AimedSize;
+                }
+                else
+                {
                 int d;
                 d = (int)(.5 * (AimedPos.X - gpButtons.Left));
                 if (Math.Abs(d) < (5 * .5))
@@ -5564,6 +5604,7 @@ namespace gInk
                     gpButtons.Height = VisibleToolbar.Height;
                 }
 
+                }
                 Root.UponAllDrawingUpdate = true;
                 Root.UponButtonsUpdate |= 0x5;
             }
@@ -5581,20 +5622,7 @@ namespace gInk
             */
             else if (ButtonsEntering != 0)
             {
-                // add a background if required at opening but not when snapping is in progress
-                if ((Root.Snapping == 0) && (IC.Ink.Strokes.Count == 0))
-                {
-                    if ((Root.BoardAtOpening == 1) || (Root.BoardAtOpening == 4 && Root.BoardSelected == 1)) // White
-                        AddBackGround(255, 255, 255, 255);
-                    else if ((Root.BoardAtOpening == 2) || (Root.BoardAtOpening == 4 && Root.BoardSelected == 2)) // Customed
-                        AddBackGround(Root.Gray1[0], Root.Gray1[1], Root.Gray1[2], Root.Gray1[3]);
-                    else if ((Root.BoardAtOpening == 3) || (Root.BoardAtOpening == 4 && Root.BoardSelected == 3)) // Black
-                        AddBackGround(255, 0, 0, 0);
-                    if (Root.BoardAtOpening != 4)    // reset the board selected at opening
-                    {
-                        Root.BoardSelected = Root.BoardAtOpening;
-                    }
-                }
+                PrepareOpeningBackground();
                 Root.UponButtonsUpdate |= 2;
                 ButtonsEntering = 0;
                 Console.WriteLine("AB=" + (DateTime.Now.Ticks / 1e7).ToString());
@@ -5609,6 +5637,10 @@ namespace gInk
 
             if (Root.gpPenWidthVisible != gpPenWidth.Visible)
                 gpPenWidth.Visible = Root.gpPenWidthVisible;
+
+            // Pause all polled keys, including Escape and Alt, during note editing.
+            if (Root.DrawingSession != null && Root.DrawingSession.Editing) return;
+            if (Root.Whiteboards != null && Root.Whiteboards.SuppressKeyboardShortcuts) return;
 
             bool pressed;
 
@@ -6289,8 +6321,7 @@ namespace gInk
 
             if (Root.Snapping < 0)
                 Root.Snapping++;
-            if (Tick % 100 == 0)
-                GC.Collect();
+            // Let the CLR collect as needed; forced full collections here paused input.
 
         }
 
@@ -6318,14 +6349,9 @@ namespace gInk
                     i = currentPen - (currentPen % Root.MaxDisplayedPens);
                 else
                     i = firstPen;
-                try
-                {
-                    btPen[b].BackgroundImage.Dispose();
-                }
-                catch { };
-                btPen[b].BackgroundImage = buildPenIcon(Root.PenAttr[b + i].Color, Root.PenAttr[b + i].Transparency, sel,
+                ReplaceButtonImage(btPen[b], buildPenIcon(Root.PenAttr[b + i].Color, Root.PenAttr[b + i].Transparency, sel,
                                         Root.PenAttr[b + i].ExtendedProperties.Contains(Root.FADING_PEN),
-                                        Root.LineStyleToString(Root.PenAttr[b + i].ExtendedProperties), Root.PenAttr[b + i].Width);// image_pen[b];
+                                        Root.LineStyleToString(Root.PenAttr[b + i].ExtendedProperties), Root.PenAttr[b + i].Width));
             }
             Root.UponAllDrawingUpdate = true;
             Root.UponButtonsUpdate |= 0x7;
@@ -6361,6 +6387,9 @@ namespace gInk
 			return false;
 		}
 
+        private Control toolbarDragControl;
+        private Point toolbarDragOrigin,toolbarCursorOrigin;
+        internal bool IsToolbarDragging {get{return IsMovingToolbar!=0;}}
 		int IsMovingToolbar = 0;
 		Point HitMovingToolbareXY = new Point();
 		bool ToolbarMoved = false;
@@ -6372,24 +6401,49 @@ namespace gInk
 				return;
 
 			ToolbarMoved = false;
-			IsMovingToolbar = 1;
+            IsMovingToolbar = 1;
+            toolbarDragControl=sender as Control;
+            if(toolbarDragControl!=null)toolbarDragControl.Capture=true;
 			HitMovingToolbareXY.X = MousePosition.X;
 			HitMovingToolbareXY.Y = MousePosition.Y;
+            toolbarDragOrigin=gpButtons.Location;toolbarCursorOrigin=MousePosition;
 		}
 
 		private void gpButtons_MouseMove(object sender, MouseEventArgs e)
 		{            
 			if (IsMovingToolbar == 1)
 			{
-				if (Math.Abs(MousePosition.X - HitMovingToolbareXY.X) > 20 || Math.Abs(MousePosition.Y - HitMovingToolbareXY.Y) > 20)
-					IsMovingToolbar = 2;
-			}
-		}
+				if (Math.Abs(MousePosition.X - HitMovingToolbareXY.X) > (sender==toolbarMoveGrip?4:20) || Math.Abs(MousePosition.Y - HitMovingToolbareXY.Y) > (sender==toolbarMoveGrip?4:20))
+                    IsMovingToolbar = 2;
+            }
+            if(IsMovingToolbar==2)MoveToolbarWithCursor();
+        }
+
+        private void MoveToolbarWithCursor()
+        {
+            Point cursor=MousePosition;
+            Rectangle work=Screen.FromPoint(cursor).WorkingArea;
+            int requestedX=toolbarDragOrigin.X+cursor.X-toolbarCursorOrigin.X;
+            int requestedY=toolbarDragOrigin.Y+cursor.Y-toolbarCursorOrigin.Y;
+            int x=Math.Max(work.Left-Left,Math.Min(requestedX,work.Right-Left-gpButtons.Width));
+            int y=Math.Max(work.Top-Top,Math.Min(requestedY,work.Bottom-Top-gpButtons.Height));
+            if(x!=requestedX){toolbarDragOrigin.X=x;toolbarCursorOrigin.X=cursor.X;}
+            if(y!=requestedY){toolbarDragOrigin.Y=y;toolbarCursorOrigin.Y=cursor.Y;}
+            HitMovingToolbareXY=cursor;
+            if(gpButtons.Left==x&&gpButtons.Top==y)return;
+            gpButtonsLeft+=x-gpButtons.Left;gpButtonsTop+=y-gpButtons.Top;
+            gpButtons.Location=new Point(x,y);
+            Root.gpButtonsLeft=gpButtonsLeft;Root.gpButtonsTop=gpButtonsTop;
+            ToolbarMoved=true;Root.UponButtonsUpdate|=0x5;
+            Root.FormDisplay.QueueToolbarMove();
+        }
 
 		private void gpButtons_MouseUp(object sender, MouseEventArgs e)
 		{
-			IsMovingToolbar = 0;
-		}
+            IsMovingToolbar = 0;
+            if(toolbarDragControl!=null)toolbarDragControl.Capture=false;
+            toolbarDragControl=null;
+        }
 
 		private void btInkVisible_Click(object sender, EventArgs e)
 		{
@@ -6494,6 +6548,15 @@ namespace gInk
 
         public void btClear_Click(object sender, EventArgs e)
         {
+            longClickTimer.Stop();
+            btClear.RightToLeft=RightToLeft.No;
+            if(ToolbarMoved) { ToolbarMoved=false;return; }
+            if (Root.Whiteboards != null && Root.Whiteboards.HandleSelectedContent(true)) return;
+            ClearScreenCore(sender, e);
+        }
+
+        private void ClearScreenCore(object sender, EventArgs e)
+        {
             //if(sender != null)
             //    (sender as Button).RightToLeft = RightToLeft.No;
             btClear.RightToLeft = RightToLeft.No;
@@ -6550,6 +6613,7 @@ namespace gInk
 				ToolbarMoved = false;
 				return;
 			}
+			if (Root.Whiteboards != null && Root.Whiteboards.HandleSelectedContent(false)) return;
 
 			if (!Root.InkVisible)
 				Root.SetInkVisible(true);

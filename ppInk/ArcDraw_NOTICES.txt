@@ -1,0 +1,9 @@
+﻿ArcDraw — ppInk / gInk 기반 사용자 수정본
+원개발: Weizhi Nai (gInk), Pubpub-ZZ (ppInk)
+원본 AssemblyInfo 표기: Copyright © 2019 Weizhi Nai — © 2020-2024 Pubpub-ZZ
+원본 소스: https://github.com/pubpub-zz/ppInk
+          https://github.com/geovens/gInk
+원본 MIT 저작권·허가문: LICENSE-ppInk-gInk.txt
+이번 수정: 화이트보드 노트/텍스트, CAPS 입력 전환, 툴바 테마와 ArcDraw 아이콘 및 자동 툴팁 차단.
+새 ArcDraw 아이콘: 사용자의 요청으로 built-in image_gen을 통해 생성.
+이 이름 변경은 원본 저작권 표기를 대체하지 않습니다.
