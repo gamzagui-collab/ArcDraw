@@ -34,7 +34,7 @@ namespace gInk
         {
             if(IsMemoEditor)textEditor.Bounds=new Rectangle(8,8,Math.Max(20,paper.ClientSize.Width-16),Math.Max(20,paper.ClientSize.Height-16));
         }
-        private void FillLegacyTextActions(ContextMenuStrip menu)
+        internal void FillLegacyTextActions(ContextMenuStrip menu)
         {
             ToolStripMenuItem group=null;
             foreach(NoteTextItem item in textItems)

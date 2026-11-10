@@ -35,6 +35,7 @@ namespace gInk
         public WhiteboardLayerManager(Root root)
         {
             this.root = root;
+            InitializeNoteContextMenu();
             bar = new WhiteboardLayersBar(this);
             followTimer = new Timer();
             followTimer.Interval = 350;
@@ -239,7 +240,7 @@ namespace gInk
                 note.BringToFront();
                 note.Activate();
             }
-            if(wasHidden)bar.QueueRebuild();else bar.UpdateSelection();
+            bar.UpdateSelection();
             note.QueueMemoEditor();
             NotifyDrawingTarget();
         }
@@ -259,7 +260,7 @@ namespace gInk
                 else note.Show();
             }
             if (!note.UserHidden) active = note;
-            bar.QueueRebuild();
+            bar.UpdateSelection();
             KeepWindowsOnTop();
             NotifyDrawingTarget();
         }
@@ -340,6 +341,7 @@ namespace gInk
         public void Dispose()
         {
             if (disposed) return;
+            noteActions.Close();
             Hide();
             disposed = true;
             followTimer.Dispose();
@@ -347,6 +349,7 @@ namespace gInk
             foreach (WhiteboardLayerForm note in notes) note.CloseAndDispose();
             notes.Clear();
             bar.Dispose();
+            noteActions.Dispose();
         }
     }
 
@@ -354,6 +357,8 @@ namespace gInk
     {
         private readonly WhiteboardLayerManager manager;
         private readonly FlowLayoutPanel items;
+        private readonly FlowLayoutPanel noteItems;
+        private readonly Dictionary<WhiteboardLayerForm,Panel> noteRows=new Dictionary<WhiteboardLayerForm,Panel>();
         private readonly ToolTip tips;
         private bool rebuildPending;
         private Button screenButton;
@@ -363,7 +368,7 @@ namespace gInk
         public void ApplyAppearance(ToolbarTheme value,int percent) { theme=value;scalePercent=percent;QueueRebuild(); }
         public void UpdateSelection()
         {
-            foreach(Control control in items.Controls)
+            foreach(Control control in noteItems.Controls)
             {
                 WhiteboardLayerForm note=control.Tag as WhiteboardLayerForm;
                 if(note==null)continue;
@@ -374,6 +379,7 @@ namespace gInk
                 {
                     child.BackColor=color;child.ForeColor=selected?Color.White:theme.Text;
                     if(child.Name=="NoteLayerTitle")child.Text=(selected?"✓ ":"")+note.DisplayName;
+                    if(child.Name=="ToggleNoteVisibility")child.Text=note.UserHidden?"□":"●";
                 }
             }
             UpdateSessionDisplay();
@@ -409,6 +415,8 @@ namespace gInk
             items.Margin = new Padding(0);
             items.Padding = new Padding(0);
             items.BackColor = BackColor;
+            noteItems=new FlowLayoutPanel {Name="WhiteboardNoteList",FlowDirection=FlowDirection.TopDown,WrapContents=true,
+                Margin=new Padding(0),Padding=new Padding(0),AutoScroll=false};
             Controls.Add(items);
             Rebuild();
         }
@@ -449,20 +457,27 @@ namespace gInk
 
         public void Rebuild()
         {
-            BackColor=theme.Background;
-            items.BackColor=BackColor;
             FormCollection host=manager.CurrentRoot.FormCollection;
-            bool vertical=manager.CurrentRoot.DrawingSession!=null&&manager.CurrentRoot.DrawingSession.Appearance.Vertical;
+            RebuildForWorkArea(host==null?Screen.PrimaryScreen.WorkingArea:Screen.FromControl(host).WorkingArea);
+        }
+
+        private void RebuildForWorkArea(Rectangle work)
+        {
+            BackColor=theme.Background;items.BackColor=BackColor;noteItems.BackColor=BackColor;
+            FormCollection host=manager.CurrentRoot.FormCollection;
             int cell=host!=null&&host.btDock.Height>0?host.btDock.Height:46;
             float scale=cell/34f;
             int inner=Math.Max(120,(int)Math.Round(150*scale));
-            Rectangle work=host==null?Screen.PrimaryScreen.WorkingArea:Screen.FromControl(host).WorkingArea;
             int chipWidth=inner;
             int hintHeight=Math.Max(18,(int)Math.Round(20*scale));
-            int availableHeight=work.Height-20-hintHeight-(vertical&&host!=null?host.gpButtonsHeight:0);
-            int limit=Math.Max(0,(availableHeight-8)/cell-6);
-            bool overflow=manager.Notes.Count>limit;
-            int shown=overflow?Math.Min(limit,manager.Notes.Count):manager.Notes.Count;
+            // The card can sit beside a tall toolbar. Use the whole work area,
+            // and wrap persistent note rows into columns instead of a popup menu.
+            int rows=Math.Min(manager.Notes.Count,Math.Max(1,(work.Height-24-hintHeight)/cell-5));
+            int neededColumns=rows==0?1:(manager.Notes.Count+rows-1)/rows;
+            int columns=Math.Min(neededColumns,Math.Max(1,(work.Width-4)/(inner+4)));
+            bool scroll=columns<neededColumns;
+            int listWidth=columns*(inner+4)-4;
+            int listHeight=rows*cell+(scroll?SystemInformation.HorizontalScrollBarHeight:0);
             items.WrapContents=false;
             items.FlowDirection=FlowDirection.TopDown;
             items.SuspendLayout();
@@ -470,13 +485,13 @@ namespace gInk
             {
                 Control old = items.Controls[0];
                 items.Controls.Remove(old);
-                old.Dispose();
+                if(old!=noteItems)old.Dispose();
             }
 
-            Button appearance=NewButton("⚙ 설정",inner);appearance.Name="DrawingSettings";
+            Button appearance=NewButton("⚙ 설정",listWidth);appearance.Name="DrawingSettings";
             appearance.Click+=delegate { if(manager.CurrentRoot.DrawingSession!=null)manager.CurrentRoot.DrawingSession.ShowAppearanceOptions(); };
             items.Controls.Add(appearance);
-            Button add = NewButton("＋ 노트", inner);add.Name="AddWhiteboardNote";
+            Button add = NewButton("＋ 노트", listWidth);add.Name="AddWhiteboardNote";
             add.Font = new Font("Malgun Gothic", 9f, FontStyle.Bold);
             add.ForeColor = Color.White;
             add.BackColor = theme.Accent;
@@ -485,93 +500,69 @@ namespace gInk
             tips.SetToolTip(add, "새 화이트보드 레이어 (Ctrl+Shift+B)");
             items.Controls.Add(add);
 
-            Panel arrange=new Panel {Name="ArrangeWhiteboardNotes",Size=new Size(inner,cell)};
-            Button columns=NewButton("세로 정렬",inner/2);columns.Name="ArrangeNotesVertical";
-            Button rows=NewButton("가로 정렬",inner-inner/2);rows.Name="ArrangeNotesHorizontal";rows.Left=inner/2;
-            columns.Click+=delegate {manager.ArrangeNotes(true);};rows.Click+=delegate {manager.ArrangeNotes(false);};
-            arrange.Controls.Add(columns);arrange.Controls.Add(rows);items.Controls.Add(arrange);
+            Panel arrange=new Panel {Name="ArrangeWhiteboardNotes",Size=new Size(listWidth,cell)};
+            Button vertical=NewButton("세로 정렬",listWidth/2);vertical.Name="ArrangeNotesVertical";
+            Button horizontal=NewButton("가로 정렬",listWidth-listWidth/2);horizontal.Name="ArrangeNotesHorizontal";horizontal.Left=listWidth/2;
+            vertical.Click+=delegate {manager.ArrangeNotes(true);};horizontal.Click+=delegate {manager.ArrangeNotes(false);};
+            arrange.Controls.Add(vertical);arrange.Controls.Add(horizontal);items.Controls.Add(arrange);
 
-            screenButton=NewButton("화면",inner);screenButton.Name="SelectScreenTarget";
+            screenButton=NewButton("화면",listWidth);screenButton.Name="SelectScreenTarget";
             screenButton.Click+=delegate { manager.SelectScreen(); };
             tips.SetToolTip(screenButton,"노트 선택 해제 · 화면에만 삭제/실행 취소 적용");
             items.Controls.Add(screenButton);
 
+            noteItems.SuspendLayout();
+            foreach(WhiteboardLayerForm previous in new List<WhiteboardLayerForm>(noteRows.Keys))if(!manager.Notes.Contains(previous))
+            {
+                Panel old=noteRows[previous];
+                if(manager.NoteContextMenu.Visible&&old.Contains(manager.NoteContextMenu.SourceControl))manager.NoteContextMenu.Close();
+                noteItems.Controls.Remove(old);old.Dispose();noteRows.Remove(previous);
+            }
             int noteIndex=0;
             foreach (WhiteboardLayerForm note in manager.Notes)
             {
-                if(noteIndex++>=shown)break;
-                WhiteboardLayerForm current = note;
-                Panel chip = new Panel();
-                chip.Tag=current;
-                chip.Size = new Size(chipWidth, cell);
-                chip.Margin = new Padding(1, 0, 1, 0);
-                chip.BackColor = current == manager.ActiveNote
-                    ? theme.Accent : theme.Surface;
+                Panel chip;
+                if(!noteRows.TryGetValue(note,out chip)){chip=CreateNoteRow(note);noteRows.Add(note,chip);noteItems.Controls.Add(chip);}
+                noteItems.Controls.SetChildIndex(chip,noteIndex++);chip.Size=new Size(chipWidth,cell);chip.Margin=new Padding(0,0,4,0);
                 int small=Math.Max(16,(int)(25*scale));
-                Button title = NewButton(current.DisplayName, chipWidth-2*small);title.Name="NoteLayerTitle";title.AutoEllipsis=true;
-                title.Location = new Point(0, 0);
-                title.ForeColor = current.UserHidden ? Color.Gray : theme.Text;
-                title.BackColor = chip.BackColor;
-                title.Click += delegate { manager.SetActive(current); };
-                tips.SetToolTip(title,current.DisplayName);
-                var noteMenu=new ContextMenuStrip();noteMenu.Items.Add("이름 변경…",null,delegate {manager.ShowRenameNote(current);});
-                title.ContextMenuStrip=noteMenu;title.Disposed+=delegate {noteMenu.Dispose();};
-                Button visibility = NewButton(current.UserHidden ? "□" : "●", small);
-                visibility.Location = new Point(chipWidth-2*small, 0);
-                visibility.Font = new Font("Malgun Gothic", 9f);
-                visibility.ForeColor = Color.FromArgb(95, 111, 135);
-                visibility.BackColor = chip.BackColor;
-                visibility.Click += delegate { manager.ToggleVisibility(current); };
-                tips.SetToolTip(visibility, current.UserHidden ? "노트 표시" : "노트 숨기기");
-                Button close = NewButton("×", small);
-                close.Location = new Point(chipWidth-small, 0);
-                close.ForeColor = Color.FromArgb(159, 55, 55);
-                close.BackColor = chip.BackColor;
-                close.Click += delegate { manager.Remove(current); };
-                tips.SetToolTip(close, "이 노트와 필기 삭제");
-                chip.Controls.Add(title);
-                chip.Controls.Add(visibility);
-                chip.Controls.Add(close);
-                items.Controls.Add(chip);
+                chip.Controls[0].Bounds=new Rectangle(0,0,chipWidth-2*small,cell);
+                chip.Controls[1].Bounds=new Rectangle(chipWidth-2*small,0,small,cell);
+                chip.Controls[2].Bounds=new Rectangle(chipWidth-small,0,small,cell);
+                foreach(Control child in chip.Controls)ToolbarDesign.SetTheme((Button)child,theme);
             }
-            if(overflow)
-            {
-                Button more=NewButton("⋯ 노트",inner);more.Name="MoreWhiteboardLayers";
-                more.Click+=delegate {
-                    ContextMenuStrip menu=new ContextMenuStrip();
-                    foreach(WhiteboardLayerForm note in manager.Notes)
-                    {
-                        WhiteboardLayerForm current=note;
-                        ToolStripMenuItem item=new ToolStripMenuItem(current.DisplayName.Replace("&","&&")) {Checked=current==manager.ActiveNote};
-                        item.Click+=delegate {manager.SetActive(current);};
-                        item.DropDownItems.Add(current.UserHidden?"표시":"숨김",null,delegate {manager.ToggleVisibility(current);});
-                        item.DropDownItems.Add("삭제",null,delegate {manager.Remove(current);});menu.Items.Add(item);
-                        item.DropDownItems.Add("이름 변경…",null,delegate {manager.ShowRenameNote(current);});
-                    }
-                    menu.Closed+=delegate {menu.Dispose();};menu.Show(more,new Point(0,more.Height));
-                };
-                tips.SetToolTip(more,"전체 노트 목록 · 선택/표시/숨김/삭제");items.Controls.Add(more);
-            }
-            Button info=NewButton(ArcDrawBranding.ToolbarCredit,inner);info.Name="ArcDrawAbout";
+            noteItems.AutoScroll=scroll;noteItems.Size=new Size(listWidth,listHeight);noteItems.Visible=rows>0;
+            noteItems.ResumeLayout(true);items.Controls.Add(noteItems);
+            Button info=NewButton(ArcDrawBranding.ToolbarCredit,listWidth);info.Name="ArcDrawAbout";
             info.Font=new Font("Malgun Gothic",7.5f);
             info.Click+=delegate {ArcDrawBranding.ShowInfo(manager.CurrentRoot.FormCollection);};
             items.Controls.Add(info);
             foreach(Control control in items.Controls)
             {
+                if(control==noteItems)continue;
                 control.Height=cell;
                 foreach(Control child in control.Controls)child.Height=cell;
             }
             Label altHint=new Label {Name="ToolbarAltHint",Text="단축키: Alt",AccessibleName="단축키: Alt 키를 누르고 있으세요",
-                Width=inner,Height=hintHeight,TextAlign=ContentAlignment.MiddleCenter,ForeColor=theme.Text,BackColor=theme.Background,
+                Width=listWidth,Height=hintHeight,TextAlign=ContentAlignment.MiddleCenter,ForeColor=theme.Text,BackColor=theme.Background,
                 Font=new Font("Malgun Gothic",8f),AutoSize=false};
             altHint.Disposed+=delegate {altHint.Font.Dispose();};
             items.Controls.Add(altHint);
-            Width=inner+8;Height=(5+shown+(overflow?1:0))*cell+8+hintHeight;
+            Width=listWidth+8;Height=5*cell+listHeight+8+hintHeight;
             foreach(Control control in items.Controls)control.Margin=new Padding(0);
             items.ResumeLayout(true);
             UpdateSelection();
             UpdateSessionDisplay();
             manager.ToolbarGeometryChanged();
+        }
+
+        private Panel CreateNoteRow(WhiteboardLayerForm note)
+        {
+            var row=new Panel {Tag=note};
+            Button title=NewButton(note.DisplayName,1);title.Name="NoteLayerTitle";title.AutoEllipsis=true;title.Tag=note;
+            title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.SetActive(note);};
+            Button toggle=NewButton("●",1);toggle.Name="ToggleNoteVisibility";toggle.AccessibleName="노트 표시/숨김";toggle.Click+=delegate {manager.ToggleVisibility(note);};
+            Button close=NewButton("×",1);close.Name="DeleteWhiteboardNote";close.AccessibleName="노트 삭제";close.Click+=delegate {manager.Remove(note);};
+            row.Controls.AddRange(new Control[]{title,toggle,close});return row;
         }
 
         private Button NewButton(string text, int width)
