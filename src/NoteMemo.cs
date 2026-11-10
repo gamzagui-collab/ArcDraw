@@ -6,8 +6,27 @@ namespace gInk
 {
     public sealed partial class WhiteboardLayerForm
     {
-        private bool editingMemo,memoOpenQueued;
+        private bool editingMemo,memoOpenQueued,memoPaused,endingMemoFromHeader;
         internal bool MemoTargetMode {get;set;}
+        internal void MemoToolSelected(bool text)
+        {
+            MemoTargetMode=text;
+            if(!endingMemoFromHeader)memoPaused=false;
+        }
+        internal void CancelHeaderMemoResume(){if(!endingMemoFromHeader)memoPaused=false;}
+        private bool pendingPenFocus;
+        internal void QueuePenFocus()
+        {
+            if(closing||memoPaused||MemoTargetMode||IsEditingText||endingMemoFromHeader)return;
+            pendingPenFocus=true;QueueInkWork();
+        }
+        private void ApplyPenFocus()
+        {
+            pendingPenFocus=false;
+            DrawingSession session=manager.CurrentRoot.DrawingSession;
+            if(!closing&&Visible&&manager.ActiveNote==this&&!memoPaused&&!MemoTargetMode&&!IsEditingText&&
+                session!=null&&session.DrawingEnabled&&!session.Editing)FocusDrawingSurface();
+        }
         private string memoFontFamily="Malgun Gothic";
         private float memoFontPoints=17f;
         private FontStyle memoFontStyle=FontStyle.Regular;
@@ -27,19 +46,37 @@ namespace gInk
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
         private void EndTextInputFromHeader()
         {
+            bool resume=memoPaused||MemoTargetMode||IsMemoEditor;
             MemoTargetMode=false;
+            memoPaused=resume;
             FinishEditing(true);
             Root root=manager.CurrentRoot;
+            endingMemoFromHeader=true;
+            try
+            {
             if(root.ToolSelected==Tools.txtLeftAligned||root.ToolSelected==Tools.txtRightAligned)
                 root.FormCollection.SelectTool(Tools.Hand,Filling.Empty);
             else SyncInkTool(root);
+            }
+            finally {endingMemoFromHeader=false;}
             // The next key belongs to the drawing shortcuts, not the old EDIT.
             if(!paper.IsDisposed)paper.Focus();
+        }
+        private bool ResumeMemoFromBody(MouseEventArgs e)
+        {
+            if(!memoPaused||e.Button!=MouseButtons.Left)return false;
+            Root root=manager.CurrentRoot;
+            if(root.EraserMode){memoPaused=false;return false;}
+            memoPaused=false;MemoTargetMode=true;
+            if(root.ToolSelected!=Tools.txtLeftAligned&&root.ToolSelected!=Tools.txtRightAligned)
+                root.FormCollection.SelectTool(Tools.txtLeftAligned,Filling.Empty);
+            else SyncInkTool(root);
+            OpenMemoEditor();return true;
         }
         private bool CanOpenMemo()
         {
             DrawingSession session=manager.CurrentRoot.DrawingSession;
-            if(closing||sessionSuspended||!Visible||!textMode||manager.ActiveNote!=this||session==null||!session.DrawingEnabled||
+            if(closing||memoPaused||sessionSuspended||!Visible||!textMode||manager.ActiveNote!=this||session==null||!session.DrawingEnabled||
                 session.OptionsOpen||session.SelectingTarget||session.LeavingDrawing)return false;
             foreach(Form form in Application.OpenForms)if(form.Visible&&form.Modal)return false;
             return true;

@@ -55,6 +55,7 @@ namespace gInk
         {
             if(manager.CurrentRoot.DrawingSession!=null&&manager.CurrentRoot.DrawingSession.Running&&!manager.CurrentRoot.DrawingSession.DrawingEnabled)return;
             manager.SetActive(this);
+            if(ResumeMemoFromBody(e))return;
             SyncInkTool(manager.CurrentRoot);
             if (textMode && e.Button == MouseButtons.Left) OpenMemoEditor();
         }

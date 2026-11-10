@@ -1,3 +1,3 @@
-﻿ArcDraw v0.26 — 제목 클릭으로 메모 입력 종료
-2026-11-11 00:30:43 KST
-EXE SHA256: fdaafa2eb41f62f987ac510c4ce774385c117c21da1e3593e99da526f1548683
+﻿ArcDraw v0.27 — 본문 클릭 메모 재개·명시적 펜 유지
+2026-11-11 00:53:07 KST
+EXE SHA256: b40dda5dc4ae6d2360161b84e31b94ebe3be5b42b279696abb499772f4100245

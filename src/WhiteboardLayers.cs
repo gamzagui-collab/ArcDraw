@@ -68,10 +68,11 @@ namespace gInk
         internal void DrawingToolSelected(int tool,int fill)
         {
             pendingScreenTool=-1;
-            if(active!=null)active.MemoTargetMode=IsTextTool(tool);
+            if(active!=null){active.MemoToolSelected(IsTextTool(tool));if(IsTextTool(tool))active.QueueMemoEditor();else active.QueuePenFocus();}
             else if(Array.IndexOf(DrawingSettings.PresetTools,tool)>=0||tool==Tools.ClipArt||tool==Tools.PatternLine)
             {screenDrawingTool=tool;screenDrawingFill=fill;}
         }
+        internal void DrawingPenSelected(){if(active!=null){active.CancelHeaderMemoResume();active.QueuePenFocus();}}
         public void SelectScreen()
         {
             if(disposed||selectingScreen)return;
@@ -919,7 +920,7 @@ namespace gInk
                     return;
                 }
                 bool wantText = !root.EraserMode &&
-                    (MemoTargetMode||root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned);
+                    (MemoTargetMode||memoPaused||root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned);
                 if (!SetTextMode(ink, wantText) || textMode || closing) return;
                 DrawingAttributes drawing = root.FormCollection.IC.DefaultDrawingAttributes;
                 if(!SyncNoteShapeTool(ink,root,drawing))return;

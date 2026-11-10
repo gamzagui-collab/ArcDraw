@@ -24,7 +24,7 @@ namespace gInk
         private void EndInkUse()
         {
             inkUseDepth--;
-            if (inkUseDepth == 0 && (closePending || syncPending || repaintPending || (pendingNotePath!=null&&!noteCommitBlocked))) QueueInkWork();
+            if (inkUseDepth == 0 && (closePending || syncPending || repaintPending || pendingPenFocus || (pendingNotePath!=null&&!noteCommitBlocked))) QueueInkWork();
         }
 
         private void RequestClose()
@@ -73,6 +73,7 @@ namespace gInk
                     repaintPending = false;
                     paper.Invalidate();
                 }
+                if(pendingPenFocus)ApplyPenFocus();
             }));
         }
     }

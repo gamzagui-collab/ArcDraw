@@ -6728,6 +6728,7 @@ namespace gInk
                 {
                     if (Root.ButtonClick_For_LineStyle && b == Root.CurrentPen)
                         SelectNextLineStyle(btPen[b]);
+                    if(Root.Whiteboards!=null)Root.Whiteboards.DrawingPenSelected();
                     SelectPen(b + FirstPenDisplayed);
                     if (Root.ToolSelected == Tools.Invalid || Root.ToolSelected == Tools.Move || Root.ToolSelected == Tools.Copy || Root.ToolSelected == Tools.Scale || Root.ToolSelected == Tools.Rotate
                         || (Root.ToolSelected == Tools.Edit || Root.PanMode  || Root.EraserMode )) // if move
@@ -7375,6 +7376,7 @@ namespace gInk
 				return;
 			}
 
+            if(Root.Whiteboards!=null)Root.Whiteboards.DrawingPenSelected();
 			SelectPen(-1);
 		}
 
