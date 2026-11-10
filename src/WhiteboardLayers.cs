@@ -400,8 +400,9 @@ namespace gInk
                     if(child.Name=="NoteLayerTitle")
                     {
                         child.Text=(note.UserHidden?"○ ":(selected?"✓ ":""))+note.DisplayName;
-                        child.AccessibleName=note.DisplayName+(note.UserHidden?" · 숨김 · 클릭하여 표시":" · 표시 · 클릭하여 숨김");
+                        child.AccessibleName=note.DisplayName+" · 노트 선택";
                     }
+                    if(child.Name=="ToggleNoteVisibility")child.Text=note.UserHidden?"□":"●";
                 }
             }
             UpdateSessionDisplay();
@@ -547,8 +548,9 @@ namespace gInk
                 if(!noteRows.TryGetValue(note,out chip)){chip=CreateNoteRow(note);noteRows.Add(note,chip);noteItems.Controls.Add(chip);}
                 noteItems.Controls.SetChildIndex(chip,noteIndex++);chip.Size=new Size(chipWidth,cell);chip.Margin=new Padding(0,0,4,0);
                 int small=Math.Max(16,(int)(25*scale));
-                chip.Controls[0].Bounds=new Rectangle(0,0,chipWidth-small,cell);
-                chip.Controls[1].Bounds=new Rectangle(chipWidth-small,0,small,cell);
+                chip.Controls[0].Bounds=new Rectangle(0,0,chipWidth-2*small,cell);
+                chip.Controls[1].Bounds=new Rectangle(chipWidth-2*small,0,small,cell);
+                chip.Controls[2].Bounds=new Rectangle(chipWidth-small,0,small,cell);
                 foreach(Control child in chip.Controls)ToolbarDesign.SetTheme((Button)child,theme);
             }
             noteItems.AutoScroll=scroll;noteItems.Size=new Size(listWidth,listHeight);noteItems.Visible=rows>0;
@@ -580,9 +582,10 @@ namespace gInk
         {
             var row=new Panel {Tag=note};
             Button title=NewButton(note.DisplayName,1);title.Name="NoteLayerTitle";title.AutoEllipsis=true;title.Tag=note;
-            title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.ToggleVisibility(note);};
+            title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.SetActive(note);};
+            Button toggle=NewButton("●",1);toggle.Name="ToggleNoteVisibility";toggle.AccessibleName="노트 표시/숨김";toggle.Click+=delegate {manager.ToggleVisibility(note);};
             Button close=NewButton("×",1);close.Name="DeleteWhiteboardNote";close.AccessibleName="노트 삭제";close.Click+=delegate {manager.Remove(note);};
-            row.Controls.AddRange(new Control[]{title,close});return row;
+            row.Controls.AddRange(new Control[]{title,toggle,close});return row;
         }
 
         private Button NewButton(string text, int width)

@@ -7,12 +7,28 @@ namespace gInk
     public sealed partial class WhiteboardLayerForm
     {
         private bool editingMemo,memoOpenQueued;
+        private string memoFontFamily="Malgun Gothic";
+        private float memoFontPoints=17f;
+        private FontStyle memoFontStyle=FontStyle.Regular;
+        private Color memoColor=Color.FromArgb(24,33,46);
+        private NoteTextItem MemoItem {get{return textItems.Find(item=>item.IsMemo);}}
+        internal Font CreateMemoFont(){NoteTextItem item=MemoItem;return item==null?new Font(memoFontFamily,memoFontPoints,memoFontStyle,GraphicsUnit.Point):item.CreateFont();}
+        internal Color MemoColor {get{NoteTextItem item=MemoItem;return item==null?memoColor:item.Color;}}
+        internal bool ApplyMemoStyle(Font font,Color color)
+        {
+            FinishEditing(true);
+            if(!FlushHistorySnapshot()||HasBusyInk)return false;
+            memoFontFamily=font.Name;memoFontPoints=font.SizeInPoints;memoFontStyle=font.Style;memoColor=Color.FromArgb(color.R,color.G,color.B);
+            foreach(NoteTextItem item in textItems)if(item.IsMemo)
+            {item.FontFamily=memoFontFamily;item.FontSize=memoFontPoints;item.FontStyle=memoFontStyle;item.Color=memoColor;}
+            if(MemoItem!=null)QueueHistorySnapshot();paper.Invalidate();return true;
+        }
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
         private bool CanOpenMemo()
         {
             DrawingSession session=manager.CurrentRoot.DrawingSession;
             if(closing||sessionSuspended||!Visible||!textMode||manager.ActiveNote!=this||session==null||!session.DrawingEnabled||
-                session.OptionsOpen||session.SelectingTarget)return false;
+                session.OptionsOpen||session.SelectingTarget||session.LeavingDrawing)return false;
             foreach(Form form in Application.OpenForms)if(form.Visible&&form.Modal)return false;
             return true;
         }

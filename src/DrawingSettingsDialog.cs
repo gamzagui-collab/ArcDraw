@@ -99,12 +99,12 @@ namespace gInk
         private void BuildFontPage(TabPage page)
         {
             chosenFont=settings.CreateNoteFont();
-            page.Controls.Add(new Label {Text="새 텍스트의 기본 글꼴을 화면과 노트에 적용합니다.",AutoSize=true,Location=new Point(24,24)});
+            page.Controls.Add(new Label {Text="화면 T·배치 글자의 기본 글꼴입니다. 노트 메모는 제목 ✎에서 설정합니다.",AutoSize=true,Location=new Point(24,24)});
             fontPreview=new Label {Name="TextFontPreview",Text="한글 글꼴 미리보기  Aa 123",Bounds=new Rectangle(24,68,510,90),Font=chosenFont,BorderStyle=BorderStyle.FixedSingle,TextAlign=ContentAlignment.MiddleLeft};page.Controls.Add(fontPreview);
             var description=new Label {Name="TextFontDescription",Bounds=new Rectangle(24,166,510,28),Text=FontDescription()};page.Controls.Add(description);
             var choose=new Button {Name="ChooseTextFont",Text="글꼴 선택…",Bounds=new Rectangle(24,210,150,34)};page.Controls.Add(choose);
             WhiteboardLayerForm target=root.Whiteboards.ActiveNote;
-            var existing=new CheckBox {Name="ApplyFontToNote",Text="선택한 노트의 기존 글자에도 적용",Bounds=new Rectangle(24,264,420,28),Enabled=target!=null};page.Controls.Add(existing);
+            var existing=new CheckBox {Name="ApplyFontToNote",Text="선택한 노트의 기존 배치 글자에도 적용 (메모 제외)",Bounds=new Rectangle(24,264,470,28),Enabled=target!=null};page.Controls.Add(existing);
             var save=new Button {Name="SaveTextFont",Text="글꼴 저장",Bounds=new Rectangle(350,310,180,34)};page.Controls.Add(save);
             var status=new Label {Name="TextFontStatus",Bounds=new Rectangle(24,315,315,35)};page.Controls.Add(status);
             choose.Click+=delegate {using(var picker=new FontDialog {Font=chosenFont,MinSize=6,MaxSize=144,ShowEffects=false})if(picker.ShowDialog(this)==DialogResult.OK){Font old=chosenFont;chosenFont=(Font)picker.Font.Clone();fontPreview.Font=chosenFont;old.Dispose();description.Text=FontDescription();}};

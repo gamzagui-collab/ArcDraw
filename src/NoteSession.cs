@@ -54,8 +54,9 @@ namespace gInk
         {
             FinishEditing(true);
             if(!FlushHistorySnapshot()||HasBusyInk)return false;
-            foreach(NoteTextItem item in textItems){item.FontFamily=font.Name;item.FontSize=font.SizeInPoints;item.FontStyle=font.Style;}
-            if(textItems.Count>0)QueueHistorySnapshot();
+            bool changed=false;
+            foreach(NoteTextItem item in textItems)if(!item.IsMemo){item.FontFamily=font.Name;item.FontSize=font.SizeInPoints;item.FontStyle=font.Style;changed=true;}
+            if(changed)QueueHistorySnapshot();
             paper.Invalidate();return true;
         }
     }

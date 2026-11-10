@@ -163,7 +163,7 @@ namespace gInk
         private void StartTextEditor(NoteTextItem item,Point origin,bool memo)
         {
             editingText=item;editingMemo=memo;
-            editorFont = item == null ? manager.CurrentRoot.Settings.CreateNoteFont() : item.CreateFont();
+            editorFont = item == null ? (memo?CreateMemoFont():manager.CurrentRoot.Settings.CreateNoteFont()) : item.CreateFont();
             NoteTextEditor editor = new NoteTextEditor();
             editor.DocumentMode=memo;
             editor.Multiline = true;
@@ -173,7 +173,7 @@ namespace gInk
             editor.ImeMode = ImeMode.NoControl;
             editor.MaxLength = 0;
             editor.Font = editorFont;
-            editor.ForeColor = item == null ? GetReadableTextColor() : item.Color;
+            editor.ForeColor = item == null ? (memo?MemoColor:GetReadableTextColor()) : item.Color;
             editor.BackColor = memo?Color.White:Color.FromArgb(255, 254, 240);
             editor.BorderStyle = memo?BorderStyle.None:BorderStyle.FixedSingle;
             editor.Location = origin;

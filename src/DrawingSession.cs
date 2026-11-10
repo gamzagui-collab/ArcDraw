@@ -27,7 +27,7 @@ namespace gInk
         private bool processingTargets,targetCommitQueued,repairTargetHook,targetCancelPending;
         private int modifiers;
         private IntPtr hook;
-        private bool capsDown, applying, disposed;
+        private bool capsDown, applying, disposed, escapeRequested;
         private bool? applied;
         private IntPtr previousApplication;
         private int pendingPreset=-1;
@@ -36,6 +36,7 @@ namespace gInk
         public bool CapsOn { get; private set; }
         public bool ToolbarHidden { get; private set; }
         public bool OptionsOpen { get; private set; }
+        internal bool LeavingDrawing {get{return escapeRequested;}}
         public bool SelectingTarget {get{return targetSwitching||targetSwitcher.IsOpen||targetSwitcher.IsVisible||targetCommands.Count>0;}}
         public ToolbarAppearance Appearance { get; private set; }
         public bool DrawingEnabled { get { return Running && CapsOn && root.FormCollection!=null&&!root.FormCollection.EntryPreparing; } }
@@ -78,6 +79,7 @@ namespace gInk
         {
             if (disposed) return;
             Running = true;
+            escapeRequested=false;
             CapsOn = (GetKeyState(0x14) & 1) != 0;
             capsDown = false;
             modifiers=0;
@@ -126,6 +128,7 @@ namespace gInk
         {
             if(disposed)return;
             Running = false;
+            escapeRequested=false;
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
@@ -152,7 +155,7 @@ namespace gInk
                 int bit=ModifierBit(key);
                 if(bit!=0) {if(down)modifiers|=bit;else if(up)modifiers&=~bit;}
                 bool firstPress=true;
-                if(key==9||key==0x2e||key==0x5a) {if(down)firstPress=heldReservedKeys.Add(key);else if(up)heldReservedKeys.Remove(key);}
+                if(key==9||key==0x1b||key==0x2e||key==0x5a) {if(down)firstPress=heldReservedKeys.Add(key);else if(up)heldReservedKeys.Remove(key);}
                 if (key == 0x14)
                 {
                     if (down && !capsDown) { if(!CapsOn)RememberForegroundApplication();CapsOn = !CapsOn; Post(ApplyMode); }
@@ -182,6 +185,13 @@ namespace gInk
                 {
                     int epoch=++targetSwitchEpoch;targetSwitching=false;consumed.Add(key);
                     Post(delegate {if(epoch==targetSwitchEpoch)CancelTargetSelection(true);});return new IntPtr(1);
+                }
+                // Esc leaves drawing even from a note editor or CAPS OFF.
+                // Modal dialogs and snapshot mode keep their own cancel behavior.
+                if(down&&firstPress&&key==0x1b&&modifiers==0&&!OptionsOpen&&!ModalWindowOpen()&&
+                    (root.FormOptions==null||!root.FormOptions.Visible)&&root.Snapping==0&&!root.UponTakingSnap)
+                {
+                    consumed.Add(key);Post(delegate {escapeRequested=true;ApplyMode();});return new IntPtr(1);
                 }
                 if (down && firstPress && DrawingEnabled && !Editing)
                 {
@@ -236,6 +246,23 @@ namespace gInk
         public void ApplyMode()
         {
             if (!Running || disposed || applying || root.FormCollection == null || !root.FormCollection.Visible||root.FormCollection.EntryPreparing) return;
+            if(escapeRequested)
+            {
+                applying=true;
+                try
+                {
+                if(OptionsOpen||ModalWindowOpen()||(root.FormOptions!=null&&root.FormOptions.Visible))escapeRequested=false;
+                else
+                {
+                    // Commit the final IME composition before hiding the notes.
+                    if(root.Whiteboards!=null)root.Whiteboards.FinishTextEditors();
+                    if(root.FingerInAction||root.FormCollection.IsToolbarDragging||root.FormCollection.ScreenContentBusy||
+                        root.FormCollection.IC.CollectingInk||(root.Whiteboards!=null&&root.Whiteboards.HasBusyInk))return;
+                    escapeRequested=false;root.FormCollection.RetreatAndExit(true);return;
+                }
+                }
+                finally {applying=false;}
+            }
             ReconcileTargetKeys();ProcessTargetCommands();
             if(!CapsOn&&applied!=CapsOn&&root.Whiteboards!=null)root.Whiteboards.FinishMemoEditors();
             if(SelectingTarget&&(!CapsOn||OptionsOpen||ModalWindowOpen()||(root.FormOptions!=null&&root.FormOptions.Visible)))CancelTargetSelection(false);
