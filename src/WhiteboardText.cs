@@ -183,6 +183,7 @@ namespace gInk
             if(memo)editor.Size=new Size(Math.Max(20,paper.ClientSize.Width-16),Math.Max(20,paper.ClientSize.Height-16));
             editor.Text = item == null ? String.Empty : item.Content;
             editor.TextChanged+=delegate {manager.NotesChanged();};
+            editor.MouseDown+=delegate {manager.SetActive(this);};
             editor.CommitRequested += delegate { FinishEditing(true); };
             editor.CancelRequested += delegate { FinishEditing(false); };
             editor.Leave += delegate { if (!closing) FinishEditing(true); };

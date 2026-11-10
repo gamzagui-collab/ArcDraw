@@ -4359,6 +4359,7 @@ namespace gInk
             }
             Root.UponButtonsUpdate |= 0x2;
             Root.ToolSelected = tool;
+            if(Root.Whiteboards!=null)Root.Whiteboards.DrawingToolSelected(tool,Root.FilledSelected);
             if (Root.Whiteboards != null) Root.Whiteboards.RefreshInkTools();
             if (Root.DrawingSession != null) Root.DrawingSession.ApplyMode();
         }

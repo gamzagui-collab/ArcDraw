@@ -7,6 +7,7 @@ namespace gInk
     public sealed partial class WhiteboardLayerForm
     {
         private bool editingMemo,memoOpenQueued;
+        internal bool MemoTargetMode {get;set;}
         private string memoFontFamily="Malgun Gothic";
         private float memoFontPoints=17f;
         private FontStyle memoFontStyle=FontStyle.Regular;

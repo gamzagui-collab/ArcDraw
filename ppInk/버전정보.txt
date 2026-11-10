@@ -1,3 +1,3 @@
-﻿ArcDraw v0.24 — 노트 자동저장·메모 Alt+Tab
-2026-11-10 23:39:32 KST
-EXE SHA256: 323d2968c2c18c61ef46d1aff5546e0ccbbd009b183baeadf0d1970beafde2d9
+﻿ArcDraw v0.25 — 메모·화면 필기 전환 안정화
+2026-11-11 00:00:08 KST
+EXE SHA256: ee04e1ea119fdc9c65ac2c6069cf05459a79a1eca147ad5ddfbf418a797187b9

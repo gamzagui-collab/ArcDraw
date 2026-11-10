@@ -32,6 +32,8 @@ namespace gInk
         private Control followedToolbar;
         private bool positioningBar;
         private bool updatingNoteVisibility;
+        private bool selectingScreen;
+        private int screenDrawingTool=Tools.Hand,screenDrawingFill=Filling.Empty,pendingScreenTool=-1;
         private bool CanShowNotes {get{return open&&(root.DrawingSession==null||!root.DrawingSession.Running||root.DrawingSession.CapsOn);}}
 
         public WhiteboardLayerManager(Root root)
@@ -46,6 +48,7 @@ namespace gInk
                 if (open && !disposed)
                 {
                     PositionBar();
+                    CompleteScreenToolRestore();
                     RefreshInkTools();
                     bar.UpdateSessionDisplay();
                     foreach (WhiteboardLayerForm note in notes.ToArray()) note.FlushHistorySnapshot();
@@ -61,7 +64,48 @@ namespace gInk
         {
             get { foreach (WhiteboardLayerForm note in notes.ToArray()) if (note.HasBusyInk) return true; return false; }
         }
-        public void SelectScreen() { if(active!=null){active.FinishEditing(true);active=null;bar.UpdateSelection();NotesChanged();}NotifyDrawingTarget(); }
+        private static bool IsTextTool(int tool){return tool==Tools.txtLeftAligned||tool==Tools.txtRightAligned;}
+        internal void DrawingToolSelected(int tool,int fill)
+        {
+            pendingScreenTool=-1;
+            if(active!=null)active.MemoTargetMode=IsTextTool(tool);
+            else if(Array.IndexOf(DrawingSettings.PresetTools,tool)>=0||tool==Tools.ClipArt||tool==Tools.PatternLine)
+            {screenDrawingTool=tool;screenDrawingFill=fill;}
+        }
+        public void SelectScreen()
+        {
+            if(disposed||selectingScreen)return;
+            selectingScreen=true;
+            try
+            {
+                WhiteboardLayerForm previous=active;active=null;
+                if(previous!=null)
+                {
+                    bool restore=previous.MemoTargetMode&&IsTextTool(root.ToolSelected)&&!root.EraserMode;
+                    // Drop the note target before flushing IME/focus events so
+                    // an owned popup cannot reactivate the old memo mid-switch.
+                    previous.FinishEditing(true);
+                    if(restore&&root.FormCollection!=null)
+                    {
+                        // CursorDown already owns a native stroke. Set its tool
+                        // now, and defer toolbar/Ink synchronization until idle.
+                        root.ToolSelected=screenDrawingTool;root.FilledSelected=screenDrawingFill;pendingScreenTool=screenDrawingTool;
+                        CompleteScreenToolRestore();
+                    }
+                    bar.UpdateSelection();NotesChanged();
+                }
+                NotifyDrawingTarget();
+            }
+            finally {selectingScreen=false;}
+        }
+        private void CompleteScreenToolRestore()
+        {
+            FormCollection canvas=root.FormCollection;
+            if(pendingScreenTool<0||canvas==null||canvas.IsDisposed)return;
+            if(root.FingerInAction||canvas.ScreenContentBusy||canvas.IC.CollectingInk||HasBusyInk)return;
+            int tool=pendingScreenTool;pendingScreenTool=-1;
+            if(active==null&&root.ToolSelected==tool)canvas.SelectTool(tool,screenDrawingFill);
+        }
         private void NotifyDrawingTarget(){if(root.DrawingSession!=null)root.DrawingSession.DrawingTargetChanged();}
         public bool HandleSelectedContent(bool clear, bool redo = false)
         {
@@ -219,6 +263,7 @@ namespace gInk
                 return;
             }
             notes.Add(note);
+            note.MemoTargetMode=IsTextTool(root.ToolSelected);
             if(root.DrawingSession!=null)note.SetInputPassThrough(!root.DrawingSession.DrawingEnabled);
             if (CanShowNotes&&note.Owner == null) note.Show(root.FormCollection);
             active = note;
@@ -246,11 +291,13 @@ namespace gInk
 
         public void SetActive(WhiteboardLayerForm note)
         {
-            if (disposed || updatingNoteVisibility || note == null || !notes.Contains(note)) return;
+            if (disposed || selectingScreen || updatingNoteVisibility || note == null || !notes.Contains(note)) return;
             bool selectionChanged = active != note || note.UserHidden;
             if(active!=null&&active!=note)active.FinishEditing(true);
             if(selectionChanged&&root.FormCollection!=null)root.FormCollection.ResetScreenSelectionForNote();
             active = note;
+            pendingScreenTool=-1;
+            if(IsTextTool(root.ToolSelected))note.MemoTargetMode=true;
             if (note.UserHidden)
             {
                 note.UserHidden = false;
@@ -262,6 +309,8 @@ namespace gInk
             }
             if (note.Visible)
             {
+                if(note.MemoTargetMode&&!IsTextTool(root.ToolSelected)&&!root.EraserMode)
+                    root.FormCollection.SelectTool(Tools.txtLeftAligned,Filling.Empty);
                 note.SyncInkTool(root);
                 note.BringToFront();
                 note.Activate();
@@ -716,12 +765,8 @@ namespace gInk
             InitializeNoteIdentity();
             AddResizeGrips();
             SizeChanged += delegate { PositionGrips(); };
-            Activated += delegate {
-                // Showing the non-activating switcher can reactivate an owned
-                // note. That is not a pointer selection and must not cancel it.
-                DrawingSession session=manager.CurrentRoot.DrawingSession;
-                if(session==null||!session.SelectingTarget)manager.SetActive(this);
-            };
+            // Focus/owned-popup activation is not a target selection. Header,
+            // paper, resize grips, list buttons and the switcher select explicitly.
             PositionGrips();
 
             // Independent ink collector attached only to the paper, never to the title bar.
@@ -873,7 +918,7 @@ namespace gInk
                     return;
                 }
                 bool wantText = !root.EraserMode &&
-                    (root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned);
+                    (MemoTargetMode||root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned);
                 if (!SetTextMode(ink, wantText) || textMode || closing) return;
                 DrawingAttributes drawing = root.FormCollection.IC.DefaultDrawingAttributes;
                 if(!SyncNoteShapeTool(ink,root,drawing))return;
