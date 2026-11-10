@@ -1,3 +1,3 @@
-﻿ArcDraw v0.17 — 그리기 중 노트·설정 카드 클릭 수정
-2026-11-10 20:20:03 KST
-EXE SHA256: 4dbaeb289845d95eb6aef6138e2e8db739dcf76c7184a56285edb4d1d1007e08
+﻿ArcDraw v0.18 — 노트 프리셋 도형·선 모양·정렬
+2026-11-10 20:48:15 KST
+EXE SHA256: f5b91729facfaaf89122598bbd48cd0655b858a1c139d81b268a57ede0b711f9

@@ -15,7 +15,7 @@ namespace gInk
     // This manager deliberately does not modify ppInk's full-screen Ink collection.
     // Each note owns its independent InkOverlay, so moving and erasing a note
     // cannot accidentally change the underlying screen annotations.
-    public sealed class WhiteboardLayerManager : IDisposable
+    public sealed partial class WhiteboardLayerManager : IDisposable
     {
         private readonly Root root;
         private readonly List<WhiteboardLayerForm> notes = new List<WhiteboardLayerForm>();
@@ -452,7 +452,7 @@ namespace gInk
             int chipWidth=inner;
             int hintHeight=Math.Max(18,(int)Math.Round(20*scale));
             int availableHeight=work.Height-20-hintHeight-(vertical&&host!=null?host.gpButtonsHeight:0);
-            int limit=Math.Max(0,(availableHeight-8)/cell-5);
+            int limit=Math.Max(0,(availableHeight-8)/cell-6);
             bool overflow=manager.Notes.Count>limit;
             int shown=overflow?Math.Min(limit,manager.Notes.Count):manager.Notes.Count;
             items.WrapContents=false;
@@ -476,6 +476,12 @@ namespace gInk
             add.Click += delegate { manager.AddNote(); };
             tips.SetToolTip(add, "새 화이트보드 레이어 (Ctrl+Shift+B)");
             items.Controls.Add(add);
+
+            Panel arrange=new Panel {Name="ArrangeWhiteboardNotes",Size=new Size(inner,cell)};
+            Button columns=NewButton("좌측 세로",inner/2);columns.Name="ArrangeNotesVertical";
+            Button rows=NewButton("상단 가로",inner-inner/2);rows.Name="ArrangeNotesHorizontal";rows.Left=inner/2;
+            columns.Click+=delegate {manager.ArrangeNotes(true);};rows.Click+=delegate {manager.ArrangeNotes(false);};
+            arrange.Controls.Add(columns);arrange.Controls.Add(rows);items.Controls.Add(arrange);
 
             screenButton=NewButton("화면",inner);screenButton.Name="SelectScreenTarget";
             screenButton.Click+=delegate { manager.SelectScreen(); };
@@ -549,7 +555,7 @@ namespace gInk
                 Font=new Font("Malgun Gothic",8f),AutoSize=false};
             altHint.Disposed+=delegate {altHint.Font.Dispose();};
             items.Controls.Add(altHint);
-            Width=inner+8;Height=(4+shown+(overflow?1:0))*cell+8+hintHeight;
+            Width=inner+8;Height=(5+shown+(overflow?1:0))*cell+8+hintHeight;
             foreach(Control control in items.Controls)control.Margin=new Padding(0);
             items.ResumeLayout(true);
             UpdateSelection();
@@ -625,6 +631,7 @@ namespace gInk
             paper.BackColor = Color.White;
             paper.Dock = DockStyle.Fill;
             paper.Cursor = Cursors.Cross;
+            InitializeNoteShapes();
             paper.MouseDown += PaperMouseDown;
             paper.Paint += PaperPaint;
 
@@ -803,6 +810,13 @@ namespace gInk
             }
             try
             {
+                if(HasCustomNoteWork)
+                {
+                    // Retry a busy native collector on the existing manager tick,
+                    // never in a self-posting loop that can starve mouse-up.
+                    if(pendingNotePath!=null&&noteCommitBlocked)noteCommitBlocked=false;
+                    return;
+                }
                 bool canDraw=root.DrawingSession==null||!root.DrawingSession.Running||root.DrawingSession.DrawingEnabled||IsEditingText;
                 if(!canDraw)
                 {
@@ -814,8 +828,8 @@ namespace gInk
                 bool wantText = !root.EraserMode &&
                     (root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned);
                 if (!SetTextMode(ink, wantText) || textMode || closing) return;
-                if(!ink.Enabled&&!ink.CollectingInk)ink.Enabled=true;
                 DrawingAttributes drawing = root.FormCollection.IC.DefaultDrawingAttributes;
+                if(!SyncNoteShapeTool(ink,root,drawing))return;
                 bool eraser = root.EraserMode;
                 if (eraser != lastEraser)
                 {
@@ -830,6 +844,7 @@ namespace gInk
                     if (!ink.CollectingInk && !closing)
                     {
                         ink.DefaultDrawingAttributes = drawing.Clone();
+                        CacheNotePen(drawing,root);
                         lastPen = root.CurrentPen;
                         lastWidth = drawing.Width;
                         lastColor = drawing.Color;

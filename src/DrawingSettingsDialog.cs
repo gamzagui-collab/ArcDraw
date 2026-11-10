@@ -53,14 +53,14 @@ namespace gInk
             for(int n=0;n<Root.MaxDisplayedPens;n++)if(root.PenEnabled[n])
             {bool exists=false;foreach(Slot slot in slots.Items)if(slot.Index==n)exists=true;if(!exists)slots.Items.Add(new Slot {Index=n,Settings=settings});}
             LabelAt(page,"이름",20,54);Place(page,presetName,"PresetName",140,54,390);presetName.MaxLength=40;
-            LabelAt(page,"화면 도구",20,94);Place(page,tools,"PresetTool",140,94,170);Choice(tools,"자유펜","직선","사각형","원/타원","시작 화살표","끝 화살표","연속선");
+            LabelAt(page,"도구",20,94);Place(page,tools,"PresetTool",140,94,170);Choice(tools,"자유펜","직선","사각형","원/타원","시작 화살표","끝 화살표","연속선");
             Place(page,fills,"PresetFill",330,94,200);Choice(fills,"윤곽선","펜 색으로 채움","바깥 채움","흰색 채움","검정 채움");
             LabelAt(page,"색상",20,134);Place(page,color,"PresetColor",140,134,135);
             LabelAt(page,"불투명도 %",296,134);Place(page,opacity,"PresetOpacity",425,134,105);
             LabelAt(page,"굵기 px",20,174);Place(page,width,"PresetWidth",140,174,105);
             LabelAt(page,"촉 높이 px",296,174);Place(page,height,"PresetHeight",425,174,105);
             LabelAt(page,"펜촉",20,214);Place(page,tips,"PresetTip",140,214,135);Choice(tips,"원형","사각형");
-            LabelAt(page,"화면 선 모양",296,214);Place(page,lines,"PresetLine",425,214,105);Choice(lines,"자유선","실선","파선","점선","일점쇄선","이점쇄선");
+            LabelAt(page,"선 모양",296,214);Place(page,lines,"PresetLine",425,214,105);Choice(lines,"자유선","실선","파선","점선","일점쇄선","이점쇄선");
             var current=new Button {Text="현재 도구 가져오기"};Place(page,current,"CaptureCurrentPreset",20,266,180,32);
             var save=new Button {Text="프리셋 저장"};Place(page,save,"SaveDrawingPreset",350,266,180,32);
             Place(page,presetStatus,"PresetStatus",20,310,515,50);presetStatus.Text="표시된 기존 단축키로 호출합니다. CAPS OFF·텍스트 편집 중에는 가로채지 않습니다.";

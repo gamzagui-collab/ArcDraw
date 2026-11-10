@@ -20,6 +20,7 @@ namespace gInk
             get
             {
                 if(closing||layerInk==null)return false;
+                if(HasCustomNoteWork)return true;
                 InkOverlay ink;
                 if(!BeginInkUse(out ink))return !closing;
                 try { return ink.CollectingInk; }
@@ -73,7 +74,8 @@ namespace gInk
 
         internal bool ExecuteContentAction(bool clear, bool redo = false)
         {
-            if (closing || IsEditingText || !FlushHistorySnapshot()) return false;
+            if (closing || IsEditingText || HasCustomNoteWork || !FlushHistorySnapshot()) return false;
+            ResetNotePolyline();
             if (historyPosition<0) { snapshotPending=true; if(!FlushHistorySnapshot())return false; }
             InkOverlay ink;
             if (!BeginInkUse(out ink)) return false;

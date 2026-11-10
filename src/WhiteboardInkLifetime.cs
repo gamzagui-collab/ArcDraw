@@ -24,13 +24,14 @@ namespace gInk
         private void EndInkUse()
         {
             inkUseDepth--;
-            if (inkUseDepth == 0 && (closePending || syncPending || repaintPending)) QueueInkWork();
+            if (inkUseDepth == 0 && (closePending || syncPending || repaintPending || (pendingNotePath!=null&&!noteCommitBlocked))) QueueInkWork();
         }
 
         private void RequestClose()
         {
             if (closing) return;
             closing = true;
+            CancelNoteGesture();
             closePending = true;
             FinishEditing(false);
             Hide();
@@ -61,6 +62,7 @@ namespace gInk
                     Dispose();
                     return;
                 }
+                if(pendingNotePath!=null)CommitPendingNotePath();
                 if (syncPending)
                 {
                     syncPending = false;

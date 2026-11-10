@@ -89,10 +89,11 @@ namespace gInk
                     if (strokes.Count > 0)
                     {
                         if (closing) return;
-                        ink.Renderer.Draw(e.Graphics, strokes);
+                        DrawNoteStrokes(e.Graphics,ink,strokes);
                     }
                 }
                 if (closing) return;
+                DrawNotePreview(e.Graphics);
                 foreach (NoteTextItem item in textItems.ToArray())
                 {
                     if (item == editingText) continue;
@@ -263,6 +264,7 @@ namespace gInk
                 }
                 FinishEditing(false);
                 textItems.Clear();
+                CancelNoteGesture();
                 history.Clear();
                 if (layerInk != null)
                 {

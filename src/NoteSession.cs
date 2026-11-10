@@ -12,6 +12,7 @@ namespace gInk
         internal void SuspendForSession()
         {
             if(closing||!FlushHistorySnapshot())return;
+            ResetNotePolyline();
             InkOverlay ink;if(!BeginInkUse(out ink))return;
             try
             {
