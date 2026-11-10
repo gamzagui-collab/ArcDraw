@@ -31,3 +31,6 @@ ppInk/ArcDraw.exe
 
 # Personal drawing presets and font preferences
 **/drawing-settings.xml*
+
+# Personal note autosave, backup and recovery files
+**/ArcDraw.notes.xml*

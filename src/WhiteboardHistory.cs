@@ -67,6 +67,7 @@ namespace gInk
                 // Bound undo storage per note to 100 completed actions.
                 if(history.Count>101) { history.RemoveAt(0); historyPosition--; }
                 snapshotPending=false;
+                manager.NotesChanged();
                 return true;
             }
             finally { EndInkUse(); }
@@ -109,6 +110,7 @@ namespace gInk
                 }
                 finally { if(!closing)ink.Enabled=enabled; restoringHistory=false; }
                 if(clear)snapshotPending=true;
+                manager.NotesChanged();
                 paper.Invalidate();
                 return true;
                 }

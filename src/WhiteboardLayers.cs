@@ -52,6 +52,7 @@ namespace gInk
                     ProcessContentActions();
                 }
             };
+            InitializeNotePersistence();
         }
 
         public IList<WhiteboardLayerForm> Notes { get { return notes.AsReadOnly(); } }
@@ -60,7 +61,7 @@ namespace gInk
         {
             get { foreach (WhiteboardLayerForm note in notes.ToArray()) if (note.HasBusyInk) return true; return false; }
         }
-        public void SelectScreen() { if(active!=null){active.FinishEditing(true);active=null;bar.UpdateSelection();}NotifyDrawingTarget(); }
+        public void SelectScreen() { if(active!=null){active.FinishEditing(true);active=null;bar.UpdateSelection();NotesChanged();}NotifyDrawingTarget(); }
         private void NotifyDrawingTarget(){if(root.DrawingSession!=null)root.DrawingSession.DrawingTargetChanged();}
         public bool HandleSelectedContent(bool clear, bool redo = false)
         {
@@ -166,6 +167,9 @@ namespace gInk
             // Rebind as well when StopInk/ReinitForms replaced the host window.
             if(bar.Owner!=root.FormCollection)bar.Owner=root.FormCollection;
             bar.Show();
+            updatingNoteVisibility=true;
+            try
+            {
             foreach (WhiteboardLayerForm note in notes)
             {
                 if (CanShowNotes&&!note.UserHidden)
@@ -175,6 +179,8 @@ namespace gInk
                     else note.Show();
                 }
             }
+            }
+            finally {updatingNoteVisibility=false;}
             PositionBar();
             RefreshInkTools();
             KeepWindowsOnTop();
@@ -221,6 +227,7 @@ namespace gInk
             KeepWindowsOnTop();
             if(note.Visible)note.Activate();
             NotifyDrawingTarget();
+            NotesChanged();
         }
 
         private Rectangle DefaultNoteBounds()
@@ -262,6 +269,7 @@ namespace gInk
             bar.UpdateSelection();
             note.QueueMemoEditor();
             NotifyDrawingTarget();
+            if(selectionChanged)NotesChanged();
         }
 
         public void ToggleVisibility(WhiteboardLayerForm note)
@@ -282,6 +290,7 @@ namespace gInk
             bar.UpdateSelection();
             KeepWindowsOnTop();
             NotifyDrawingTarget();
+            NotesChanged();
         }
 
         public void ToggleActive()
@@ -299,6 +308,7 @@ namespace gInk
             bar.QueueRebuild();
             KeepWindowsOnTop();
             NotifyDrawingTarget();
+            NotesChanged();
         }
 
         public void RefreshInkTools()
@@ -362,6 +372,8 @@ namespace gInk
             if (disposed) return;
             noteActions.Close();
             Hide();
+            SaveNotes();
+            noteSaveTimer.Dispose();Application.ApplicationExit-=SaveNotesOnExit;
             disposed = true;
             followTimer.Dispose();
             if(followedToolbar!=null){followedToolbar.LocationChanged-=ToolbarPositionChanged;followedToolbar.SizeChanged-=ToolbarPositionChanged;}
@@ -725,6 +737,8 @@ namespace gInk
             layerInk.Enabled = true;
             snapshotPending=true;
             FlushHistorySnapshot();
+            LocationChanged+=delegate {manager.NotesChanged();};
+            SizeChanged+=delegate {manager.NotesChanged();};
         }
 
         private void AddResizeGrips()

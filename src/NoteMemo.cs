@@ -21,7 +21,7 @@ namespace gInk
             memoFontFamily=font.Name;memoFontPoints=font.SizeInPoints;memoFontStyle=font.Style;memoColor=Color.FromArgb(color.R,color.G,color.B);
             foreach(NoteTextItem item in textItems)if(item.IsMemo)
             {item.FontFamily=memoFontFamily;item.FontSize=memoFontPoints;item.FontStyle=memoFontStyle;item.Color=memoColor;}
-            if(MemoItem!=null)QueueHistorySnapshot();paper.Invalidate();return true;
+            if(MemoItem!=null)QueueHistorySnapshot();manager.NotesChanged();paper.Invalidate();return true;
         }
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
         private bool CanOpenMemo()

@@ -13,7 +13,7 @@ namespace gInk
     {
         // Positions and layout widths are paper-local pixels, never screen or
         // Microsoft.Ink coordinates. Font size is in points and is not resized.
-        private sealed class NoteTextItem
+        internal sealed class NoteTextItem
         {
             public Point Position;
             public string Content;
@@ -182,6 +182,7 @@ namespace gInk
             editor.Size = new Size(width, Math.Min(140, Math.Max(44, paper.ClientSize.Height - origin.Y - 8)));
             if(memo)editor.Size=new Size(Math.Max(20,paper.ClientSize.Width-16),Math.Max(20,paper.ClientSize.Height-16));
             editor.Text = item == null ? String.Empty : item.Content;
+            editor.TextChanged+=delegate {manager.NotesChanged();};
             editor.CommitRequested += delegate { FinishEditing(true); };
             editor.CancelRequested += delegate { FinishEditing(false); };
             editor.Leave += delegate { if (!closing) FinishEditing(true); };

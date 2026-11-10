@@ -26,7 +26,7 @@ namespace gInk
         {
             if(disposed||note==null||!notes.Contains(note)||note.IsDisposed)return false;
             string value=CleanNoteName(name);if(value==null)return false;
-            note.SetDisplayName(value);bar.UpdateSelection();if(root.DrawingSession!=null)root.DrawingSession.NoteLabelChanged();return true;
+            note.SetDisplayName(value);bar.UpdateSelection();NotesChanged();if(root.DrawingSession!=null)root.DrawingSession.NoteLabelChanged();return true;
         }
         private static string CleanNoteName(string name)
         {

@@ -173,7 +173,8 @@ namespace gInk
                 bool altHeld=key==9?(eventFlags&0x20)!=0:(modifiers&48)!=0;
                 if(key==9&&!altHeld)modifiers&=~48;
                 if(down&&firstPress&&DrawingEnabled&&key==9&&altHeld&&(modifiers&(12|192))==0&&
-                    root.Snapping==0&&!root.UponTakingSnap&&(!Editing||SelectingTarget))
+                    root.Snapping==0&&!root.UponTakingSnap&&!OptionsOpen&&!ModalWindowOpen()&&
+                    (root.FormOptions==null||!root.FormOptions.Visible))
                 {
                     bool begin=!targetSwitching,reverse=(modifiers&3)!=0;
                     if(begin)targetSwitchEpoch++;
@@ -354,8 +355,9 @@ namespace gInk
                 while(targetCommands.Count>0)
                 {
                     TargetCommand command=targetCommands.Dequeue();if(command.Epoch!=targetSwitchEpoch)continue;
-                    if(!DrawingEnabled||OptionsOpen||ModalWindowOpen()||(root.Whiteboards!=null&&root.Whiteboards.IsEditingText))
+                    if(!DrawingEnabled||OptionsOpen||ModalWindowOpen())
                     {CancelTargetSelection(false);break;}
+                    if(command.Begin&&root.Whiteboards!=null)root.Whiteboards.FinishTextEditors();
                     if(command.Commit)
                     {
                         targetCommitQueued=false;targetSwitching=false;

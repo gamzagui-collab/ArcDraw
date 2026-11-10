@@ -1,3 +1,3 @@
-﻿ArcDraw v0.23 — Esc 복귀·노트별 메모 속성
-2026-11-10 23:11:16 KST
-EXE SHA256: d995e4c2ca8d3b11873b7669177d923c8ce67c185c68c6cd0e5c4407efc08453
+﻿ArcDraw v0.24 — 노트 자동저장·메모 Alt+Tab
+2026-11-10 23:39:32 KST
+EXE SHA256: 323d2968c2c18c61ef46d1aff5546e0ccbbd009b183baeadf0d1970beafde2d9

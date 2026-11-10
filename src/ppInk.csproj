@@ -213,6 +213,7 @@
     <Compile Include="NoteSession.cs" />
     <Compile Include="NoteIdentity.cs" />
     <Compile Include="NoteMemo.cs" />
+    <Compile Include="NotePersistence.cs" />
     <Compile Include="NoteShapes.cs" />
     <Compile Include="NoteArrangement.cs" />
     <Compile Include="ArcDrawBranding.cs" />
