@@ -8,7 +8,7 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>gInk</RootNamespace>
-    <AssemblyName>ppInk</AssemblyName>
+    <AssemblyName>ArcDraw</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -205,6 +205,8 @@
     <Compile Include="DrawingCursorHalo.cs" />
     <Compile Include="DrawingModeBorder.cs" />
     <Compile Include="RenderCache.cs" />
+    <Compile Include="MagneticCache.cs" />
+    <Compile Include="DirtyRendering.cs" />
     <Compile Include="ArcDrawBranding.cs" />
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.png"><LogicalName>ArcDraw.Image</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.ico"><LogicalName>ArcDraw.Icon</LogicalName></EmbeddedResource>

@@ -12,7 +12,7 @@ nuget restore ppInk.sln -NonInteractive
 MSBuild.exe ppInk.sln /t:Rebuild /p:Configuration=Release /p:Platform=x86 /p:PostBuildEvent=
 ```
 
-출력은 `ppInk/ppInk.exe`입니다. 리소스와 필요한 DLL을 같은 폴더에 두고 실행하세요.
+출력은 `ppInk/ArcDraw.exe`입니다. 리소스와 필요한 DLL을 같은 폴더에 두고 실행하세요.
 기존 개인 설치본과 다른 폴더에서 작업하세요. 빌드 출력 폴더가 원래 설치본을 가리키도록 바꾸지 마세요.
 
 NuGet 종속성은 GameOverlay.Net 4.3.1, SharpDX/SharpDX.Direct2D1/SharpDX.DXGI 4.2.0입니다.

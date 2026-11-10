@@ -69,6 +69,7 @@ namespace gInk
                     // Only these two regions changed; the rest of OutCanvus is current.
                     BitBlt(OutcanvusDc, previous.Left, previous.Top, previous.Width, previous.Height, canvusDc, previous.Left, previous.Top, 0x00CC0020);
                     BitBlt(OutcanvusDc, next.Left, next.Top, next.Width, next.Height, canvusDc, next.Left, next.Top, 0x00CC0020);
+                    pendingFrameDirty=Rectangle.Intersect(ClientRectangle,Rectangle.Union(previous,next));
                     UpdateFormDisplay(true, true); cachedToolbarFrames++;
                 }
                 else UpdateFormDisplay(true);
@@ -104,12 +105,14 @@ namespace gInk
                 handCopiedPixels += (long)copy.Width * copy.Height;
             }
             DrawOneStroke(gOutCanvus, stroke, c.IC.DefaultDrawingAttributes);
+            previewFrameValid=false; pendingFrameDirty=copy;
             handFrameValid = cache; handStrokeId = stroke.Id; handPackets = packets; handFrameBounds = bounds;
             return true;
         }
         private void InvalidateRenderCache()
         {
             handFrameValid = false;
+            previewFrameValid=false; pendingFrameDirty=null;
             if (!renderingToolbarMove) { toolbarUnderlayValid = false; toolbarMovePending = false; }
         }
         private void ReleaseToolbarUnderlay()

@@ -2217,6 +2217,9 @@ namespace gInk
             if (ptInPixel)
                 IC.Renderer.PixelToInkSpace(Root.FormDisplay.gOneStrokeCanvus, ref pt);
 
+            if(Magnet && !Search4Text && butLast && CanCacheMagneticGeometry())
+                return NearestCachedMagneticStroke(pt,out minStroke,out pos);
+
             float dst = 10000000000;
             float dst1 = dst;
             float pos1;
@@ -2281,7 +2284,7 @@ namespace gInk
                 Second : looking for remarquable points around text
             */
             if ((Magnetic || (ModifierKeys & Keys.Control) != Keys.None))
-                foreach (Stroke stk in IC.Ink.Strokes)
+                foreach (Stroke stk in MagneticTextStrokes())
                 {
                     if (stk.ExtendedProperties.Contains(Root.TEXTWIDTH_GUID))
                     {
@@ -3186,6 +3189,7 @@ namespace gInk
 
         private void IC_MouseDown(object sender, CancelMouseEventArgs e)
         {
+            ClearMagneticCache();
             Console.WriteLine("MouseDown");
             CurrentMouseButton = e.Button;
             Screen scr = Screen.FromPoint(e.Location);
@@ -3520,7 +3524,7 @@ namespace gInk
                 Root.UponAllDrawingUpdate = true;
             }
 
-            if (currentStroke != null && Root.MeasureEnabled)
+            if (currentStroke != null && Root.MeasureEnabled && Root.MeasureWhileDrawing && MetricToolTip.Active)
             {
                 if ((DateTime.Now.Ticks - lastHintDraw) > (200 * 10000))
                 {
@@ -3563,6 +3567,7 @@ namespace gInk
 
         private void IC_MouseUp(object sender, CancelMouseEventArgs e)
         {
+            ClearMagneticCache();
             Console.WriteLine("MouseUp");
             Root.FingerInAction = false;
             if (Root.ColorPickerMode)

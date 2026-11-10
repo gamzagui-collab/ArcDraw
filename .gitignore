@@ -26,3 +26,5 @@ snapshots/
 *.strokes.txt
 crash*.txt
 ppInk/toolbar-ui.ini
+
+ppInk/ArcDraw.exe

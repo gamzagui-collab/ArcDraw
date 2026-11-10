@@ -1137,6 +1137,8 @@ namespace gInk
         private bool MemoSpotLight = false;
 		public void UpdateFormDisplay(bool draw,bool prepared=false)
 		{
+            if(!prepared || renderingToolbarMove)previewFrameValid=false;
+            if(!prepared)pendingFrameDirty=null;
             if(!prepared||renderingToolbarMove)handFrameValid=false;
             if(!renderingToolbarMove){toolbarUnderlayValid=false;toolbarMovePending=false;}
 			IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -1189,9 +1191,14 @@ namespace gInk
 
 
             if (draw)
-                UpdateLayeredWindow(this.Handle, screenDc, ref topPos, ref size, OutcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
+            {
+                if(!prepared || !TryUploadDirtyFrame(screenDc))
+                    UpdateLayeredWindow(this.Handle, screenDc, ref topPos, ref size, OutcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
+                uploadedBounds=Bounds;
+            }
             else
                 UpdateLayeredWindow(this.Handle, screenDc, ref topPos, ref size, blankcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
+            pendingFrameDirty=null;
 
 			//Clean-up
 			ReleaseDC(IntPtr.Zero, screenDc);
@@ -1208,7 +1215,7 @@ namespace gInk
             if (Root.FormCollection == null || !Root.FormCollection.Visible)
                 return; // the initialisation is not yet completed. we wait for
             if(Root.FormCollection.EntryPreparing||Root.FormCollection.ScreenContentBusy)return;
-            if(!Root.FormCollection.IC.CollectingInk)handFrameValid=false;
+            if(!Root.FormCollection.IC.CollectingInk){handFrameValid=false;previewFrameValid=false;}
 			Tick++;
 
             /*
@@ -1337,7 +1344,7 @@ namespace gInk
                     {
                         if(PrepareHandFrame(stroke))UpdateFormDisplay(true,true);
                     }
-                    else UpdateFormDisplay(true);
+                    else if(!TryRenderCustomFrame())UpdateFormDisplay(true);
                     
                 }
             }
@@ -1496,6 +1503,7 @@ namespace gInk
 
         private void ReleaseCanvasResources()
         {
+            ReleaseDirtyRendering();
             ReleaseToolbarUnderlay();InvalidateRenderCache();
             // Graphics objects hold their HDC; bitmaps selected into a DC cannot
             // be deleted. Release graphics, then DCs, then the selected bitmaps.
