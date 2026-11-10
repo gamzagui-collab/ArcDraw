@@ -11,6 +11,7 @@ namespace gInk
     // They are outside Ink and accept neither pointer input nor activation.
     internal sealed class DrawingModeBorder : IDisposable
     {
+        private const int Thickness=12;
         private readonly Root root;
         private readonly List<EdgeWindow> edges = new List<EdgeWindow>();
         private bool visible;
@@ -38,8 +39,8 @@ namespace gInk
                 Form owner=note==null?(Form)root.FormCollection:note;
                 for(int i=0;i<next.Count;i++)
                 {
-                    Rectangle r=next[i];Rectangle[] strips={new Rectangle(r.Left,r.Top,r.Width,4),new Rectangle(r.Left,r.Bottom-4,r.Width,4),
-                        new Rectangle(r.Left,r.Top+4,4,Math.Max(1,r.Height-8)),new Rectangle(r.Right-4,r.Top+4,4,Math.Max(1,r.Height-8))};
+                    Rectangle r=next[i];Rectangle[] strips={new Rectangle(r.Left,r.Top,r.Width,Thickness),new Rectangle(r.Left,r.Bottom-Thickness,r.Width,Thickness),
+                        new Rectangle(r.Left,r.Top+Thickness,Thickness,Math.Max(1,r.Height-2*Thickness)),new Rectangle(r.Right-Thickness,r.Top+Thickness,Thickness,Math.Max(1,r.Height-2*Thickness))};
                     for(int side=0;side<4;side++)
                     {
                         int index=i*4+side;
@@ -91,8 +92,7 @@ namespace gInk
             internal void RaiseWithoutFocus(){SetWindowPos(Handle,new IntPtr(-1),0,0,0,0,0x1|0x2|0x10);}
             internal void SetPixels()
             {
-                // WinForms may enforce a 6px native minimum at the current scale.
-                // Only four alpha rows are painted; keep the bright edge on-screen.
+                // Anchor the far edges even if Windows adjusts the native size.
                 if(side==1)Top=anchor.Bottom-Height;
                 if(side==3)Left=anchor.Right-Width;
                 IntPtr screen = GetDC(IntPtr.Zero), memory = CreateCompatibleDC(screen), bitmap = IntPtr.Zero, previous = IntPtr.Zero;
@@ -103,8 +103,8 @@ namespace gInk
                     {
                         g.Clear(Color.Transparent);
                         int[] alpha = { 150, 90, 42, 14 };
-                        for (int i = 0; i < 4; i++)
-                        using (var pen = new Pen(Color.FromArgb(alpha[i], 55, 218, 255)))
+                        for (int i = 0; i < Thickness; i++)
+                        using (var pen = new Pen(Color.FromArgb(alpha[i/3], 55, 218, 255)))
                         {
                             if (side < 2) { int y = side == 0 ? i : Height - 1 - i; g.DrawLine(pen, 0, y, Width - 1, y); }
                             else { int x = side == 2 ? i : Width - 1 - i; g.DrawLine(pen, x, 0, x, Height - 1); }
