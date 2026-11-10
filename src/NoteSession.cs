@@ -17,7 +17,7 @@ namespace gInk
             try
             {
                 if(ink.CollectingInk)return;
-                if(historyPosition>=0)retainedSession=history[historyPosition];
+                if(historyPosition>=0)retainedSession=new NoteState {Ink=history[historyPosition].Ink,Text=CopyText(textItems)};
                 retainedInkCount=ink.Ink.Strokes.Count;
                 if(ink.Enabled)ink.Enabled=false;
                 sessionSuspended=true;

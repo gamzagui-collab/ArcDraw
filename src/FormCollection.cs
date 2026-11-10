@@ -579,6 +579,7 @@ namespace gInk
             IC.CursorDown += (sender, args) => RunScreenInkWork(delegate { IC_CursorDown(sender,args); });
             IC.MouseWheel += (sender, args) => RunScreenInkWork(delegate { IC_MouseWheel(sender,args); });
             IC.Stroke += (sender, args) => RunScreenInkWork(delegate { IC_Stroke(sender,args); });
+            IC.StrokesDeleting += ScreenStrokesDeleting;
 
             StrokesSelection = IC.Ink.CreateStrokes();
 
@@ -3158,7 +3159,7 @@ namespace gInk
                             Animations.Remove((int)minStroke.ExtendedProperties[Root.ANIMATIONFRAMEIMG_GUID].Data);
                     }
                     catch { };
-                    IC.Ink.DeleteStroke(minStroke);
+                    if(!DeferScreenTextErase(minStroke))IC.Ink.DeleteStroke(minStroke);
                 }
             }
             else if (Root.ToolSelected == Tools.PatternLine && PatternLineSteps == 2) // we are now drawing the final "stroke"
@@ -4516,8 +4517,11 @@ namespace gInk
                     }
                     catch { };
                 }
-                IC.Ink.Strokes.Remove(StrokesSelection);
-                IC.Ink.DeleteStrokes(StrokesSelection);
+                if(!DeferSelectedScreenTextErase(StrokesSelection))
+                {
+                    IC.Ink.Strokes.Remove(StrokesSelection);
+                    IC.Ink.DeleteStrokes(StrokesSelection);
+                }
                 StrokesSelection.Clear();
                 Root.LassoMode = false;
                 Root.UponAllDrawingUpdate = true;
@@ -5309,6 +5313,7 @@ namespace gInk
         private void tiSlide_Tick(object sender, EventArgs e)
         {
             if(EntryPreparing)return;
+            ProcessScreenTextErases();
             Initializing = false;
             Tick++;
 
@@ -6583,9 +6588,10 @@ namespace gInk
 				return;
 			}
 
+            TimeSpan tsp = DateTime.Now - MouseTimeDown;
+            if(!ConfirmScreenTextClear())return;
             StopAllZooms();
 
-            TimeSpan tsp = DateTime.Now - MouseTimeDown;
             PolyLineLastX = Int32.MinValue; PolyLineLastY = Int32.MinValue; PolyLineInProgress = null;
             if (sender != null && tsp.TotalSeconds > Root.LongClickTime)
             {   
@@ -6598,7 +6604,7 @@ namespace gInk
                     return;
             }
 			//Root.ClearInk(false); <-- code exploded inhere removing clearcanvus
-            Root.FormCollection.IC.Ink.DeleteStrokes();
+            DeleteScreenContents();
             InprogressSelection = null;
             StrokesSelection.Clear();
             if (Root.BoardSelected == 1) // White

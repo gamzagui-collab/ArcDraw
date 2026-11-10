@@ -352,7 +352,15 @@ namespace gInk
 
         public void Remove(WhiteboardLayerForm note)
         {
-            if (disposed || note == null || !notes.Remove(note)) return;
+            if (disposed || note == null || !notes.Contains(note)||confirmingNoteDeletion) return;
+            confirmingNoteDeletion=true;
+            try
+            {
+                note.FinishEditing(true);
+                if(!DeletionSafety.Confirm(root,"노트 삭제 확인","“"+note.DisplayName+"” 노트를 삭제할까요?\r\n이 노트의 메모와 필기가 함께 삭제됩니다."))return;
+            }
+            finally {confirmingNoteDeletion=false;}
+            if(!notes.Remove(note))return;
             note.CloseAndDispose();
             if (active == note) active = null;
             bar.QueueRebuild();
@@ -360,6 +368,8 @@ namespace gInk
             NotifyDrawingTarget();
             NotesChanged();
         }
+
+        private bool confirmingNoteDeletion;
 
         public void RefreshInkTools()
         {

@@ -98,13 +98,13 @@ namespace gInk
                 try
                 {
                     ink.Ink.DeleteStrokes();
-                    textItems.Clear();
                     if(!clear)
                     {
                         if(state.Ink.Length>0)
                             using(Strokes strokes=restored.Strokes)
                                 ink.Ink.AddStrokesAtRectangle(strokes,strokes.GetBoundingBox());
-                        textItems.AddRange(CopyText(state.Text));
+                        // Drawing clear/undo/redo never delete or resurrect text.
+                        // Text edits use the editor's own selection and undo.
                         historyPosition=destination;
                     }
                 }
