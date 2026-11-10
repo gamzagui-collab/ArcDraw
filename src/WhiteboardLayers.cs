@@ -31,6 +31,8 @@ namespace gInk
         private bool processingContentActions;
         private Control followedToolbar;
         private bool positioningBar;
+        private bool updatingNoteVisibility;
+        private bool CanShowNotes {get{return open&&(root.DrawingSession==null||!root.DrawingSession.Running||root.DrawingSession.CapsOn);}}
 
         public WhiteboardLayerManager(Root root)
         {
@@ -91,7 +93,25 @@ namespace gInk
         }
         public void SetInputPassThrough(bool value)
         {
-            foreach(WhiteboardLayerForm note in notes.ToArray())note.SetInputPassThrough(value);
+            // CAPS visibility is temporary; never overwrite each note's own toggle.
+            // Showing/hiding owned windows can activate another note synchronously.
+            updatingNoteVisibility=true;
+            try
+            {
+                foreach(WhiteboardLayerForm note in notes.ToArray())
+                {
+                    note.SetInputPassThrough(value);
+                    if(value){note.FinishEditing(true);note.SuspendForSession();note.Hide();}
+                    else if(CanShowNotes&&!note.UserHidden)
+                    {
+                        if(note.Owner!=root.FormCollection)note.Owner=root.FormCollection;
+                        note.Show();
+                    }
+                }
+            }
+            finally {updatingNoteVisibility=false;}
+            bar.UpdateSelection();
+            if(!value){RefreshInkTools();KeepWindowsOnTop();}
             if(!value&&ActiveNote!=null)ActiveNote.QueueMemoEditor();
         }
         public void UpdateSessionDisplay() { bar.UpdateSessionDisplay(); }
@@ -148,7 +168,7 @@ namespace gInk
             bar.Show();
             foreach (WhiteboardLayerForm note in notes)
             {
-                if (!note.UserHidden)
+                if (CanShowNotes&&!note.UserHidden)
                 {
                     if(note.Owner!=root.FormCollection)note.Owner=root.FormCollection;
                     if (note.Owner == null) note.Show(root.FormCollection);
@@ -194,12 +214,12 @@ namespace gInk
             }
             notes.Add(note);
             if(root.DrawingSession!=null)note.SetInputPassThrough(!root.DrawingSession.DrawingEnabled);
-            if (note.Owner == null) note.Show(root.FormCollection);
+            if (CanShowNotes&&note.Owner == null) note.Show(root.FormCollection);
             active = note;
             note.SyncInkTool(root);
             bar.QueueRebuild();
             KeepWindowsOnTop();
-            note.Activate();
+            if(note.Visible)note.Activate();
             NotifyDrawingTarget();
         }
 
@@ -219,16 +239,15 @@ namespace gInk
 
         public void SetActive(WhiteboardLayerForm note)
         {
-            if (disposed || note == null || !notes.Contains(note)) return;
+            if (disposed || updatingNoteVisibility || note == null || !notes.Contains(note)) return;
             bool selectionChanged = active != note || note.UserHidden;
             if(active!=null&&active!=note)active.FinishEditing(true);
-            bool wasHidden = note.UserHidden;
             if(selectionChanged&&root.FormCollection!=null)root.FormCollection.ResetScreenSelectionForNote();
             active = note;
             if (note.UserHidden)
             {
                 note.UserHidden = false;
-                if (open)
+                if (CanShowNotes)
                 {
                     if (note.Owner == null) note.Show(root.FormCollection);
                     else note.Show();
@@ -254,7 +273,7 @@ namespace gInk
                 note.FinishEditing(true);
                 note.Hide();
             }
-            else if (open)
+            else if (CanShowNotes)
             {
                 if (note.Owner == null) note.Show(root.FormCollection);
                 else note.Show();
@@ -378,8 +397,11 @@ namespace gInk
                 foreach(Control child in control.Controls)
                 {
                     child.BackColor=color;child.ForeColor=selected?Color.White:theme.Text;
-                    if(child.Name=="NoteLayerTitle")child.Text=(selected?"✓ ":"")+note.DisplayName;
-                    if(child.Name=="ToggleNoteVisibility")child.Text=note.UserHidden?"□":"●";
+                    if(child.Name=="NoteLayerTitle")
+                    {
+                        child.Text=(note.UserHidden?"○ ":(selected?"✓ ":""))+note.DisplayName;
+                        child.AccessibleName=note.DisplayName+(note.UserHidden?" · 숨김 · 클릭하여 표시":" · 표시 · 클릭하여 숨김");
+                    }
                 }
             }
             UpdateSessionDisplay();
@@ -525,9 +547,8 @@ namespace gInk
                 if(!noteRows.TryGetValue(note,out chip)){chip=CreateNoteRow(note);noteRows.Add(note,chip);noteItems.Controls.Add(chip);}
                 noteItems.Controls.SetChildIndex(chip,noteIndex++);chip.Size=new Size(chipWidth,cell);chip.Margin=new Padding(0,0,4,0);
                 int small=Math.Max(16,(int)(25*scale));
-                chip.Controls[0].Bounds=new Rectangle(0,0,chipWidth-2*small,cell);
-                chip.Controls[1].Bounds=new Rectangle(chipWidth-2*small,0,small,cell);
-                chip.Controls[2].Bounds=new Rectangle(chipWidth-small,0,small,cell);
+                chip.Controls[0].Bounds=new Rectangle(0,0,chipWidth-small,cell);
+                chip.Controls[1].Bounds=new Rectangle(chipWidth-small,0,small,cell);
                 foreach(Control child in chip.Controls)ToolbarDesign.SetTheme((Button)child,theme);
             }
             noteItems.AutoScroll=scroll;noteItems.Size=new Size(listWidth,listHeight);noteItems.Visible=rows>0;
@@ -559,10 +580,9 @@ namespace gInk
         {
             var row=new Panel {Tag=note};
             Button title=NewButton(note.DisplayName,1);title.Name="NoteLayerTitle";title.AutoEllipsis=true;title.Tag=note;
-            title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.SetActive(note);};
-            Button toggle=NewButton("●",1);toggle.Name="ToggleNoteVisibility";toggle.AccessibleName="노트 표시/숨김";toggle.Click+=delegate {manager.ToggleVisibility(note);};
+            title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.ToggleVisibility(note);};
             Button close=NewButton("×",1);close.Name="DeleteWhiteboardNote";close.AccessibleName="노트 삭제";close.Click+=delegate {manager.Remove(note);};
-            row.Controls.AddRange(new Control[]{title,toggle,close});return row;
+            row.Controls.AddRange(new Control[]{title,close});return row;
         }
 
         private Button NewButton(string text, int width)
