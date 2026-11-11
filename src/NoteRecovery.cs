@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -22,21 +23,23 @@ namespace gInk
             try
             {
                 FinishTextEditors();
-                XElement[] entries = deletedNotes.Elements("Note").Reverse().ToArray();
+                List<XElement> entries = deletedNotes.Elements("Note").Reverse().ToList();
                 int selected = ChooseDeletedNote(entries);
-                if (selected < 0 || disposed) return;
-                if (!RestoreDeletedNote(entries[selected])) return;
+                if (selected >= 0 && !disposed) RestoreDeletedNote(entries[selected]);
             }
             finally
             {
                 changingNoteArchive = false;
                 TextEditingEnded();
             }
-            bar.QueueRebuild();
-            KeepWindowsOnTop();
+            if (!disposed)
+            {
+                bar.QueueRebuild();
+                KeepWindowsOnTop();
+            }
         }
 
-        private int ChooseDeletedNote(XElement[] entries)
+        private int ChooseDeletedNote(List<XElement> entries)
         {
             using (var font = new Font("Malgun Gothic", 9f))
             using (var dialog = new Form
@@ -70,7 +73,34 @@ namespace gInk
                 {
                     Text = "닫기", DialogResult = DialogResult.Cancel, Bounds = new Rectangle(332, 256, 92, 30)
                 };
-                dialog.Controls.AddRange(new Control[] { list, restore, cancel });
+                var purge = new Button
+                {
+                    Name = "PurgeDeletedNote", Text = "영구 삭제",
+                    Bounds = new Rectangle(16, 256, 96, 30)
+                };
+                purge.Click += delegate
+                {
+                    int index = list.SelectedIndex;
+                    if (index < 0 || index >= entries.Count) return;
+                    if (!PurgeDeletedNote(entries[index], dialog)) return;
+
+                    entries.RemoveAt(index);
+                    list.Items.RemoveAt(index);
+                    if (entries.Count > 0)
+                    {
+                        list.SelectedIndex = Math.Min(index, entries.Count - 1);
+                        list.Focus();
+                    }
+                    else
+                    {
+                        list.Items.Add("복구할 노트가 없습니다.");
+                        list.Enabled = false;
+                        purge.Enabled = false;
+                        restore.Enabled = false;
+                        cancel.Focus();
+                    }
+                };
+                dialog.Controls.AddRange(new Control[] { list, purge, restore, cancel });
                 dialog.AcceptButton = restore;
                 dialog.CancelButton = cancel;
                 dialog.ActiveControl = list;
@@ -78,7 +108,23 @@ namespace gInk
             }
         }
 
-        private bool RestoreDeletedNote(XElement entry)
+        private bool PurgeDeletedNote(XElement entry, Form dialog)
+        {
+            string name = (string)entry.Attribute("name");
+            if (!DeletionSafety.Confirm(root, "노트 영구 삭제 확인",
+                "“" + name + "” 노트를 영구 삭제할까요?\r\n영구 삭제하면 ArcDraw에서 이 노트를 복구할 수 없습니다.",
+                owner: dialog, action: "영구 삭제")) return false;
+
+            bool saved;
+            dialog.Enabled = false;
+            try { saved = SaveNotes(noteToPurge: (int)entry.Attribute("id")); }
+            finally { dialog.Enabled = true; }
+            if (!saved)
+                ShowNoteArchiveWarning("노트를 영구 삭제하지 못했습니다. 저장 폴더를 확인한 뒤 다시 시도해 주세요.", dialog);
+            return saved;
+        }
+
+        private void RestoreDeletedNote(XElement entry)
         {
             WhiteboardLayerForm note = null;
             bool saved = false;
@@ -92,7 +138,7 @@ namespace gInk
                 error is COMException || error is System.ComponentModel.Win32Exception)
             {
                 ShowNoteArchiveWarning("저장된 노트를 열 수 없습니다. 복구 목록에 보존했습니다.");
-                return false;
+                return;
             }
             finally
             {
@@ -101,7 +147,7 @@ namespace gInk
             if (!saved)
             {
                 ShowNoteArchiveWarning("노트를 복구하지 못했습니다. 필기를 마치고 저장 폴더를 확인한 뒤 다시 시도해 주세요.");
-                return false;
+                return;
             }
             notes.Add(note);
             if (root.DrawingSession != null) note.SetInputPassThrough(!root.DrawingSession.DrawingEnabled);
@@ -110,12 +156,11 @@ namespace gInk
                 note.Show(root.FormCollection);
                 note.SyncInkTool(root);
             }
-            return true;
         }
 
-        private void ShowNoteArchiveWarning(string message)
+        private void ShowNoteArchiveWarning(string message, IWin32Window owner = null)
         {
-            MessageBox.Show(root.FormCollection, message, "ArcDraw", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(owner ?? root.FormCollection, message, "ArcDraw", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             TextEditingEnded();
         }
     }

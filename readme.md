@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.30-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.31-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -49,11 +49,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.30 삭제한 노트 복구
+## v0.31 복구 목록 영구 삭제
 
-노트 X로 삭제한 뒤에는 툴바의 **＋ 노트** 옆 **복구**에서 노트를 선택해 되살릴 수 있습니다. 이름, 메모, 필기, 위치와 크기, 글꼴 설정, 개별 숨김 상태를 복원합니다. 앱을 다시 실행한 뒤에도 복구 목록을 열 수 있습니다.
+툴바의 **＋ 노트** 옆 **복구**에서 필요 없는 노트를 고른 뒤 **영구 삭제**를 누르세요. 확인창에서 노트 이름과 복구 불가 안내를 확인할 수 있습니다. 기본 선택은 **취소**입니다. 영구 삭제를 확인하면 선택한 노트만 제거되며 다른 노트는 계속 복구할 수 있습니다.
 
-Windows Release|x86 빌드와 격리된 Windows 실행본에서 노트 X 삭제, 재실행 후 복구, 저장된 데이터의 일치를 확인했습니다.
+Windows Release|x86 빌드와 격리된 Windows 실행본에서 취소, 선택 삭제, 자동저장 원본과 백업의 상태를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

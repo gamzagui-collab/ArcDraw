@@ -137,16 +137,18 @@ namespace gInk
             }
         }
 
-        private bool SaveNotes(WhiteboardLayerForm noteToDelete = null, WhiteboardLayerForm noteToRestore = null)
+        private bool SaveNotes(WhiteboardLayerForm noteToDelete = null, WhiteboardLayerForm noteToRestore = null,
+            int? noteToPurge = null)
         {
-            bool transferring = noteToDelete != null || noteToRestore != null;
-            if(!persistenceReady||loadingNotes||savingNotes||(!notesDirty&&!transferring)||disposed||persistenceBlocked)return false;
+            bool archiveChanged = noteToDelete != null || noteToRestore != null || noteToPurge.HasValue;
+            if(!persistenceReady||loadingNotes||savingNotes||(!notesDirty&&!archiveChanged)||disposed||persistenceBlocked)return false;
             savingNotes=true;string temporary=NotesFile+".tmp."+System.Diagnostics.Process.GetCurrentProcess().Id;
+            string backupTemporary = temporary + ".bak";
             try
             {
                 // Committing an editor can leave an Ink snapshot queued. Finish
                 // it before capturing the revision for a synchronous move.
-                if (transferring)
+                if (archiveChanged)
                     foreach (var note in notes.ToArray())
                         if (!note.FlushHistorySnapshot()) return false;
                 long revision=notesRevision;
@@ -163,13 +165,18 @@ namespace gInk
                     }
                     else data.Add(element);
                 }
-                if (noteToRestore != null)
+                int? archivedNumber = noteToRestore?.Number ?? noteToPurge;
+                if (archivedNumber.HasValue)
                 {
                     XElement archived = archive.Elements("Note")
-                        .FirstOrDefault(element => (int)element.Attribute("id") == noteToRestore.Number);
-                    if (archived == null || !noteToRestore.TryStoreNote(out XElement restored)) return false;
+                        .FirstOrDefault(element => (int)element.Attribute("id") == archivedNumber.Value);
+                    if (archived == null) return false;
+                    if (noteToRestore != null)
+                    {
+                        if (!noteToRestore.TryStoreNote(out XElement restored)) return false;
+                        data.Add(restored);
+                    }
                     archived.Remove();
-                    data.Add(restored);
                 }
                 if(disposed||revision!=notesRevision)return false;
                 if (archive.HasElements) data.Add(archive);
@@ -183,7 +190,8 @@ namespace gInk
                 string suffix=".unreadable_"+DateTime.UtcNow.Ticks;
                 if(badBackup&&File.Exists(NotesFile+".bak")){File.Move(NotesFile+".bak",NotesFile+".bak"+suffix);badBackup=false;}
                 if(badPrimary&&File.Exists(NotesFile)){File.Move(NotesFile,NotesFile+suffix);badPrimary=false;}
-                if(File.Exists(NotesFile))File.Replace(temporary,NotesFile,NotesFile+".bak",true);
+                if (noteToPurge.HasValue) SavePurgedNotes(temporary, backupTemporary);
+                else if(File.Exists(NotesFile))File.Replace(temporary,NotesFile,NotesFile+".bak",true);
                 else File.Move(temporary,NotesFile);
                 if (archive.Parent != null) archive.Remove();
                 deletedNotes = archive;
@@ -197,7 +205,40 @@ namespace gInk
             finally
             {
                 savingNotes=false;
-                try {if(File.Exists(temporary))File.Delete(temporary);}catch(IOException){}catch(UnauthorizedAccessException){}
+                foreach (string path in new[] { temporary, backupTemporary })
+                    try { if (File.Exists(path)) File.Delete(path); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        private void SavePurgedNotes(string temporary, string backupTemporary)
+        {
+            string backup = NotesFile + ".bak";
+            // Preserve a readable pre-purge snapshot if the store was loaded
+            // from its fallback and has no valid primary file.
+            if (!File.Exists(NotesFile) && File.Exists(backup))
+            {
+                CopyNoteFile(backup, backupTemporary);
+                File.Move(backupTemporary, NotesFile);
+            }
+
+            // Update the backup first so fallback cannot undo a successful purge.
+            // If the primary update fails, the old primary still has the note.
+            CopyNoteFile(temporary, backupTemporary);
+            if (File.Exists(backup)) File.Replace(backupTemporary, backup, null, true);
+            else File.Move(backupTemporary, backup);
+            if (File.Exists(NotesFile)) File.Replace(temporary, NotesFile, null, true);
+            else File.Move(temporary, NotesFile);
+        }
+
+        private static void CopyNoteFile(string source, string destination)
+        {
+            using (FileStream input = File.OpenRead(source))
+            using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                input.CopyTo(output);
+                output.Flush(true);
             }
         }
     }

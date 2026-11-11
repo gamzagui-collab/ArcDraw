@@ -1,3 +1,3 @@
-﻿ArcDraw v0.30 — 삭제한 노트 복구
-2026-11-11 19:22:34 KST
-EXE SHA256: df98a88d31ab8db1ed5b396f1b1f72530d039b6caf2dc692257388a24782dea0
+﻿ArcDraw v0.31 — 복구 목록 영구 삭제
+2026-11-11 19:46:08 KST
+EXE SHA256: 78a17fc649aca9fafb6f2d49ad27221eac6811ebaaa40351f0a6ae984b3936ba

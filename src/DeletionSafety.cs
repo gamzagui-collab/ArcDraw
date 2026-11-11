@@ -8,7 +8,7 @@ namespace gInk
 {
     internal static class DeletionSafety
     {
-        internal static bool Confirm(Root root,string title,string message)
+        internal static bool Confirm(Root root, string title, string message, IWin32Window owner = null, string action = "삭제")
         {
             using(var dialog=new Form {Name="ArcDrawDeleteConfirmation",Text=title,ClientSize=new Size(500,240),
                 FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,ShowInTaskbar=false,
@@ -16,10 +16,10 @@ namespace gInk
             {
                 var label=new Label {Name="DeleteWarning",Text=message,UseMnemonic=false,Bounds=new Rectangle(20,20,460,150)};
                 var cancel=new Button {Name="CancelDelete",Text="취소",DialogResult=DialogResult.Cancel,Bounds=new Rectangle(390,190,90,34)};
-                var remove=new Button {Name="ConfirmDelete",Text="삭제",DialogResult=DialogResult.OK,Bounds=new Rectangle(288,190,90,34)};
+                var remove=new Button {Name="ConfirmDelete",Text=action,DialogResult=DialogResult.OK,Bounds=new Rectangle(288,190,90,34)};
                 dialog.Controls.AddRange(new Control[]{label,remove,cancel});dialog.AcceptButton=cancel;dialog.CancelButton=cancel;
                 dialog.Shown+=delegate {cancel.Focus();};
-                try {return dialog.ShowDialog(root.FormCollection)==DialogResult.OK;}
+                try {return dialog.ShowDialog(owner ?? root.FormCollection)==DialogResult.OK;}
                 finally {if(root.Whiteboards!=null)root.Whiteboards.TextEditingEnded();}
             }
         }
