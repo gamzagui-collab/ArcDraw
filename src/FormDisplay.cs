@@ -46,11 +46,10 @@ namespace gInk
 
         OverlayWindow DXwindow;
         GameOverlay.Drawing.Graphics DXgfx;
-        GameOverlay.Drawing.IBrush DXselectionFramePen;
+        GameOverlay.Drawing.Image DXCommittedFrame;
         Bitmap DXCapturedBmp,DXInprogressBmp;
         Graphics DXCaptureGraphics, DXInProgressGraphics;
-        System.IO.MemoryStream DXCaptureMemIO;
-        Ink LocalCopyInk=null;
+        System.IO.MemoryStream DXFrameStream;
         bool DXAllUpdate;
 
 
@@ -82,8 +81,6 @@ namespace gInk
             iaSubToolsTransparency.SetColorMatrix(cm);
 
             InitializeComponent();
-
-            Initialize();
 		}
 
         public void Initialize() 
@@ -105,116 +102,70 @@ namespace gInk
                 this.Height = Root.WindowRect.Height;
             }
 
-            Bitmap InitCanvus = new Bitmap(this.Width, this.Height);
-            Bitmap Init2Canvus = new Bitmap(this.Width, this.Height);
-            Canvus = InitCanvus.GetHbitmap(Color.FromArgb(0));
-            OneStrokeCanvus = InitCanvus.GetHbitmap(Color.FromArgb(0));
-            OutCanvus = Init2Canvus.GetHbitmap(Color.FromArgb(0));
-
             IntPtr screenDc = GetDC(IntPtr.Zero);
-            canvusDc = CreateCompatibleDC(screenDc);
-            SelectObject(canvusDc, Canvus);
-            onestrokeDc = CreateCompatibleDC(screenDc);
-            SelectObject(onestrokeDc, OneStrokeCanvus);
-            OutcanvusDc = CreateCompatibleDC(screenDc);
-            SelectObject(OutcanvusDc, OutCanvus);
-            gCanvus = Graphics.FromHdc(canvusDc);
-            gCanvus.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver; // source Over else we get some issues displaying text
-            gCanvus.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            gOneStrokeCanvus = Graphics.FromHdc(onestrokeDc);
-            gOneStrokeCanvus.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
-            gOutCanvus = Graphics.FromHdc(OutcanvusDc);
-            gOutCanvus.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
-
-            if (Root.AutoScroll) // apparently never called ; Autoscroll set to False never modified
+            try
             {
-                hScreenBitmap = InitCanvus.GetHbitmap(Color.FromArgb(0));
-                memscreenDc = CreateCompatibleDC(screenDc);
-                SelectObject(memscreenDc, hScreenBitmap);
-                screenbits = new byte[50000000];
-                lastscreenbits = new byte[50000000];
+                using (var pixels = new Bitmap(Width, Height, PixelFormat.Format32bppArgb))
+                {
+                    Canvus = pixels.GetHbitmap(Color.FromArgb(0));
+                    OutCanvus = pixels.GetHbitmap(Color.FromArgb(0));
+                    if (Root.AutoScroll) hScreenBitmap = pixels.GetHbitmap(Color.FromArgb(0));
+                }
+                // Ink coordinate conversion and text measurement only need the device DPI.
+                using (var coordinates = new Bitmap(1, 1, PixelFormat.Format32bppArgb))
+                    OneStrokeCanvus = coordinates.GetHbitmap(Color.FromArgb(0));
+                canvusDc = CreateCompatibleDC(screenDc);
+                SelectObject(canvusDc, Canvus);
+                onestrokeDc = CreateCompatibleDC(screenDc);
+                SelectObject(onestrokeDc, OneStrokeCanvus);
+                OutcanvusDc = CreateCompatibleDC(screenDc);
+                SelectObject(OutcanvusDc, OutCanvus);
+                gCanvus = Graphics.FromHdc(canvusDc);
+                gCanvus.CompositingMode = CompositingMode.SourceOver;
+                gCanvus.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                gOneStrokeCanvus = Graphics.FromHdc(onestrokeDc);
+                gOneStrokeCanvus.CompositingMode = CompositingMode.SourceCopy;
+                gOutCanvus = Graphics.FromHdc(OutcanvusDc);
+                gOutCanvus.CompositingMode = CompositingMode.SourceOver;
+                if (Root.AutoScroll)
+                {
+                    memscreenDc = CreateCompatibleDC(screenDc);
+                    SelectObject(memscreenDc, hScreenBitmap);
+                    screenbits = new byte[50000000];
+                    lastscreenbits = new byte[50000000];
+                }
             }
-            ReleaseDC(IntPtr.Zero, screenDc);
+            finally { ReleaseDC(IntPtr.Zero, screenDc); }
 
-            /* PPzz : 
-             *     this is my understandarding about drawing: 
-             *     gCanvus is the graphics where in standard the strokes are drawn, I've introduced there also the drawing
-             *     gOnestrokeCanvus is filled with the current screen before drawing : it seems to be used when deleting(undo ?) a strike.
-             *     I've introduced gOutCanvus in order to have a graphics where I can draw in the inprogress shapes (Line,Ellipsis,Rectangular,Arrow) the previous ones, being strokes, are drawn on gCanvus
-             *     the timer1 refresh the window regularly
-             */
-
-            InitCanvus.Dispose();
-            Init2Canvus.Dispose();
-            //this.DoubleBuffered = true;
-
-            int gpheight = (int)(Screen.PrimaryScreen.Bounds.Height * Root.ToolbarHeight);
             gpButtonsImage = new Bitmap(Math.Max(1,Root.FormCollection.gpButtonsWidth), Math.Max(1,Root.FormCollection.gpButtonsHeight), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             gpPenWidthImage = new Bitmap(200, 200, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             gpSubToolsImage = new Bitmap(500, 500, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             TransparentBrush = new SolidBrush(Color.Transparent);
             SemiTransparentBrush = new SolidBrush(Color.FromArgb(120, 255, 255, 255));
 
-            timer1.Enabled = true;
             ToTopMostThrough();
-
             if (Root.DirectX)
             {
-                DXCapturedBmp = new Bitmap(this.Width, this.Height, PixelFormat.Format32bppArgb);
-                DXInprogressBmp = new Bitmap(this.Width, this.Height, PixelFormat.Format32bppArgb);
+                DXCapturedBmp = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+                DXInprogressBmp = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
                 DXCaptureGraphics = Graphics.FromImage(DXCapturedBmp);
                 DXInProgressGraphics = Graphics.FromImage(DXInprogressBmp);
-                DXCaptureMemIO = new System.IO.MemoryStream();
-                if (DXwindow == null)
+                DXFrameStream = new System.IO.MemoryStream();
+                DXwindow = new OverlayWindow(Left, Top, Width, Height)
                 {
-                    DXwindow = new OverlayWindow(this.Left, this.Right, this.Width, this.Height)
-                    {
-                        IsTopmost = true,
-                        IsVisible = true,
-                        Title = "ppInk DX"
-                    };
-                    DXwindow.Create();
-                    DXwindow.PlaceAbove(this.Handle);
-                }
-                if (DXgfx == null)
+                    IsTopmost = true, IsVisible = true, Title = "ppInk DX"
+                };
+                DXwindow.Create();
+                DXwindow.PlaceAbove(Handle);
+                DXgfx = new GameOverlay.Drawing.Graphics(DXwindow.Handle, DXwindow.Width, DXwindow.Height)
                 {
-                    DXgfx = new GameOverlay.Drawing.Graphics(DXwindow.Handle, DXwindow.Width, DXwindow.Height)
-                    {
-                        MeasureFPS = true,
-                        PerPrimitiveAntiAliasing = true,
-                        TextAntiAliasing = true
-                    };
-                    DXgfx.Setup();
-                }
-                if (DXselectionFramePen == null)
-                    DXselectionFramePen = DXgfx.CreateSolidBrush(255, 0, 0, 255);
+                    PerPrimitiveAntiAliasing = true, TextAntiAliasing = true
+                };
+                DXgfx.Setup();
                 DXAllUpdate = true;
-                timerDirectX.Enabled = true;
-                LocalCopyInk?.Dispose();
-                LocalCopyInk = null;
+                timerDirectX.Start();
             }
-            else
-            {
-                timerDirectX.Enabled = false;
-                DXwindow?.Dispose();
-                DXwindow = null;
-                DXgfx?.Dispose();
-                DXgfx = null;
-                DXselectionFramePen = null;
-                DXCaptureGraphics?.Dispose();
-                DXInProgressGraphics?.Dispose();
-                DXCapturedBmp?.Dispose();
-                DXInprogressBmp?.Dispose();
-                DXCapturedBmp = null;
-                DXInprogressBmp = null;
-                DXCaptureGraphics = null;
-                DXInProgressGraphics = null;
-                DXCaptureMemIO?.Dispose();
-                DXCaptureMemIO = null;
-                DXAllUpdate = false;
-                LocalCopyInk?.Dispose();
-                LocalCopyInk = null;
-            }
+            timer1.Start();
         }
 
         public void ToTopMostThrough()
@@ -250,7 +201,8 @@ namespace gInk
             if((Root.WindowRect.Width> 0)&&(Root.WindowRect.Width > 0))
             {
                 g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
-                g.DrawRectangle(new Pen(Focus ? Root.WindowModeBorderSelected : Root.WindowModeBorderUnselected, 1), new Rectangle(0, 0, this.ClientSize.Width - 1, this.ClientSize.Height - 1));
+                using (var pen = new Pen(Focus ? Root.WindowModeBorderSelected : Root.WindowModeBorderUnselected, 1))
+                    g.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
             }
         }
 
@@ -264,9 +216,8 @@ namespace gInk
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Right, 0, this.Width - rect.Right, this.Height));
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Left, 0, rect.Width, rect.Top));
 				gCanvus.FillRectangle(SemiTransparentBrush, new Rectangle(rect.Left, rect.Bottom, rect.Width, this.Height - rect.Bottom));
-                Pen pen = new Pen(Root.ResizeDrawingWindow? Color.FromArgb(200, 255, 0, 0):Color.FromArgb(200, 80, 80, 80));
-				pen.Width = 3;
-				gCanvus.DrawRectangle(pen, rect);
+                using (var pen = new Pen(Root.ResizeDrawingWindow ? Color.FromArgb(200, 255, 0, 0) : Color.FromArgb(200, 80, 80, 80), 3))
+                    gCanvus.DrawRectangle(pen, rect);
 			}
 			else
 			{
@@ -367,37 +318,14 @@ namespace gInk
             if (DA.ExtendedProperties.Contains(Root.DASHED_LINE_GUID))
                 try
                 {
-                    Pen p = new Pen(Color.FromArgb(255-DA.Transparency,DA.Color), Root.HiMetricToPixel(DA.Width));                   
-                    //try
-                    //{
-                        p.DashStyle = (DashStyle)(int)(DA.ExtendedProperties[Root.DASHED_LINE_GUID].Data);
-                    //}
-                    //catch
-                    //{
-                    //p.DashStyle = (DashStyle)(int)(st.ExtendedProperties[Root.DASHED_LINE_GUID].Data);
-                    //}
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                    if (DA.FitToCurve)
+                    using (var pen = new Pen(Color.FromArgb(255 - DA.Transparency, DA.Color), Root.HiMetricToPixel(DA.Width)))
                     {
-                        Point[] pts = st.GetPoints();
-                        //Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                        //Console.WriteLine(pts.ToString());
-                        pts = st.GetFlattenedBezierPoints(5);
-                        //pts = st.GetPoints();
-                        Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);                   
-                        g.DrawCurve(p, pts, .5F);
-                        /*using (StreamWriter f = File.AppendText("strokes.log"))
-                        {
-                            foreach (Point pp in pts)
-                                f.Write(pp.X.ToString() + "," + pp.Y.ToString() + " ");
-                            f.WriteLine();
-                        }*/
-                    }
-                    else
-                    {
-                        Point[] pts = st.GetPoints();
-                        Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                        g.DrawLines(p, pts);
+                        pen.DashStyle = (DashStyle)(int)DA.ExtendedProperties[Root.DASHED_LINE_GUID].Data;
+                        g.SmoothingMode = SmoothingMode.HighQuality;
+                        Point[] points = DA.FitToCurve ? st.GetFlattenedBezierPoints(5) : st.GetPoints();
+                        Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref points);
+                        if (DA.FitToCurve) g.DrawCurve(pen, points, .5f);
+                        else g.DrawLines(pen, points);
                     }
                 }
                 catch 
@@ -425,14 +353,17 @@ namespace gInk
         public void DrawStrokes()
 		{
             DrawStrokes(gCanvus);
+            drawnHoverStrokeId = Root.InkVisible ? Root.StrokeHovered?.Id : null;
 		}        
 
 		public void DrawStrokes(Graphics g)
 		{
 			if (Root.InkVisible)
+            using (Strokes strokes = Root.FormCollection.IC.Ink.Strokes)
             {
-                foreach (Stroke st in Root.FormCollection.IC.Ink.Strokes)
+                foreach (Stroke st in strokes)
                 {
+                    ExtendedProperties properties = st.ExtendedProperties;
                     if (((Root.StrokeHovered != null) && (st.Id == Root.StrokeHovered.Id)) 
                         || (Root.FormCollection.AppendToSelection && (Root.FormCollection.StrokesSelection.Contains(st)
                                                                       || (Root.FormCollection.InprogressSelection != null && Root.FormCollection.InprogressSelection.Contains(st))))
@@ -450,81 +381,36 @@ namespace gInk
                         rect.Height = pt.Y;
                         g.DrawRectangle(Root.SelectionFramePen, rect);
                     }
-                    if (st.ExtendedProperties.Contains(Root.ISHIDDEN_GUID))
+                    if (properties.Contains(Root.ISHIDDEN_GUID))
                         continue;
-                    //else //Should not be drawn as a stroke : for the moment only filled values.
-                    if (st.ExtendedProperties.Contains(Root.ISFILLEDOUTSIDE_GUID))
+                    DrawStrokeFill(g, st, properties);
+                    if (properties.Contains(Root.ARROWSTART_GUID))
                     {
-                        SolidBrush bru = new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color));
-                        try
-                        {
-                            GraphicsPath gp = new GraphicsPath();
-                            gp.AddRectangle(new Rectangle(0, 0, this.Width, this.Height));
-                            Point[] pts = st.DrawingAttributes.FitToCurve ? st.GetFlattenedBezierPoints(0) : st.GetPoints();
-                            Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                            gp.AddPolygon(pts);
-                            g.FillPath(bru, gp);
-                        }
-                        catch { }
-                    }
-                    else if (st.ExtendedProperties.Contains(Root.ISFILLEDCOLOR_GUID) || st.ExtendedProperties.Contains(Root.ISFILLEDWHITE_GUID) || st.ExtendedProperties.Contains(Root.ISFILLEDBLACK_GUID) )
-                    {
-                        SolidBrush bru;
-                        if (st.ExtendedProperties.Contains(Root.ISFILLEDCOLOR_GUID))
-                            bru = new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color));
-                        else if (st.ExtendedProperties.Contains(Root.ISFILLEDWHITE_GUID))
-                            bru = new SolidBrush(Color.White);
-                        else if (st.ExtendedProperties.Contains(Root.ISFILLEDBLACK_GUID))
-                            bru = new SolidBrush(Color.Black);
-                        else
-                            continue;
-                            //bru = new SolidBrush(Color.Purple);
-                        if (st.DrawingAttributes.FitToCurve)
-                        {
-                            try
-                            {
-                                Point[] pts = st.GetFlattenedBezierPoints(0); // 0 to get a good fitting curve
-                                Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                                g.FillClosedCurve(bru, pts);
-                            }
-                            catch { }
-                        }
-                        else
-                        {
-                            Point[] pts = st.GetPoints();
-                            Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                            g.FillPolygon(bru, pts);
-
-                        }
-
-                    }
-                    if (st.ExtendedProperties.Contains(Root.ARROWSTART_GUID))
-                    {
-                        Point pt = new Point((int)st.ExtendedProperties[Root.ARROWSTART_X_GUID].Data, (int)st.ExtendedProperties[Root.ARROWSTART_Y_GUID].Data);
-                        Bitmap b = Root.FormCollection.StoredArrowImages[(int)st.ExtendedProperties[Root.ARROWSTART_GUID].Data];
+                        Point pt = new Point((int)properties[Root.ARROWSTART_X_GUID].Data, (int)properties[Root.ARROWSTART_Y_GUID].Data);
+                        Bitmap b = Root.FormCollection.StoredArrowImages[(int)properties[Root.ARROWSTART_GUID].Data];
                         pt.Offset(-b.Width/2, -b.Height / 2);
                         g.DrawImage(b, new Rectangle(pt.X, pt.Y, b.Width, b.Height));
                     }
-                    if (st.ExtendedProperties.Contains(Root.ARROWEND_GUID))
+                    if (properties.Contains(Root.ARROWEND_GUID))
                     {
                         Point pt;
-                        if ((int)st.ExtendedProperties[Root.ARROWEND_X_GUID].Data != Int32.MinValue)
-                            pt = new Point((int)st.ExtendedProperties[Root.ARROWEND_X_GUID].Data, (int)st.ExtendedProperties[Root.ARROWEND_Y_GUID].Data);
+                        if ((int)properties[Root.ARROWEND_X_GUID].Data != Int32.MinValue)
+                            pt = new Point((int)properties[Root.ARROWEND_X_GUID].Data, (int)properties[Root.ARROWEND_Y_GUID].Data);
                         else
-                            pt = new Point((int)st.ExtendedProperties[Root.ARROWSTART_X_GUID].Data, (int)st.ExtendedProperties[Root.ARROWSTART_Y_GUID].Data);                                           
-                        Bitmap b = Root.FormCollection.StoredArrowImages[(int)st.ExtendedProperties[Root.ARROWEND_GUID].Data];
+                            pt = new Point((int)properties[Root.ARROWSTART_X_GUID].Data, (int)properties[Root.ARROWSTART_Y_GUID].Data);                                           
+                        Bitmap b = Root.FormCollection.StoredArrowImages[(int)properties[Root.ARROWEND_GUID].Data];
                         pt.Offset(-b.Width / 2, -b.Height / 2);
                         g.DrawImage(b, new Rectangle(pt.X, pt.Y, b.Width, b.Height));
                     }
-                    if (st.ExtendedProperties.Contains(Root.IMAGE_GUID))
+                    if (properties.Contains(Root.IMAGE_GUID))
                     {
-                        //Image img = Root.FormCollection.ClipartsDlg.Images.Images[(int)(st.ExtendedProperties[Root.IMAGE_GUID].Data)];
+                        //Image img = Root.FormCollection.ClipartsDlg.Images.Images[(int)(properties[Root.IMAGE_GUID].Data)];
                         Image img;
-                        if(st.ExtendedProperties.Contains(Root.ANIMATIONFRAMEIMG_GUID))
+                        if(properties.Contains(Root.ANIMATIONFRAMEIMG_GUID))
                         {
                             try
                             {
-                                AnimationStructure ani = Root.FormCollection.Animations[(int)(st.ExtendedProperties[Root.ANIMATIONFRAMEIMG_GUID].Data)];
+                                AnimationStructure ani = Root.FormCollection.Animations[(int)(properties[Root.ANIMATIONFRAMEIMG_GUID].Data)];
                                 if (ani.DeleteRequested)
                                 {
                                     Root.FormCollection.IC.Ink.DeleteStroke(st);
@@ -541,22 +427,22 @@ namespace gInk
                         else
                             try
                             {
-                                img = Root.FormCollection.ClipartsDlg.Originals[(string)(st.ExtendedProperties[Root.IMAGE_GUID].Data)];
+                                img = Root.FormCollection.ClipartsDlg.Originals[(string)(properties[Root.IMAGE_GUID].Data)];
                             }
                             catch
                             {
                                 img = gInk.Properties.Resources.unknown;
                             }
                         // I came back to this solution of using IMAGE_?_GUID in order to have a more accurate position and therefore prevent blurry image
-                        int X = (int)(double)(st.ExtendedProperties[Root.IMAGE_X_GUID].Data);
-                        int Y = (int)(double)(st.ExtendedProperties[Root.IMAGE_Y_GUID].Data);
-                        int W = (int)(double)(st.ExtendedProperties[Root.IMAGE_W_GUID].Data);
-                        int H = (int)(double)(st.ExtendedProperties[Root.IMAGE_H_GUID].Data);
-                        bool ImageOnLine = st.ExtendedProperties.Contains(Root.IMAGE_ON_LINE_GUID);
-                        if (st.ExtendedProperties.Contains(Root.LISTOFPOINTS_GUID))
+                        int X = (int)(double)(properties[Root.IMAGE_X_GUID].Data);
+                        int Y = (int)(double)(properties[Root.IMAGE_Y_GUID].Data);
+                        int W = (int)(double)(properties[Root.IMAGE_W_GUID].Data);
+                        int H = (int)(double)(properties[Root.IMAGE_H_GUID].Data);
+                        bool ImageOnLine = properties.Contains(Root.IMAGE_ON_LINE_GUID);
+                        if (properties.Contains(Root.LISTOFPOINTS_GUID))
                         {
-                            Double Rotation = st.ExtendedProperties.Contains(Root.ROTATION_GUID) ? (double)st.ExtendedProperties[Root.ROTATION_GUID].Data : 0;
-                            List<Point> pts = Root.FormCollection.StoredPatternPoints[(int)(st.ExtendedProperties[Root.LISTOFPOINTS_GUID].Data)];
+                            Double Rotation = properties.Contains(Root.ROTATION_GUID) ? (double)properties[Root.ROTATION_GUID].Data : 0;
+                            List<Point> pts = Root.FormCollection.StoredPatternPoints[(int)(properties[Root.LISTOFPOINTS_GUID].Data)];
                             Point PrevPoint = new Point(Int32.MinValue, Int32.MinValue);
                             foreach (Point pt in pts)
                             {                                
@@ -582,9 +468,9 @@ namespace gInk
                         }
                         else
                         {
-                            if (st.ExtendedProperties.Contains(Root.ROTATION_GUID))
+                            if (properties.Contains(Root.ROTATION_GUID))
                             {
-                                Double Rotation = (double)st.ExtendedProperties[Root.ROTATION_GUID].Data;
+                                Double Rotation = (double)properties[Root.ROTATION_GUID].Data;
                                 g.TranslateTransform(X, Y);
                                 g.RotateTransform((float)Rotation);
                                 g.TranslateTransform(-X, -Y);
@@ -594,31 +480,10 @@ namespace gInk
                         }
                     }
                     /*else */
-                    if (st.ExtendedProperties.Contains(Root.ISSTROKE_GUID))
+                    if (properties.Contains(Root.ISSTROKE_GUID))
                         DrawOneStroke(g, st, null);
 
-                    if (st.ExtendedProperties.Contains(Root.TEXT_GUID))
-                    {
-                        Point pt = new Point((int)(double)st.ExtendedProperties[Root.TEXTX_GUID].Data, (int)(double)st.ExtendedProperties[Root.TEXTY_GUID].Data);
-                        Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pt);
-                        System.Drawing.StringFormat stf = new System.Drawing.StringFormat(System.Drawing.StringFormatFlags.NoClip);
-                        stf.Alignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTHALIGN_GUID].Data);
-                        stf.LineAlignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTVALIGN_GUID].Data);
-                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                        if (st.ExtendedProperties.Contains(Root.ROTATION_GUID))
-                        {
-                            Double Rotation = (double)st.ExtendedProperties[Root.ROTATION_GUID].Data;
-                            int W = 0, H = 0;
-                            g.TranslateTransform(pt.X + W / 2, pt.Y + H / 2);
-                            g.RotateTransform((float)Rotation);
-                            g.TranslateTransform(-pt.X - W / 2, -pt.Y - H / 2);
-                        }
-                        g.DrawString((string)(st.ExtendedProperties[Root.TEXT_GUID].Data),
-                                     new Font((string)st.ExtendedProperties[Root.TEXTFONT_GUID].Data, (float)(double)st.ExtendedProperties[Root.TEXTFONTSIZE_GUID].Data,
-                                        (System.Drawing.FontStyle)(int)st.ExtendedProperties[Root.TEXTFONTSTYLE_GUID].Data),
-                                     new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color)), pt.X, pt.Y, stf);
-                        g.ResetTransform();
-                    }
+                    if (properties.Contains(Root.TEXT_GUID)) DrawStrokeText(g, st, properties);
                 }
             }
         }
@@ -627,78 +492,32 @@ namespace gInk
         // I've adapted DrawStrokes to Bitmap for snapshots
         public void DrawStrokes(Bitmap bmp, bool IgnoreBackground=false)
         {
-            Graphics g = Graphics.FromImage(bmp);
-
-            Ink Ink2 = Root.FormCollection.IC.Ink.ExtractStrokes(Root.FormCollection.IC.Ink.Strokes, ExtractFlags.CopyFromOriginal);
-
-            if (Root.InkVisible)
+            if (!Root.InkVisible) return;
+            using (Graphics g = Graphics.FromImage(bmp))
+            using (Strokes original = Root.FormCollection.IC.Ink.Strokes)
+            using (Ink inkCopy = Root.FormCollection.IC.Ink.ExtractStrokes(original, ExtractFlags.CopyFromOriginal))
+            using (Strokes strokes = inkCopy.Strokes)
             {
-                //foreach (Stroke st in Root.FormCollection.IC.Ink.Strokes)
-                foreach (Stroke st in Ink2.Strokes)
+                foreach (Stroke st in strokes)
                 {
-                    if (IgnoreBackground && st.ExtendedProperties.Contains(Root.ISBACKGROUND_GUID))
+                    ExtendedProperties properties = st.ExtendedProperties;
+                    if (IgnoreBackground && properties.Contains(Root.ISBACKGROUND_GUID))
                         continue;
-                    if (st.ExtendedProperties.Contains(Root.ISHIDDEN_GUID))
+                    if (properties.Contains(Root.ISHIDDEN_GUID))
                         continue;
-                    //else //Should not be drawn as a stroke : for the moment only filled values.
-                    if (st.ExtendedProperties.Contains(Root.ISFILLEDOUTSIDE_GUID))
-                    {
-                        SolidBrush bru = new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color));
-                        try
-                        {
-                            GraphicsPath gp = new GraphicsPath();
-                            gp.AddRectangle(new Rectangle(0, 0, this.Width, this.Height));
-                            Point[] pts = st.DrawingAttributes.FitToCurve ? st.GetFlattenedBezierPoints(0) : st.GetPoints();
-                            Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                            gp.AddPolygon(pts);
-                            g.FillPath(bru, gp);
-                        }
-                        catch { }
-                    }
-                    else if (st.ExtendedProperties.Contains(Root.ISFILLEDCOLOR_GUID) || st.ExtendedProperties.Contains(Root.ISFILLEDWHITE_GUID) || st.ExtendedProperties.Contains(Root.ISFILLEDBLACK_GUID))
-                    {
-                        SolidBrush bru;
-                        if (st.ExtendedProperties.Contains(Root.ISFILLEDCOLOR_GUID))
-                            bru = new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color));
-                        else if (st.ExtendedProperties.Contains(Root.ISFILLEDWHITE_GUID))
-                            bru = new SolidBrush(Color.White);
-                        else if (st.ExtendedProperties.Contains(Root.ISFILLEDBLACK_GUID))
-                            bru = new SolidBrush(Color.Black);
-                        else
-                            continue;
-                        //bru = new SolidBrush(Color.Purple);
-                        if (st.DrawingAttributes.FitToCurve)
-                        {
-                            try
-                            {
-                                Point[] pts = st.GetFlattenedBezierPoints(0); // 0 to get a good fitting curve
-                                Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                                g.FillClosedCurve(bru, pts);
-                            }
-                            catch { }
-                        }
-                        else
-                        {
-                            Point[] pts = st.GetPoints();
-                            Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pts);
-                            g.FillPolygon(bru, pts);
-
-                        }
-
-                    }
+                    DrawStrokeFill(g, st, properties);
                     /*else */
-                    if (st.ExtendedProperties.Contains(Root.IMAGE_GUID))
+                    if (properties.Contains(Root.IMAGE_GUID))
                     {
-                        //Image img = Root.FormCollection.ClipartsDlg.Images.Images[(int)(st.ExtendedProperties[Root.IMAGE_GUID].Data)];
+                        //Image img = Root.FormCollection.ClipartsDlg.Images.Images[(int)(properties[Root.IMAGE_GUID].Data)];
                         Image img;
-                        if (st.ExtendedProperties.Contains(Root.ANIMATIONFRAMEIMG_GUID))
+                        if (properties.Contains(Root.ANIMATIONFRAMEIMG_GUID))
                         {
                             try
                             {
-                                AnimationStructure ani = Root.FormCollection.Animations[(int)(st.ExtendedProperties[Root.ANIMATIONFRAMEIMG_GUID].Data)];
+                                AnimationStructure ani = Root.FormCollection.Animations[(int)(properties[Root.ANIMATIONFRAMEIMG_GUID].Data)];
                                 if (ani.DeleteRequested)
                                 {
-                                    Root.FormCollection.IC.Ink.DeleteStroke(st);
                                     continue;
                                 }
                                 img = ani.Image.Frames[ani.Idx].GetImage();
@@ -712,21 +531,21 @@ namespace gInk
                         else
                             try
                             {
-                                img = Root.FormCollection.ClipartsDlg.Originals[(string)(st.ExtendedProperties[Root.IMAGE_GUID].Data)];
+                                img = Root.FormCollection.ClipartsDlg.Originals[(string)(properties[Root.IMAGE_GUID].Data)];
                             }
                             catch
                             {
                                 img = gInk.Properties.Resources.unknown;
                             }
                         // I came back to this solution of using IMAGE_?_GUID in order to have a more accurate position and therefore prevent blurry image
-                        int X = (int)(double)(st.ExtendedProperties[Root.IMAGE_X_GUID].Data);
-                        int Y = (int)(double)(st.ExtendedProperties[Root.IMAGE_Y_GUID].Data);
-                        int W = (int)(double)(st.ExtendedProperties[Root.IMAGE_W_GUID].Data);
-                        int H = (int)(double)(st.ExtendedProperties[Root.IMAGE_H_GUID].Data);
-                        if (st.ExtendedProperties.Contains(Root.LISTOFPOINTS_GUID))
+                        int X = (int)(double)(properties[Root.IMAGE_X_GUID].Data);
+                        int Y = (int)(double)(properties[Root.IMAGE_Y_GUID].Data);
+                        int W = (int)(double)(properties[Root.IMAGE_W_GUID].Data);
+                        int H = (int)(double)(properties[Root.IMAGE_H_GUID].Data);
+                        if (properties.Contains(Root.LISTOFPOINTS_GUID))
                         {
-                            Double Rotation = st.ExtendedProperties.Contains(Root.ROTATION_GUID)?(double)st.ExtendedProperties[Root.ROTATION_GUID].Data:0;
-                            List<Point> pts = Root.FormCollection.StoredPatternPoints[(int)(st.ExtendedProperties[Root.LISTOFPOINTS_GUID].Data)];
+                            Double Rotation = properties.Contains(Root.ROTATION_GUID)?(double)properties[Root.ROTATION_GUID].Data:0;
+                            List<Point> pts = Root.FormCollection.StoredPatternPoints[(int)(properties[Root.LISTOFPOINTS_GUID].Data)];
                             foreach (Point pt in pts)
                             {
                                 if(Rotation!=0)
@@ -741,9 +560,9 @@ namespace gInk
                         }
                         else
                         {
-                            if (st.ExtendedProperties.Contains(Root.ROTATION_GUID))
+                            if (properties.Contains(Root.ROTATION_GUID))
                             {
-                                Double Rotation = (double)st.ExtendedProperties[Root.ROTATION_GUID].Data;
+                                Double Rotation = (double)properties[Root.ROTATION_GUID].Data;
                                 g.TranslateTransform(X, Y);
                                 g.RotateTransform((float)Rotation);
                                 g.TranslateTransform(-X, -Y);
@@ -753,37 +572,78 @@ namespace gInk
                         }
                     }
                     /*else */
-                    if (st.ExtendedProperties.Contains(Root.ISSTROKE_GUID))
+                    if (properties.Contains(Root.ISSTROKE_GUID))
                         DrawOneStroke(g, st, null, bmp);
                         //Root.FormCollection.IC.Renderer.Draw(bmp, st);
 
-                    if (st.ExtendedProperties.Contains(Root.TEXT_GUID))
-                    {
-                        Point pt = new Point((int)(double)st.ExtendedProperties[Root.TEXTX_GUID].Data, (int)(double)st.ExtendedProperties[Root.TEXTY_GUID].Data);
-                        Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref pt);
-                        System.Drawing.StringFormat stf = new System.Drawing.StringFormat(System.Drawing.StringFormatFlags.NoClip);
-                        stf.Alignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTHALIGN_GUID].Data);
-                        stf.LineAlignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTVALIGN_GUID].Data);
-                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                        if (st.ExtendedProperties.Contains(Root.ROTATION_GUID))
-                        {
-                            Double Rotation = (double)st.ExtendedProperties[Root.ROTATION_GUID].Data;
-                            int W = 0, H = 0;
-                            g.TranslateTransform(pt.X + W / 2, pt.Y + H / 2);
-                            g.RotateTransform((float)Rotation);
-                            g.TranslateTransform(-pt.X - W / 2, -pt.Y - H / 2);
-                        }
-                        g.DrawString((string)(st.ExtendedProperties[Root.TEXT_GUID].Data),
-                                     new Font((string)st.ExtendedProperties[Root.TEXTFONT_GUID].Data, (float)(double)st.ExtendedProperties[Root.TEXTFONTSIZE_GUID].Data,
-                                        (System.Drawing.FontStyle)(int)st.ExtendedProperties[Root.TEXTFONTSTYLE_GUID].Data),
-                                     new SolidBrush(Color.FromArgb(255 - st.DrawingAttributes.Transparency, st.DrawingAttributes.Color)), pt.X, pt.Y, stf);
-                        g.ResetTransform();
-                    }
+                    if (properties.Contains(Root.TEXT_GUID)) DrawStrokeText(g, st, properties);
                 }
             }
-            Ink2?.Dispose();
         }
 
+
+        private void DrawStrokeFill(Graphics g, Stroke stroke, ExtendedProperties properties)
+        {
+            bool outside = properties.Contains(Root.ISFILLEDOUTSIDE_GUID);
+            Color color;
+            if (outside || properties.Contains(Root.ISFILLEDCOLOR_GUID))
+                color = Color.FromArgb(255 - stroke.DrawingAttributes.Transparency, stroke.DrawingAttributes.Color);
+            else if (properties.Contains(Root.ISFILLEDWHITE_GUID)) color = Color.White;
+            else if (properties.Contains(Root.ISFILLEDBLACK_GUID)) color = Color.Black;
+            else return;
+
+            using (var brush = new SolidBrush(color))
+            {
+                bool fit = stroke.DrawingAttributes.FitToCurve;
+                if (!outside && !fit)
+                {
+                    Point[] points = stroke.GetPoints();
+                    Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref points);
+                    g.FillPolygon(brush, points);
+                    return;
+                }
+                try
+                {
+                    Point[] points = fit ? stroke.GetFlattenedBezierPoints(0) : stroke.GetPoints();
+                    Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref points);
+                    if (outside)
+                    {
+                        using (var path = new GraphicsPath())
+                        {
+                            path.AddRectangle(new Rectangle(0, 0, Width, Height));
+                            path.AddPolygon(points);
+                            g.FillPath(brush, path);
+                        }
+                    }
+                    else g.FillClosedCurve(brush, points);
+                }
+                catch (ArgumentException) { /* Ignore unfinished polygons. */ }
+                catch (COMException) { /* Ink can reject an unfinished curve. */ }
+            }
+        }
+
+        private void DrawStrokeText(Graphics g, Stroke stroke, ExtendedProperties properties)
+        {
+            Point point = new Point((int)(double)properties[Root.TEXTX_GUID].Data, (int)(double)properties[Root.TEXTY_GUID].Data);
+            Root.FormCollection.IC.Renderer.InkSpaceToPixel(gOneStrokeCanvus, ref point);
+            using (var format = new StringFormat(StringFormatFlags.NoClip))
+            using (var font = new Font((string)properties[Root.TEXTFONT_GUID].Data,
+                (float)(double)properties[Root.TEXTFONTSIZE_GUID].Data, (FontStyle)(int)properties[Root.TEXTFONTSTYLE_GUID].Data))
+            using (var brush = new SolidBrush(Color.FromArgb(255 - stroke.DrawingAttributes.Transparency, stroke.DrawingAttributes.Color)))
+            {
+                format.Alignment = (StringAlignment)properties[Root.TEXTHALIGN_GUID].Data;
+                format.LineAlignment = (StringAlignment)properties[Root.TEXTVALIGN_GUID].Data;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                if (properties.Contains(Root.ROTATION_GUID))
+                {
+                    g.TranslateTransform(point.X, point.Y);
+                    g.RotateTransform((float)(double)properties[Root.ROTATION_GUID].Data);
+                    g.TranslateTransform(-point.X, -point.Y);
+                }
+                try { g.DrawString((string)properties[Root.TEXT_GUID].Data, font, brush, point.X, point.Y, format); }
+                finally { g.ResetTransform(); }
+            }
+        }
 
         public void MoveStrokes(int dy)
 		{
@@ -839,97 +699,68 @@ namespace gInk
 			return lastscreenbits[Llastp];
 		}
 
-		public void SnapShot(Rectangle rect,string dest="")
-		{
-			string snapbasepath = Root.ExpandVarCmd(Root.SnapshotBasePath,0,0,0,0);
-			//snapbasepath = Environment.ExpandEnvironmentVariables(snapbasepath);
-			//if (Root.SnapshotBasePath == "%USERPROFILE%/Pictures/gInk/")
-			if (!System.IO.Directory.Exists(snapbasepath))
-				System.IO.Directory.CreateDirectory(snapbasepath);
-
-			if (System.IO.Directory.Exists(snapbasepath))
-			{
-				IntPtr screenDc = GetDC(IntPtr.Zero);
-
-				const int VERTRES = 10;
-				const int DESKTOPVERTRES = 117;
-				int LogicalScreenHeight = GetDeviceCaps(screenDc, VERTRES);
-				int PhysicalScreenHeight = GetDeviceCaps(screenDc, DESKTOPVERTRES);
-				float ScreenScalingFactor = (float)PhysicalScreenHeight / (float)LogicalScreenHeight;
-
-				rect.X = (int)(rect.X * ScreenScalingFactor);
-				rect.Y = (int)(rect.Y * ScreenScalingFactor);
-				rect.Width = (int)(rect.Width * ScreenScalingFactor);
-				rect.Height = (int)(rect.Height * ScreenScalingFactor);
-
-
-				Bitmap tempbmp = new Bitmap(rect.Width, rect.Height);
-                Graphics g = Graphics.FromImage(tempbmp);
-                if(Root.StrokesOnlySnapshot)
+        public void SnapShot(Rectangle rect, string dest = "")
+        {
+            string directory = Root.ExpandVarCmd(Root.SnapshotBasePath, 0, 0, 0, 0);
+            System.IO.Directory.CreateDirectory(directory);
+            IntPtr screen = GetDC(IntPtr.Zero);
+            try
+            {
+                const int VerticalResolution = 10;
+                const int DesktopVerticalResolution = 117;
+                float scale = (float)GetDeviceCaps(screen, DesktopVerticalResolution) /
+                    GetDeviceCaps(screen, VerticalResolution);
+                rect = new Rectangle((int)(rect.X * scale), (int)(rect.Y * scale),
+                    (int)(rect.Width * scale), (int)(rect.Height * scale));
+                bool strokesOnly = Root.StrokesOnlySnapshot;
+                using (var image = new Bitmap(rect.Width, rect.Height,
+                    strokesOnly ? PixelFormat.Format32bppArgb : PixelFormat.Format24bppRgb))
                 {
-                    Bitmap temp2bmp = new Bitmap(this.Width, this.Height, PixelFormat.Format32bppArgb);
-                    DrawStrokes(temp2bmp,Root.SnapIgnoreBackgroundStroke); 
-                    g.DrawImage(temp2bmp, new Rectangle(0, 0, rect.Width, rect.Height), rect, GraphicsUnit.Pixel);
-                    temp2bmp.Dispose();
-                }
-                else
-                {
-                    g.Clear(Color.Red);
-
-                    IntPtr hDest = CreateCompatibleDC(screenDc);
-                    IntPtr hBmp = tempbmp.GetHbitmap();
-                    SelectObject(hDest, hBmp);
-                    bool b = BitBlt(hDest, 0, 0, rect.Width, rect.Height, screenDc, rect.Left, rect.Top, (uint)(CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt));
-                    tempbmp = Bitmap.FromHbitmap(hBmp);
-
-                    if (!b)
+                    using (Graphics graphics = Graphics.FromImage(image))
                     {
-                        g = Graphics.FromImage(tempbmp);
-                        g.Clear(Color.Blue);
-                        g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(rect.Width, rect.Height));
+                        if (strokesOnly)
+                        {
+                            using (var canvas = new Bitmap(Width, Height, PixelFormat.Format32bppArgb))
+                            {
+                                DrawStrokes(canvas, Root.SnapIgnoreBackgroundStroke);
+                                graphics.DrawImage(canvas, new Rectangle(Point.Empty, rect.Size), rect, GraphicsUnit.Pixel);
+                            }
+                        }
+                        else
+                        {
+                            IntPtr target = graphics.GetHdc();
+                            bool copied;
+                            try
+                            {
+                                copied = BitBlt(target, 0, 0, rect.Width, rect.Height, screen, rect.Left, rect.Top,
+                                    (uint)(CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt));
+                            }
+                            finally { graphics.ReleaseHdc(target); }
+                            if (!copied) graphics.CopyFromScreen(rect.Location, Point.Empty, rect.Size);
+                        }
                     }
-                    DeleteObject(hBmp);
-                    ReleaseDC(IntPtr.Zero, screenDc);
-                    DeleteDC(hDest);
+                    if (dest == "") Clipboard.SetImage(image);
+                    Root.SnapshotFileFullPath = directory + Root.ExpandVarCmd(Root.SnapshotFileTemplate, 0, 0, 0, 0);
+                    dest = dest == "" ? Root.SnapshotFileFullPath : Environment.ExpandEnvironmentVariables(dest);
+                    ImageFormat format;
+                    switch (System.IO.Path.GetExtension(dest).ToLowerInvariant())
+                    {
+                        case ".png": format = ImageFormat.Png; break;
+                        case ".jpg": case ".jpeg": format = ImageFormat.Jpeg; break;
+                        case ".bmp": format = ImageFormat.Bmp; break;
+                        case ".emf": format = ImageFormat.Emf; break;
+                        case ".exf": case ".exif": format = ImageFormat.Exif; break;
+                        case ".tif": case ".tiff": format = ImageFormat.Tiff; break;
+                        case ".wmf": format = ImageFormat.Wmf; break;
+                        case ".gif": format = ImageFormat.Gif; break;
+                        default: format = null; break;
+                    }
+                    if (format == null) image.Save(dest);
+                    else image.Save(dest, format);
                 }
-
-                if (dest == "")
-                    Clipboard.SetImage(tempbmp);
-                //DateTime now = DateTime.Now;
-                //string nowstr = now.Year.ToString() + "-" + now.Month.ToString("D2") + "-" + now.Day.ToString("D2") + " " + now.Hour.ToString("D2") + "-" + now.Minute.ToString("D2") + "-" + now.Second.ToString("D2");
-                string savefilename = Root.ExpandVarCmd(Root.SnapshotFileTemplate, 0, 0, 0, 0);//DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss'.png'");
-                Root.SnapshotFileFullPath = snapbasepath + savefilename;
-
-                if (dest == "")
-                    dest = Root.SnapshotFileFullPath;
-                else
-                    dest = Environment.ExpandEnvironmentVariables(dest);
-
-                ImageFormat ifo=null;
-                switch(System.IO.Path.GetExtension(dest).ToLower())
-                {
-                    case ".png": ifo = ImageFormat.Png;break;
-                    case ".jpg":
-                    case ".jpeg": ifo = ImageFormat.Jpeg; break;
-                    case ".bmp": ifo = ImageFormat.Bmp; break;
-                    case ".emf": ifo = ImageFormat.Emf; break;
-                    case ".exf":
-                    case ".exif": ifo = ImageFormat.Exif; break;
-                    case ".tif":
-                    case ".tiff": ifo = ImageFormat.Tiff; break;
-                    case ".wmf": ifo = ImageFormat.Wmf; break;
-                    case ".gif": ifo = ImageFormat.Gif; break;
-                }
-                if(ifo==null)
-                    tempbmp.Save(dest);
-                else
-                    tempbmp.Save(dest, ifo);
-
-				tempbmp.Dispose();
-
-				// transfered out :Root.UponBalloonSnap = true;
-			}
-		}
+            }
+            finally { ReleaseDC(IntPtr.Zero, screen); }
+        }
 
         private Pen PenForDrawOn(DrawingAttributes dr, DashStyle st)
         {
@@ -945,7 +776,7 @@ namespace gInk
         {
             Pen p = PenForDrawOn(dr, st);
 
-            gOutCanvus.DrawLine(p, CursorX0, CursorY0 , CursorX, CursorY);
+            g.DrawLine(p, CursorX0, CursorY0 , CursorX, CursorY);
             p.Dispose();
         }
         public void DrawRectOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY,DrawingAttributes dr=null, DashStyle st=DashStyle.Solid)
@@ -954,7 +785,7 @@ namespace gInk
             int dY = Math.Abs(CursorY - CursorY0);
 
             Pen p = PenForDrawOn(dr, st);
-            gOutCanvus.DrawRectangle(p,Math.Min(CursorX0,CursorX), Math.Min(CursorY0, CursorY), dX, dY);
+            g.DrawRectangle(p,Math.Min(CursorX0,CursorX), Math.Min(CursorY0, CursorY), dX, dY);
             p.Dispose();
         }
         public void DrawImagesOnGraphic(Graphics g, List<Point> pts, Image img, int W, int H, DrawingAttributes dr = null, DashStyle st = DashStyle.Solid, bool OnLine = false)
@@ -982,12 +813,12 @@ namespace gInk
 
                 if (Rotation != 0)
                 {
-                    gOutCanvus.TranslateTransform(pt.X + W / 2, pt.Y + H / 2);
-                    gOutCanvus.RotateTransform((float)Rotation);
-                    gOutCanvus.TranslateTransform(-(pt.X + W / 2), -(pt.Y + H / 2));
+                    g.TranslateTransform(pt.X + W / 2, pt.Y + H / 2);
+                    g.RotateTransform((float)Rotation);
+                    g.TranslateTransform(-(pt.X + W / 2), -(pt.Y + H / 2));
                 }
-                gOutCanvus.DrawImage(img, new Rectangle(pt.X, pt.Y, W, H));
-                gOutCanvus.ResetTransform();
+                g.DrawImage(img, new Rectangle(pt.X, pt.Y, W, H));
+                g.ResetTransform();
             }
             //p.Dispose();
         }
@@ -997,21 +828,20 @@ namespace gInk
             int dY = Math.Abs(CursorY - CursorY0);
 
             Pen p = PenForDrawOn(dr, st);        
-            gOutCanvus.DrawEllipse(p, CursorX0 - dX, CursorY0 - dY, 2 * dX, 2 * dY);
+            g.DrawEllipse(p, CursorX0 - dX, CursorY0 - dY, 2 * dX, 2 * dY);
             p.Dispose();
         }
 
         public void DrawArrowOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY, DrawingAttributes dr = null, DashStyle st = DashStyle.Solid)
         {
-            Point[] pts = new Point[5];
             double theta = Math.Atan2(CursorY - CursorY0, CursorX - CursorX0);
             Pen p = PenForDrawOn(dr, st);
 
             double l = Root.FormCollection.ArrowVarLen();
 
-            gOutCanvus.DrawLine(p,CursorX0, CursorY0, (int)(CursorX0 + Math.Cos(theta + Root.ArrowAngle) * l), (int)(CursorY0 + Math.Sin(theta + Root.ArrowAngle) * l));
-            gOutCanvus.DrawLine(p, CursorX0, CursorY0, (int)(CursorX0 + Math.Cos(theta - Root.ArrowAngle) * l), (int)(CursorY0 + Math.Sin(theta - Root.ArrowAngle) * l));
-            gOutCanvus.DrawLine(p, CursorX0, CursorY0, CursorX,CursorY);
+            g.DrawLine(p,CursorX0, CursorY0, (int)(CursorX0 + Math.Cos(theta + Root.ArrowAngle) * l), (int)(CursorY0 + Math.Sin(theta + Root.ArrowAngle) * l));
+            g.DrawLine(p, CursorX0, CursorY0, (int)(CursorX0 + Math.Cos(theta - Root.ArrowAngle) * l), (int)(CursorY0 + Math.Sin(theta - Root.ArrowAngle) * l));
+            g.DrawLine(p, CursorX0, CursorY0, CursorX,CursorY);
 
             p.Dispose();
         }
@@ -1141,8 +971,7 @@ namespace gInk
             if(!prepared)pendingFrameDirty=null;
             if(!prepared||renderingToolbarMove)handFrameValid=false;
             if(!renderingToolbarMove){toolbarUnderlayValid=false;toolbarMovePending=false;}
-			IntPtr screenDc = GetDC(IntPtr.Zero);
-            IntPtr blankcanvusDc = new IntPtr(0) ;
+            IntPtr blankcanvusDc = IntPtr.Zero;
             //Display-rectangle
             Size size = new Size(this.Width, this.Height);
 			Point pointSource = new Point(0, 0);
@@ -1177,37 +1006,42 @@ namespace gInk
 
             if (Root.FormCollection.SpotLightMode || Root.FormCollection.SpotLightTemp)
             {
-                GraphicsPath gp = new GraphicsPath();
-                Brush bru = new SolidBrush(Root.SpotLightColor);
-                gp.AddRectangle(new Rectangle(0, 0, this.Width, this.Height));
-                Point pt = PointToClient(MousePosition);
-                pt.Offset(-Root.SpotLightRadius, -Root.SpotLightRadius);
-                gp.AddEllipse(new Rectangle(pt.X, pt.Y, 2 * Root.SpotLightRadius, 2 * Root.SpotLightRadius));
-                gOutCanvus.FillPath(bru, gp);
+                using (var path = new GraphicsPath())
+                using (var brush = new SolidBrush(Root.SpotLightColor))
+                {
+                    path.AddRectangle(new Rectangle(0, 0, Width, Height));
+                    Point point = PointToClient(MousePosition);
+                    point.Offset(-Root.SpotLightRadius, -Root.SpotLightRadius);
+                    path.AddEllipse(new Rectangle(point.X, point.Y, 2 * Root.SpotLightRadius, 2 * Root.SpotLightRadius));
+                    gOutCanvus.FillPath(brush, path);
+                }
                 MemoSpotLight = true;
             }
             else
                 MemoSpotLight = false;
 
 
-            if (draw)
+            IntPtr screenDc = GetDC(IntPtr.Zero);
+            try
             {
-                if(!prepared || !TryUploadDirtyFrame(screenDc))
-                    UpdateLayeredWindow(this.Handle, screenDc, ref topPos, ref size, OutcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
-                uploadedBounds=Bounds;
+                if (draw)
+                {
+                    if (!prepared || !TryUploadDirtyFrame(screenDc))
+                        UpdateLayeredWindow(Handle, screenDc, ref topPos, ref size, OutcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
+                    uploadedBounds = Bounds;
+                }
+                else
+                    UpdateLayeredWindow(Handle, screenDc, ref topPos, ref size, blankcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
+                pendingFrameDirty = null;
             }
-            else
-                UpdateLayeredWindow(this.Handle, screenDc, ref topPos, ref size, blankcanvusDc, ref pointSource, 0, ref blend, ULW_ALPHA);
-            pendingFrameDirty=null;
-
-			//Clean-up
-			ReleaseDC(IntPtr.Zero, screenDc);
+            finally { ReleaseDC(IntPtr.Zero, screenDc); }
         }
 
 		int stackmove = 0;
 		int Tick = 0;
         //DateTime TickStartTime;
-        bool SelectionDrawnPreviously=false;
+        private int? drawnHoverStrokeId;
+        private bool SelectionDrawnPreviously { get { return drawnHoverStrokeId.HasValue; } }
 
 		public void timer1_Tick(object sender, EventArgs e)
 		{
@@ -1215,7 +1049,8 @@ namespace gInk
             if (Root.FormCollection == null || !Root.FormCollection.Visible)
                 return; // the initialisation is not yet completed. we wait for
             if(Root.FormCollection.EntryPreparing||Root.FormCollection.ScreenContentBusy)return;
-            if(!Root.FormCollection.IC.CollectingInk){handFrameValid=false;previewFrameValid=false;}
+            bool collecting = Root.FormCollection.IC.CollectingInk;
+            if (!collecting) { handFrameValid = false; previewFrameValid = false; }
 			Tick++;
 
             /*
@@ -1333,13 +1168,14 @@ namespace gInk
 				}
 			}
 
-			else if ((Root.FormCollection != null && Root.FormCollection.Visible) && (Root.FormCollection.IC != null && Root.FormCollection.Visible) && Root.FormCollection.IC.CollectingInk && Root.EraserMode == false && Root.InkVisible)
+			else if (collecting && !Root.EraserMode && Root.InkVisible)
 			{ // Drawing in progress : we get the last stroke in the list, if we have to draw because not deleted and not a shape in progress
               //we replace the rectangle containing the stroke by the saved one and 
 
-				if (Root.FormCollection.IC.Ink.Strokes.Count > 0)
+                using (Strokes strokes = Root.FormCollection.IC.Ink.Strokes)
+				if (strokes.Count > 0)
 				{
-					Stroke stroke = Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count - 1];
+					Stroke stroke = strokes[strokes.Count - 1];
 					if ((!stroke.Deleted) && (!Root.FormCollection.ZoomCapturing)&&(Root.ToolSelected == Tools.Hand))
                     {
                         if(PrepareHandFrame(stroke))UpdateFormDisplay(true,true);
@@ -1349,9 +1185,8 @@ namespace gInk
                 }
             }
 
-			else if ((Root.FormCollection.IC.CollectingInk && Root.EraserMode == true) || Root.StrokeHovered != null || SelectionDrawnPreviously)
+			else if ((Root.InkVisible ? Root.StrokeHovered?.Id : null) != drawnHoverStrokeId)
             {
-                SelectionDrawnPreviously = Root.StrokeHovered != null; // to erase selection at the end
                 ClearCanvus();
 				DrawStrokes();
 				DrawButtons(false);
@@ -1407,80 +1242,88 @@ namespace gInk
 			}
 		}
 
-        public void DrawInProgressStroke(GameOverlay.Drawing.Graphics g)
+        public void DrawInProgressStroke(GameOverlay.Drawing.Graphics graphics)
         {
-            Bitmap bmp = new Bitmap(this.Width, this.Height, PixelFormat.Format32bppArgb);
-            DrawStrokes(bmp, true);
-            System.IO.MemoryStream io = new System.IO.MemoryStream();
-            bmp.Save(io, ImageFormat.Png);
-            g.BeginScene();
-            g.ClearScene();
-            g.DrawImage(new GameOverlay.Drawing.Image(g, io.GetBuffer()), new GameOverlay.Drawing.Point(0, 0));
-            g.EndScene();
+            using (var pixels = new Bitmap(Width, Height, PixelFormat.Format32bppArgb))
+            using (var stream = new System.IO.MemoryStream())
+            {
+                DrawStrokes(pixels, true);
+                pixels.Save(stream, ImageFormat.Png);
+                using (var image = new GameOverlay.Drawing.Image(graphics, stream.GetBuffer()))
+                    PresentDirectX(graphics, image, null);
+            }
         }
 
         public void DXUpdateFormDisplay(bool prepared = false)
         {
-            if (!prepared)
-            {
-                if (Root.Snapping <= 0)
-                    DrawCustomOnGraphic(gOutCanvus, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
-            }
+            if (!prepared && Root.Snapping <= 0)
+                DrawCustomOnGraphic(gOutCanvus, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
         }
 
         public void timerDX_Tick(object sender, EventArgs e)
         {
-            //string st = "DX " + Root.FormCollection.ButtonsEntering.ToString();
-            //Console.WriteLine(st);
-            DateTime dt = DateTime.Now;
-            if (!this.Visible)
-                return;
-
+            if (!Visible || DXgfx == null) return;
             if (Root.FingerInAction)
             {
-                if (Root.FormCollection.IC.Ink.Strokes.Count > 0)
-                {                    
-                    Stroke stroke = Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count - 1];
-                    if ((!stroke.Deleted) && (!Root.FormCollection.ZoomCapturing))
-                    {
-                        DXInProgressGraphics.Clear(Color.Transparent);
-                        if (Root.ToolSelected == Tools.Hand)
-                            DrawOneStroke(DXInProgressGraphics, stroke, Root.FormCollection.IC.DefaultDrawingAttributes, DXInprogressBmp);
-                        else
-                            DrawCustomOnGraphic(DXInProgressGraphics, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
-                        System.IO.MemoryStream io = new System.IO.MemoryStream();
-                        DXInprogressBmp.Save(io, ImageFormat.Png);
-                        DXgfx.BeginScene();
-                        DXgfx.ClearScene();
-                        DXgfx.DrawImage(new GameOverlay.Drawing.Image(DXgfx, DXCaptureMemIO.GetBuffer()), new GameOverlay.Drawing.Point(0, 0));
-                        DXgfx.DrawImage(new GameOverlay.Drawing.Image(DXgfx, io.GetBuffer()), new GameOverlay.Drawing.Point(0, 0));
-                        DXgfx.EndScene();
-                    }
+                using (Strokes strokes = Root.FormCollection.IC.Ink.Strokes)
+                {
+                    if (strokes.Count == 0 || Root.FormCollection.ZoomCapturing) return;
+                    Stroke stroke = strokes[strokes.Count - 1];
+                    if (stroke.Deleted) return;
+                    DXInProgressGraphics.Clear(Color.Transparent);
+                    if (Root.ToolSelected == Tools.Hand)
+                        DrawOneStroke(DXInProgressGraphics, stroke, Root.FormCollection.IC.DefaultDrawingAttributes, DXInprogressBmp);
+                    else
+                        DrawCustomOnGraphic(DXInProgressGraphics, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
+                    using (GameOverlay.Drawing.Image preview = CreateDirectXImage(DXInprogressBmp))
+                        PresentDirectX(DXgfx, DXCommittedFrame, preview);
                 }
-                Console.WriteLine("dxi = " + (DateTime.Now - dt).TotalMilliseconds.ToString());
             }
-            else if (DXgfx != null && DXAllUpdate && Root.FormCollection.ButtonsEntering == 0)
+            else if (DXAllUpdate && Root.FormCollection.ButtonsEntering == 0)
             {
                 DXAllUpdate = false;
-                Console.WriteLine("DX");
-                LocalCopyInk?.Dispose();
-                LocalCopyInk = Root.FormCollection.IC.Ink.Clone();
                 DXCaptureGraphics.Clear(Color.Transparent);
                 DrawStrokes(DXCapturedBmp);
-                Console.WriteLine("dx1 = " + (DateTime.Now - dt).TotalMilliseconds.ToString());
-                DXCaptureMemIO.Position = 0;
-                Console.WriteLine("dx2 = " + (DateTime.Now - dt).TotalMilliseconds.ToString());
-                DXCaptureMemIO.SetLength(0);
-                DXCapturedBmp.Save(DXCaptureMemIO, ImageFormat.Png);
-                Console.WriteLine("dx3 = " + (DateTime.Now - dt).TotalMilliseconds.ToString());
-                DXgfx.BeginScene();
-                DXgfx.ClearScene();
-                DXgfx.DrawImage(new GameOverlay.Drawing.Image(DXgfx, DXCaptureMemIO.GetBuffer()), new GameOverlay.Drawing.Point(0, 0));
-                DXgfx.EndScene();
-
-                //DXUpdateFormDisplay();
-                Console.WriteLine("dx = "+(DateTime.Now-dt).TotalMilliseconds.ToString());
+                GameOverlay.Drawing.Image next = CreateDirectXImage(DXCapturedBmp);
+                DXCommittedFrame?.Dispose();
+                DXCommittedFrame = next;
+                PresentDirectX(DXgfx, DXCommittedFrame, null);
             }
+        }
+
+        private GameOverlay.Drawing.Image CreateDirectXImage(Bitmap bitmap)
+        {
+            DXFrameStream.SetLength(0);
+            bitmap.Save(DXFrameStream, ImageFormat.Png);
+            return new GameOverlay.Drawing.Image(DXgfx, DXFrameStream.GetBuffer());
+        }
+
+        private static void PresentDirectX(GameOverlay.Drawing.Graphics graphics, GameOverlay.Drawing.Image background,
+            GameOverlay.Drawing.Image preview)
+        {
+            var origin = new GameOverlay.Drawing.Point(0, 0);
+            graphics.BeginScene();
+            try
+            {
+                graphics.ClearScene();
+                if (background != null) graphics.DrawImage(background, origin);
+                if (preview != null) graphics.DrawImage(preview, origin);
+            }
+            finally { graphics.EndScene(); }
+        }
+
+        private void ReleaseDirectXResources()
+        {
+            timerDirectX.Stop();
+            DXCommittedFrame?.Dispose(); DXCommittedFrame = null;
+            DXgfx?.Dispose(); DXgfx = null;
+            DXwindow?.Dispose(); DXwindow = null;
+            DXCaptureGraphics?.Dispose(); DXCaptureGraphics = null;
+            DXInProgressGraphics?.Dispose(); DXInProgressGraphics = null;
+            DXCapturedBmp?.Dispose(); DXCapturedBmp = null;
+            DXInprogressBmp?.Dispose(); DXInprogressBmp = null;
+            DXFrameStream?.Dispose(); DXFrameStream = null;
+            DXAllUpdate = false;
         }
 
         private void FormDisplay_VisibleChanged(object sender, EventArgs e)
@@ -1503,6 +1346,11 @@ namespace gInk
 
         private void ReleaseCanvasResources()
         {
+            timer1.Stop();
+            ReleaseDirectXResources();
+            drawnHoverStrokeId = null;
+            screenbits = null;
+            lastscreenbits = null;
             ReleaseDirtyRendering();
             ReleaseToolbarUnderlay();InvalidateRenderCache();
             // Graphics objects hold their HDC; bitmaps selected into a DC cannot

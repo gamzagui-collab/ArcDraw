@@ -1,3 +1,3 @@
-﻿ArcDraw v0.31 — 복구 목록 영구 삭제
-2026-11-11 19:46:08 KST
-EXE SHA256: 78a17fc649aca9fafb6f2d49ad27221eac6811ebaaa40351f0a6ae984b3936ba
+﻿ArcDraw v0.32 — 그래픽 리소스와 입력 개선
+2026-11-11 20:31:21 KST
+EXE SHA256: c5b80b5675972bad4d2a93d52cfa622af32b1a85320d81209fa68db4edfb5e02

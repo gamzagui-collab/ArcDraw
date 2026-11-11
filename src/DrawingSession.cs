@@ -55,9 +55,14 @@ namespace gInk
 
         public void RememberForegroundApplication()
         {
-            IntPtr window=GetForegroundWindow();uint pid;
-            GetWindowThreadProcessId(window,out pid);
-            if(window!=IntPtr.Zero&&pid!=ownProcessId)previousApplication=window;
+            IntPtr window = GetForegroundWindow();
+            if (window != IntPtr.Zero && window != previousApplication && !OwnsWindow(window))
+                previousApplication = window;
+        }
+
+        private bool OwnsWindow(IntPtr window)
+        {
+            return window != IntPtr.Zero && GetWindowThreadProcessId(window, out uint pid) != 0 && pid == ownProcessId;
         }
 
         public DrawingSession(Root root)
@@ -68,7 +73,7 @@ namespace gInk
             modeBorder=new DrawingModeBorder(root);
             targetSwitcher=new DrawingTargetSwitcher(root);
             hookCallback = KeyboardHook;
-            timer = new Timer { Interval = 30 };
+            timer = new Timer { Interval = 250 };
             timer.Tick += delegate { if(!Running&&!disposed)RememberForegroundApplication();else ApplyMode(); };
             Appearance = new ToolbarAppearance(root);
             RememberForegroundApplication();
@@ -98,7 +103,7 @@ namespace gInk
                 }
             }
             Appearance.Apply();
-            cursorHalo.Start();
+            timer.Interval = 30;
             timer.Start();
             ApplyMode();
             Post(PrepareDrawingInput);
@@ -134,7 +139,8 @@ namespace gInk
             keyTips.Hide();
             cursorHalo.Stop();
             modeBorder.Update(false);
-            timer.Start(); // Keep the last external app for floating-button entry.
+            timer.Interval = 250; // Remember the external app while the launcher is idle.
+            timer.Start();
             consumed.Clear();
             heldReservedKeys.Clear();
             pendingScreenActions.Clear();
@@ -187,9 +193,9 @@ namespace gInk
                     int epoch=++targetSwitchEpoch;targetSwitching=false;consumed.Add(key);
                     Post(delegate {if(epoch==targetSwitchEpoch)CancelTargetSelection(true);});return new IntPtr(1);
                 }
-                // Esc leaves drawing even from a note editor or CAPS OFF.
-                // Modal dialogs and snapshot mode keep their own cancel behavior.
-                if(down&&firstPress&&key==0x1b&&modifiers==0&&!OptionsOpen&&!ModalWindowOpen()&&
+                // In pointer mode, Escape belongs to the foreground app.
+                if(down&&firstPress&&key==0x1b&&modifiers==0&&(CapsOn||OwnsWindow(GetForegroundWindow()))&&
+                    !OptionsOpen&&!ModalWindowOpen()&&
                     (root.FormOptions==null||!root.FormOptions.Visible)&&root.Snapping==0&&!root.UponTakingSnap)
                 {
                     consumed.Add(key);Post(delegate {escapeRequested=true;ApplyMode();});return new IntPtr(1);
@@ -289,6 +295,7 @@ namespace gInk
                 {
                     root.FormCollection.SetToolbarFold(!CapsOn);
                     applied = CapsOn;
+                    if (CapsOn) cursorHalo.Start(); else cursorHalo.Stop();
                     if (root.Whiteboards != null) root.Whiteboards.SetInputPassThrough(!CapsOn);
                     restoreApplication|=!CapsOn;
                 }

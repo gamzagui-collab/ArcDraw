@@ -21,7 +21,7 @@ namespace gInk
         internal DrawingModeBorder(Root root) { this.root = root; }
         internal void Update(bool show)
         {
-            if(updating)return;
+            if(updating||(!show&&!visible))return;
             updating=true;
             try
             {

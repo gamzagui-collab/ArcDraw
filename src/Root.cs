@@ -698,7 +698,10 @@ namespace gInk
 			FormCollection.Show();
 
             for (int i = 0; i < UndoStrokes.Length; i++)
+            {
+                UndoStrokes[i]?.Dispose();
                 UndoStrokes[i] = null;
+            }
             UndoStrokes[0] = FormCollection.IC.Ink.Clone();
             UndoDepth = 0;
             UndoP = 0;
@@ -938,6 +941,11 @@ namespace gInk
             PointerChangeDate = DateTime.Now.AddMilliseconds(100);
             PointerMode = true;
             IsDockedBeforePen = Docked;
+            if (StrokeHovered != null)
+            {
+                StrokeHovered = null;
+                UponAllDrawingUpdate = true;
+            }
 
             FormDisplay.DrawBorder(false);
 			FormCollection.ToThrough();

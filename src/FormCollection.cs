@@ -580,6 +580,7 @@ namespace gInk
             IC.MouseWheel += (sender, args) => RunScreenInkWork(delegate { IC_MouseWheel(sender,args); });
             IC.Stroke += (sender, args) => RunScreenInkWork(delegate { IC_Stroke(sender,args); });
             IC.StrokesDeleting += ScreenStrokesDeleting;
+            IC.StrokesDeleted += delegate { Root.UponAllDrawingUpdate = true; };
 
             StrokesSelection = IC.Ink.CreateStrokes();
 
@@ -5339,7 +5340,8 @@ namespace gInk
 
             //if (Tick % 50 == 0) Console.WriteLine("AW."+Tick.ToString()+"="+ GetCaptionOfActiveWindow());
 
-            bool dragButtonDown=(GetAsyncKeyState(1)&0x8000)!=0||(GetAsyncKeyState(2)&0x8000)!=0;
+            bool dragButtonDown = IsMovingToolbar != 0 &&
+                ((GetAsyncKeyState(1) & 0x8000) != 0 || (GetAsyncKeyState(2) & 0x8000) != 0);
             if(IsMovingToolbar==1&&dragButtonDown)
                 gpButtons_MouseMove(toolbarDragControl,new MouseEventArgs(MouseButtons.Left,0,0,0,0));
             if(IsMovingToolbar==1&&!dragButtonDown)gpButtons_MouseUp(toolbarDragControl,null);
