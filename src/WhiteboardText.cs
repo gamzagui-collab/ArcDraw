@@ -291,6 +291,9 @@ namespace gInk
                     layerInk.Dispose();
                     layerInk = null;
                 }
+                noteHaloCursor?.Dispose();
+                noteHaloCursor = null;
+                appliedNoteInkCursor = null;
             }
             base.Dispose(disposing);
         }

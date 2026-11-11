@@ -9,6 +9,10 @@ namespace gInk
     public partial class FormCollection
     {
         private System.Windows.Forms.Cursor generatedPenTip;
+        private System.Windows.Forms.Cursor baseInkCursor;
+        private System.Windows.Forms.Cursor appliedInkCursor;
+        private System.Windows.Forms.Cursor haloSource;
+        private System.Windows.Forms.Cursor haloInkCursor;
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr icon);
@@ -56,7 +60,7 @@ namespace gInk
         private void ReplacePenTip(System.Windows.Forms.Cursor next)
         {
             System.Windows.Forms.Cursor previous = generatedPenTip;
-            try { IC.Cursor = next; }
+            try { ScreenInkCursor = next; }
             catch { next.Dispose(); throw; }
             generatedPenTip = next;
             // The temporary Alt tool may still restore the previous tip.
@@ -66,8 +70,51 @@ namespace gInk
 
         private void DisposePenTip()
         {
+            haloInkCursor?.Dispose();
+            haloInkCursor = null;
+            haloSource = null;
+            baseInkCursor = null;
+            appliedInkCursor = null;
             if (generatedPenTip != null) generatedPenTip.Dispose();
             generatedPenTip = null;
+        }
+
+        private System.Windows.Forms.Cursor ScreenInkCursor
+        {
+            get { return baseInkCursor ?? IC.Cursor; }
+            set
+            {
+                var previous = baseInkCursor;
+                baseInkCursor = value;
+                try { RefreshScreenInkCursor(); }
+                catch { baseInkCursor = previous; throw; }
+            }
+        }
+
+        internal void RefreshScreenInkCursor()
+        {
+            var original = baseInkCursor;
+            if (original == null) return;
+            var next = original;
+            if (DrawingCursorHalo.AppliesTo(Root))
+            {
+                if (ReferenceEquals(haloSource, original))
+                    next = haloInkCursor;
+                else
+                {
+                    next = DrawingCursorHalo.Create(original);
+                    try { IC.Cursor = next; }
+                    catch { next.Dispose(); throw; }
+                    var old = haloInkCursor;
+                    haloSource = original;
+                    haloInkCursor = appliedInkCursor = next;
+                    old?.Dispose();
+                    return;
+                }
+            }
+            if (ReferenceEquals(appliedInkCursor, next)) return;
+            IC.Cursor = next;
+            appliedInkCursor = next;
         }
     }
 }

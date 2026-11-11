@@ -17,7 +17,6 @@ namespace gInk
         private readonly HashSet<int> heldReservedKeys = new HashSet<int>();
         private readonly Queue<int> pendingScreenActions = new Queue<int>();
         private readonly ToolbarKeyTips keyTips;
-        private readonly DrawingCursorHalo cursorHalo;
         private readonly DrawingModeBorder modeBorder;
         private readonly DrawingTargetSwitcher targetSwitcher;
         private bool targetSwitching;
@@ -69,7 +68,6 @@ namespace gInk
         {
             this.root = root;
             keyTips=new ToolbarKeyTips(root);
-            cursorHalo=new DrawingCursorHalo(root);
             modeBorder=new DrawingModeBorder(root);
             targetSwitcher=new DrawingTargetSwitcher(root);
             hookCallback = KeyboardHook;
@@ -137,7 +135,6 @@ namespace gInk
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
-            cursorHalo.Stop();
             modeBorder.Update(false);
             timer.Interval = 250; // Remember the external app while the launcher is idle.
             timer.Start();
@@ -295,7 +292,7 @@ namespace gInk
                 {
                     root.FormCollection.SetToolbarFold(!CapsOn);
                     applied = CapsOn;
-                    if (CapsOn) cursorHalo.Start(); else cursorHalo.Stop();
+                    root.FormCollection.RefreshScreenInkCursor();
                     if (root.Whiteboards != null) root.Whiteboards.SetInputPassThrough(!CapsOn);
                     restoreApplication|=!CapsOn;
                 }
@@ -446,7 +443,6 @@ namespace gInk
             Stop();
             disposed = true;
             keyTips.Dispose();
-            cursorHalo.Dispose();
             modeBorder.Dispose();
             targetSwitcher.Dispose();
             timer.Dispose();

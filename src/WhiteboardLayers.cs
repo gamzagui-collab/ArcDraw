@@ -712,6 +712,7 @@ namespace gInk
         private Rectangle boundsStart;
         private int lastPen = int.MinValue;
         private bool lastEraser;
+        private System.Windows.Forms.Cursor noteHaloCursor, appliedNoteInkCursor;
         private float lastWidth = float.MinValue;
         private Color lastColor = Color.Empty;
         private int lastTransparency = -1;
@@ -719,11 +720,6 @@ namespace gInk
         private enum ResizeCorner { None, TopLeft, TopRight, BottomLeft, BottomRight }
         public int Number { get; private set; }
         public bool UserHidden { get; set; }
-        internal bool IsDrawingSurfaceAt(Point screenPoint)
-        {
-            return Visible&&!UserHidden&&!IsEditingText&&paper.RectangleToScreen(paper.ClientRectangle).Contains(screenPoint);
-        }
-
         public WhiteboardLayerForm(WhiteboardLayerManager manager, int number, Rectangle bounds)
         {
             this.manager = manager;
@@ -947,6 +943,15 @@ namespace gInk
                 if (!SetTextMode(ink, wantText) || textMode || closing) return;
                 DrawingAttributes drawing = root.FormCollection.IC.DefaultDrawingAttributes;
                 if(!SyncNoteShapeTool(ink,root,drawing))return;
+                var pointer = Cursors.Cross;
+                if (DrawingCursorHalo.AppliesTo(root))
+                    pointer = noteHaloCursor ?? (noteHaloCursor = DrawingCursorHalo.Create(Cursors.Cross));
+                if (!ReferenceEquals(appliedNoteInkCursor, pointer))
+                {
+                    ink.Cursor = pointer;
+                    appliedNoteInkCursor = pointer;
+                }
+                if (!ReferenceEquals(paper.Cursor, pointer)) paper.Cursor = pointer;
                 bool eraser = root.EraserMode;
                 if (eraser != lastEraser)
                 {

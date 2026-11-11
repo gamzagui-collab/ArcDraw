@@ -2203,11 +2203,11 @@ namespace gInk
             AllowInteractions(false);
             try
             {
-                IC.Cursor = cursorred;
+                ScreenInkCursor = cursorred;
             }
             catch
             {
-                IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
             }
             System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
 
@@ -2829,11 +2829,11 @@ namespace gInk
                     PatternLineSteps = 2;
                     try
                     {
-                        IC.Cursor = cursorred;
+                        ScreenInkCursor = cursorred;
                     }
                     catch
                     {
-                        IC.Cursor = getCursFromDiskOrRes(Root.cursorredFileName, System.Windows.Forms.Cursors.NoMove2D);
+                        ScreenInkCursor = getCursFromDiskOrRes(Root.cursorredFileName, System.Windows.Forms.Cursors.NoMove2D);
                     }
 
                 }
@@ -3673,11 +3673,11 @@ namespace gInk
                 }
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorredFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorredFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
 
@@ -4187,11 +4187,11 @@ namespace gInk
                     btNumb.BackgroundImage = getImgFromDiskOrRes("tool_numb_fillB", ImageExts);
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (tool == Tools.Edit)
@@ -4199,11 +4199,11 @@ namespace gInk
                 btEdit.BackgroundImage = getImgFromDiskOrRes("tool_edit_act");
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
                 ModifyStrokesSelection(true, ref InprogressSelection, StrokesSelection);
                 if (StrokesSelection?.Count > 0)
@@ -4253,11 +4253,11 @@ namespace gInk
                 }
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (tool == Tools.Move)
@@ -4267,11 +4267,11 @@ namespace gInk
                 ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan1_act", ImageExts));
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (tool == Tools.Copy)
@@ -4281,11 +4281,11 @@ namespace gInk
                 ReplaceButtonImage(btPan, getImgFromDiskOrRes("pan_copy", ImageExts));
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (tool == Tools.Scale)
@@ -4297,11 +4297,11 @@ namespace gInk
                 btScaleRot.BackgroundImage = getImgFromDiskOrRes("scale_act", ImageExts);
                 try
                 {
-                    IC.Cursor = cursortarget;
+                    ScreenInkCursor = cursortarget;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursortargetFileName, System.Windows.Forms.Cursors.NoMoveHoriz);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursortargetFileName, System.Windows.Forms.Cursors.NoMoveHoriz);
                 }
             }
             else if (tool == Tools.Rotate)
@@ -4313,11 +4313,11 @@ namespace gInk
                 btScaleRot.BackgroundImage = getImgFromDiskOrRes("rotate_act", ImageExts);
                 try
                 {
-                    IC.Cursor = cursortarget;
+                    ScreenInkCursor = cursortarget;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursortargetFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursortargetFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (tool == Tools.PatternLine)
@@ -4352,15 +4352,16 @@ namespace gInk
                 // no button image to be modified already done earlier in SelectTool
                 try
                 {
-                    IC.Cursor = PatternLineSteps < 2 ? cursortarget : cursorred;
+                    ScreenInkCursor = PatternLineSteps < 2 ? cursortarget : cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(PatternLineSteps < 2 ? Root.cursortargetFileName : Root.cursorredFileName, System.Windows.Forms.Cursors.NoMoveHoriz);
+                    ScreenInkCursor = getCursFromDiskOrRes(PatternLineSteps < 2 ? Root.cursortargetFileName : Root.cursorredFileName, System.Windows.Forms.Cursors.NoMoveHoriz);
                 }
             }
             Root.UponButtonsUpdate |= 0x2;
             Root.ToolSelected = tool;
+            RefreshScreenInkCursor();
             if(Root.Whiteboards!=null)Root.Whiteboards.DrawingToolSelected(tool,Root.FilledSelected);
             if (Root.Whiteboards != null) Root.Whiteboards.RefreshInkTools();
             if (Root.DrawingSession != null) Root.DrawingSession.ApplyMode();
@@ -4419,11 +4420,11 @@ namespace gInk
                 }
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
             }
             else if (pen == -3)
@@ -4531,7 +4532,7 @@ namespace gInk
                 {
                     try
                     {
-                        IC.Cursor = new System.Windows.Forms.Cursor(cursorerase.Handle);
+                        ScreenInkCursor = new System.Windows.Forms.Cursor(cursorerase.Handle);
                     }
                     catch
                     {
@@ -4627,11 +4628,11 @@ namespace gInk
                     //cursorred = new System.Windows.Forms.Cursor(gInk.Properties.Resources.cursorred.Handle);
                     try
                     {
-                        IC.Cursor = cursorred;
+                        ScreenInkCursor = cursorred;
                     }
                     catch
                     {
-                        IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                        ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                     }
                 }
                 else //if (Root.CanvasCursor == 1)
@@ -4639,6 +4640,7 @@ namespace gInk
 
             }
             Root.CurrentPen = pen;
+            RefreshScreenInkCursor();
             if (Root.gpPenWidthVisible)
             {
                 Root.gpPenWidthVisible = false;
@@ -4894,11 +4896,11 @@ namespace gInk
                 /*else
                     try
                     {
-                        IC.Cursor = cursorred;
+                        ScreenInkCursor = cursorred;
                     }
                     catch
                     {
-                        IC.Cursor = getCursFromDiskOrRes("cursorarrow", System.Windows.Forms.Cursors.NoMove2D);
+                        ScreenInkCursor = getCursFromDiskOrRes("cursorarrow", System.Windows.Forms.Cursors.NoMove2D);
                     }*/
                 //System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y); // force cursor refresh
                 btPenWidth.BackgroundImage = getImgFromDiskOrRes("penwidth");
@@ -5196,11 +5198,11 @@ namespace gInk
 
                 try
                 {
-                    IC.Cursor = cursorred;
+                    ScreenInkCursor = cursorred;
                 }
                 catch
                 {
-                    IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                 }
                 System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
                 return;
@@ -5817,16 +5819,16 @@ namespace gInk
             {
                 if (Root.SpotOnAlt)
                     SpotLightTemp = true;
-                tempArrowCursor = IC.Cursor;
+                tempArrowCursor = ScreenInkCursor;
                 if (!Root.DisableArrowOnAltPress)
                 {
                     try
                     {
-                        IC.Cursor = cursorred;
+                        ScreenInkCursor = cursorred;
                     }
                     catch
                     {
-                        IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                        ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
                     }
                     System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
                 };
@@ -5836,7 +5838,7 @@ namespace gInk
                 SpotLightTemp = false;
                 try
                 {
-                    IC.Cursor = tempArrowCursor;
+                    ScreenInkCursor = tempArrowCursor;
                     tempArrowCursor = null;
                     System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
                 }
@@ -7535,11 +7537,11 @@ namespace gInk
             ZoomCapturing = true;
             try
             {
-                IC.Cursor = cursorred;
+                ScreenInkCursor = cursorred;
             }
             catch
             {
-                IC.Cursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
             }
             btZoom.BackgroundImage = getImgFromDiskOrRes("ZoomWin_act");
         }
