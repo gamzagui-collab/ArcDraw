@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Xml;
@@ -13,6 +14,8 @@ namespace gInk
 {
     public sealed partial class WhiteboardLayerManager
     {
+        private const long MaxNotesFileBytes = 128L * 1024 * 1024;
+        private XElement deletedNotes = new XElement("DeletedNotes");
         private Timer noteSaveTimer;
         private bool persistenceReady,loadingNotes,savingNotes,notesDirty,storeNotice,badPrimary,badBackup,persistenceBlocked;
         private long notesRevision;
@@ -58,7 +61,7 @@ namespace gInk
                 if(!File.Exists(path))continue;
                 try
                 {
-                    if(new FileInfo(path).Length>128L*1024*1024)throw new InvalidDataException("노트 파일 크기를 확인해 주세요.");
+                    if(new FileInfo(path).Length>MaxNotesFileBytes)throw new InvalidDataException("노트 파일 크기를 확인해 주세요.");
                     XDocument document;
                     using(var reader=XmlReader.Create(path,new XmlReaderSettings {DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null}))
                         document=XDocument.Load(reader,LoadOptions.PreserveWhitespace);
@@ -70,12 +73,22 @@ namespace gInk
                         if(!ids.Add(item.Number))throw new InvalidDataException("노트 번호가 중복되었습니다.");
                         parsed.Add(item);
                     }
+                    var archive = new XElement(data.Element("DeletedNotes") ?? new XElement("DeletedNotes"));
+                    foreach (XElement element in archive.Elements("Note"))
+                    {
+                        int number = (int?)element.Attribute("id") ?? 0;
+                        if (number <= 0 || number == int.MaxValue || !ids.Add(number) ||
+                            string.IsNullOrEmpty((string)element.Attribute("name")))
+                            throw new InvalidDataException("삭제한 노트의 이름이나 번호를 확인해 주세요.");
+                    }
                     savedNext=Math.Max(1,(int?)data.Attribute("nextId")??1);savedActive=(int?)data.Attribute("active")??0;
+                    foreach (int number in ids) savedNext = Math.Max(savedNext, number + 1);
+                    deletedNotes = archive;
                     stored=parsed;
                     if(path!=NotesFile)StoreNotice("이전 백업에서 노트를 복원했습니다. 읽지 못한 저장본은 보존합니다.");
                     break;
                 }
-                catch(Exception error) when(error is IOException||error is UnauthorizedAccessException||error is System.Security.SecurityException||error is XmlException||error is ArgumentException||error is FormatException||error is OverflowException||error is System.Runtime.InteropServices.COMException)
+                catch(Exception error) when(error is InvalidDataException||error is IOException||error is UnauthorizedAccessException||error is System.Security.SecurityException||error is XmlException||error is ArgumentException||error is FormatException||error is OverflowException||error is System.Runtime.InteropServices.COMException)
                 {
                     if(path==NotesFile)badPrimary=true;else badBackup=true;
                 }
@@ -88,13 +101,7 @@ namespace gInk
             var created=new List<WhiteboardLayerForm>();
             try
             {
-                foreach(var item in stored)
-                {
-                    Rectangle bounds=item.Bounds;Rectangle work=Screen.FromRectangle(bounds).WorkingArea;
-                    if(!work.Contains(new Rectangle(bounds.Left,bounds.Top,Math.Min(80,bounds.Width),34)))
-                    {bounds.X=Math.Max(work.Left,Math.Min(bounds.X,work.Right-bounds.Width));bounds.Y=Math.Max(work.Top,Math.Min(bounds.Y,work.Bottom-34));}
-                    var note=new WhiteboardLayerForm(this,item.Number,bounds);created.Add(note);note.RestoreStoredNote(item);
-                }
+                foreach(var item in stored) created.Add(CreateStoredNote(item));
                 notes.AddRange(created);nextId=savedNext;
                 foreach(var note in notes){nextId=Math.Max(nextId,note.Number+1);if(note.Number==savedActive&&!note.UserHidden)active=note;}
                 bar.QueueRebuild();
@@ -107,33 +114,82 @@ namespace gInk
             }
         }
 
-        private bool SaveNotes()
+        private WhiteboardLayerForm CreateStoredNote(WhiteboardLayerForm.StoredNote item)
         {
-            if(!persistenceReady||loadingNotes||savingNotes||!notesDirty||disposed||persistenceBlocked)return false;
+            Rectangle bounds = item.Bounds;
+            Rectangle work = Screen.FromRectangle(bounds).WorkingArea;
+            if (!work.Contains(new Rectangle(bounds.Left, bounds.Top, Math.Min(80, bounds.Width), 34)))
+            {
+                bounds.X = Math.Max(work.Left, Math.Min(bounds.X, work.Right - bounds.Width));
+                bounds.Y = Math.Max(work.Top, Math.Min(bounds.Y, work.Bottom - 34));
+            }
+
+            var note = new WhiteboardLayerForm(this, item.Number, bounds);
+            try
+            {
+                note.RestoreStoredNote(item);
+                return note;
+            }
+            catch
+            {
+                note.CloseAndDispose();
+                throw;
+            }
+        }
+
+        private bool SaveNotes(WhiteboardLayerForm noteToDelete = null, WhiteboardLayerForm noteToRestore = null)
+        {
+            bool transferring = noteToDelete != null || noteToRestore != null;
+            if(!persistenceReady||loadingNotes||savingNotes||(!notesDirty&&!transferring)||disposed||persistenceBlocked)return false;
             savingNotes=true;string temporary=NotesFile+".tmp."+System.Diagnostics.Process.GetCurrentProcess().Id;
             try
             {
+                // Committing an editor can leave an Ink snapshot queued. Finish
+                // it before capturing the revision for a synchronous move.
+                if (transferring)
+                    foreach (var note in notes.ToArray())
+                        if (!note.FlushHistorySnapshot()) return false;
                 long revision=notesRevision;
-                var data=new XElement("ArcDrawNotes",new XAttribute("version",1),new XAttribute("nextId",nextId),new XAttribute("active",ActiveNote==null?0:ActiveNote.Number));
+                int activeNumber = ActiveNote == null || ActiveNote == noteToDelete ? 0 : ActiveNote.Number;
+                var data=new XElement("ArcDrawNotes",new XAttribute("version",1),new XAttribute("nextId",nextId),new XAttribute("active",activeNumber));
+                var archive = new XElement(deletedNotes);
                 foreach(var note in notes.ToArray())
                 {
-                    XElement element;if(!note.TryStoreNote(out element))return false;data.Add(element);
+                    XElement element;if(!note.TryStoreNote(out element))return false;
+                    if (note == noteToDelete)
+                    {
+                        element.SetAttributeValue("deletedAt", DateTime.UtcNow);
+                        archive.Add(element);
+                    }
+                    else data.Add(element);
                 }
-                if(revision!=notesRevision)return false;
+                if (noteToRestore != null)
+                {
+                    XElement archived = archive.Elements("Note")
+                        .FirstOrDefault(element => (int)element.Attribute("id") == noteToRestore.Number);
+                    if (archived == null || !noteToRestore.TryStoreNote(out XElement restored)) return false;
+                    archived.Remove();
+                    data.Add(restored);
+                }
+                if(disposed||revision!=notesRevision)return false;
+                if (archive.HasElements) data.Add(archive);
                 using(var stream=new FileStream(temporary,FileMode.Create,FileAccess.Write,FileShare.None))
                 {
                     using(var writer=XmlWriter.Create(stream,new XmlWriterSettings {Encoding=new UTF8Encoding(false),Indent=true,NewLineHandling=NewLineHandling.Entitize,CloseOutput=false}))
                         new XDocument(data).Save(writer);
                     stream.Flush(true);
+                    if (stream.Length > MaxNotesFileBytes) throw new InvalidDataException("노트 파일의 저장 한도를 초과했습니다.");
                 }
                 string suffix=".unreadable_"+DateTime.UtcNow.Ticks;
                 if(badBackup&&File.Exists(NotesFile+".bak")){File.Move(NotesFile+".bak",NotesFile+".bak"+suffix);badBackup=false;}
                 if(badPrimary&&File.Exists(NotesFile)){File.Move(NotesFile,NotesFile+suffix);badPrimary=false;}
                 if(File.Exists(NotesFile))File.Replace(temporary,NotesFile,NotesFile+".bak",true);
                 else File.Move(temporary,NotesFile);
+                if (archive.Parent != null) archive.Remove();
+                deletedNotes = archive;
                 if(revision==notesRevision)notesDirty=false;storeNotice=false;return true;
             }
-            catch(Exception error) when(error is IOException||error is UnauthorizedAccessException||error is System.Security.SecurityException||error is XmlException||error is ArgumentException||error is System.Runtime.InteropServices.COMException)
+            catch(Exception error) when(error is InvalidDataException||error is IOException||error is UnauthorizedAccessException||error is System.Security.SecurityException||error is XmlException||error is ArgumentException||error is System.Runtime.InteropServices.COMException)
             {
                 saveAfter=DateTime.UtcNow.AddSeconds(4);dirtySince=saveAfter;
                 StoreNotice("노트를 저장하지 못했습니다. 저장 폴더의 쓰기 권한과 여유 공간을 확인해 주세요.");return false;

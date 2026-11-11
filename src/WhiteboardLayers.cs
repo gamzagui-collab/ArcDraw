@@ -352,24 +352,28 @@ namespace gInk
 
         public void Remove(WhiteboardLayerForm note)
         {
-            if (disposed || note == null || !notes.Contains(note)||confirmingNoteDeletion) return;
-            confirmingNoteDeletion=true;
+            if (disposed || note == null || !notes.Contains(note) || changingNoteArchive) return;
+            changingNoteArchive = true;
             try
             {
                 note.FinishEditing(true);
-                if(!DeletionSafety.Confirm(root,"노트 삭제 확인","“"+note.DisplayName+"” 노트를 삭제할까요?\r\n이 노트의 메모와 필기가 함께 삭제됩니다."))return;
+                if (!DeletionSafety.Confirm(root, "노트 삭제 확인",
+                    "“" + note.DisplayName + "” 노트를 삭제할까요?\r\n삭제한 노트는 툴바의 복구에서 되살릴 수 있습니다.")) return;
+                if (disposed || !notes.Contains(note)) return;
+                if (!SaveNotes(noteToDelete: note))
+                {
+                    ShowNoteArchiveWarning("노트를 삭제하지 못했습니다. 필기를 마치고 저장 폴더를 확인한 뒤 다시 시도해 주세요.");
+                    return;
+                }
+                notes.Remove(note);
+                if (active == note) active = null;
+                note.CloseAndDispose();
             }
-            finally {confirmingNoteDeletion=false;}
-            if(!notes.Remove(note))return;
-            note.CloseAndDispose();
-            if (active == note) active = null;
+            finally { changingNoteArchive = false; }
             bar.QueueRebuild();
             KeepWindowsOnTop();
             NotifyDrawingTarget();
-            NotesChanged();
         }
-
-        private bool confirmingNoteDeletion;
 
         public void RefreshInkTools()
         {
@@ -419,7 +423,7 @@ namespace gInk
         {
             if (!open) return;
             // Do not lift an owned note over the foreground settings dialog.
-            if ((root.DrawingSession != null && root.DrawingSession.OptionsOpen) ||
+            if (changingNoteArchive || (root.DrawingSession != null && root.DrawingSession.OptionsOpen) ||
                 (root.FormOptions != null && root.FormOptions.Visible)) return;
             foreach (WhiteboardLayerForm note in notes)
                 if (note != active) RaiseWithoutFocus(note);
@@ -586,14 +590,23 @@ namespace gInk
             Button appearance=NewButton("⚙ 설정",listWidth);appearance.Name="DrawingSettings";
             appearance.Click+=delegate { if(manager.CurrentRoot.DrawingSession!=null)manager.CurrentRoot.DrawingSession.ShowAppearanceOptions(); };
             items.Controls.Add(appearance);
-            Button add = NewButton("＋ 노트", listWidth);add.Name="AddWhiteboardNote";
+            int addWidth = (listWidth + 1) / 2;
+            var noteActions = new Panel { Name = "WhiteboardNoteActions", Size = new Size(listWidth, cell) };
+            Button add = NewButton("＋ 노트", addWidth);add.Name="AddWhiteboardNote";
             add.Font = new Font("Malgun Gothic", 9f, FontStyle.Bold);
             add.ForeColor = Color.White;
             add.BackColor = theme.Accent;
             add.FlatAppearance.MouseOverBackColor = Color.FromArgb(29, 78, 216);
             add.Click += delegate { manager.AddNote(); };
             tips.SetToolTip(add, "새 화이트보드 레이어 (Ctrl+Shift+B)");
-            items.Controls.Add(add);
+            Button recover = NewButton("복구", listWidth - addWidth);
+            recover.Name = "RestoreWhiteboardNote";
+            recover.AccessibleName = "삭제한 노트 복구";
+            recover.Left = addWidth;
+            recover.Enabled = manager.HasDeletedNotes;
+            recover.Click += delegate { manager.ShowDeletedNotes(); };
+            noteActions.Controls.AddRange(new Control[] { add, recover });
+            items.Controls.Add(noteActions);
 
             Panel arrange=new Panel {Name="ArrangeWhiteboardNotes",Size=new Size(listWidth,cell)};
             Button vertical=NewButton("세로 정렬",listWidth/2);vertical.Name="ArrangeNotesVertical";
