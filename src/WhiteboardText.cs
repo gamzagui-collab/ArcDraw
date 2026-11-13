@@ -212,6 +212,7 @@ namespace gInk
             paper.Controls.Add(editor);
             editor.BringToFront();
             editor.Focus();
+            FocusDrawingSurface();
             editor.SelectionStart = editor.TextLength;
             if(memo)editor.ScrollToCaret();
             paper.Invalidate();

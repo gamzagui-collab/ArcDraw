@@ -38,7 +38,7 @@ namespace gInk
             if(!IsOpen){Cancel();return;}
             WhiteboardLayerForm target=targets[selected];Cancel();
             if(target!=null&&!target.IsDisposed&&root.Whiteboards.Notes.Contains(target))
-            {root.Whiteboards.SetActive(target);target.FocusDrawingSurface();}
+            {root.Whiteboards.SetActive(target);}
             else {root.Whiteboards.SelectScreen();root.DrawingSession.QueueDrawingFocus();}
             root.DrawingSession.RefreshDrawingTarget();
         }
@@ -92,6 +92,10 @@ namespace gInk
     }
     public sealed partial class WhiteboardLayerForm
     {
-        internal void FocusDrawingSurface(){if(!closing&&Visible){Activate();paper.Focus();}}
+        internal void FocusDrawingSurface()
+        {
+            if (closing || !Visible) return;
+            manager.CurrentRoot.DrawingSession?.FocusDrawingWindow(this, IsEditingText ? (Control)textEditor : paper);
+        }
     }
 }

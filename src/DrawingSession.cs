@@ -31,6 +31,8 @@ namespace gInk
         private int modifiers;
         private IntPtr hook;
         private bool capsDown, applying, disposed, escapeRequested;
+        private Form drawingFocusWindow;
+        private Control drawingFocusInput;
         private bool? applied;
         private IntPtr previousApplication;
         private int pendingPreset=-1;
@@ -126,15 +128,61 @@ namespace gInk
             if(!Running||!CapsOn)return;
             // A remembered toolbar child otherwise regains focus after ESC/reentry.
             root.FormCollection.ActiveControl=null;
-            SetForegroundWindow(root.FormCollection.Handle);
-            SetActiveWindow(root.FormCollection.Handle);
-            SetFocus(root.FormCollection.Handle);
+            FocusDrawingWindow(root.FormCollection, root.FormCollection);
+        }
+
+        internal void FocusDrawingWindow(Form window, Control input)
+        {
+            if (!DrawingEnabled || window.IsDisposed || !window.Visible ||
+                OptionsOpen || SelectingTarget || ModalWindowOpen() ||
+                (root.FormOptions != null && root.FormOptions.Visible) ||
+                root.FormCollection.FontSearchOpen) return;
+
+            drawingFocusWindow = window;
+            drawingFocusInput = input;
+            TryFocusDrawingWindow();
+        }
+
+        private void TryFocusDrawingWindow()
+        {
+            Form window = drawingFocusWindow;
+            Control input = drawingFocusInput;
+            if (window == null) return;
+            if (!DrawingEnabled || window.IsDisposed || input.IsDisposed || !window.Visible ||
+                OptionsOpen || SelectingTarget || ModalWindowOpen() || root.FormCollection.FontSearchOpen ||
+                (root.FormOptions != null && root.FormOptions.Visible))
+            {
+                drawingFocusWindow = null;
+                drawingFocusInput = null;
+                return;
+            }
+            if (GetForegroundWindow() != window.Handle)
+            {
+                RememberForegroundApplication();
+                SetForegroundWindow(window.Handle);
+                window.Activate();
+            }
+            if (!OwnsWindow(GetForegroundWindow())) return;
+            SetActiveWindow(window.Handle);
+            if (!input.Focus()) SetFocus(input.Handle);
+            if (!input.Focused) return;
+            drawingFocusWindow = null;
+            drawingFocusInput = null;
+        }
+
+        private void FocusCurrentDrawingTarget()
+        {
+            WhiteboardLayerForm note = root.Whiteboards?.ActiveNote;
+            if (note?.Visible == true) note.FocusDrawingSurface();
+            else FocusEntryWindow();
         }
 
         public void Stop()
         {
             if(disposed)return;
             Running = false;
+            drawingFocusWindow = null;
+            drawingFocusInput = null;
             escapeRequested=false;
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
@@ -291,6 +339,7 @@ namespace gInk
             if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
             {
                 if(!CapsOn)RememberForegroundApplication();
+                else TryFocusDrawingWindow();
                 return;
             }
             applying = true;
@@ -307,6 +356,7 @@ namespace gInk
                     applied = CapsOn;
                     root.FormCollection.RefreshScreenInkCursor();
                     if (root.Whiteboards != null) root.Whiteboards.SetInputPassThrough(!CapsOn);
+                    if (CapsOn) FocusCurrentDrawingTarget();
                     restoreApplication|=!CapsOn;
                 }
                 if(restoreApplication&&previousApplication!=IntPtr.Zero&&IsWindow(previousApplication))SetForegroundWindow(previousApplication);
@@ -382,6 +432,9 @@ namespace gInk
             }
             if (!sizeSidebar.Visible) sizeSidebar.Show();
             if (editor != null) sizeSidebar.EnableForTextEditor();
+            if (memo != null && !host.FontSearchOpen &&
+                Control.FromHandle(GetForegroundWindow()) is NonActivatingToolbarWindow)
+                memo.FocusDrawingSurface();
             if (memo != null && changed) sizeSidebar.RaiseWithoutActivation();
         }
 

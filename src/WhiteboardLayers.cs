@@ -304,7 +304,7 @@ namespace gInk
             note.SyncInkTool(root);
             bar.QueueRebuild();
             KeepWindowsOnTop();
-            if(note.Visible)note.Activate();
+            if (note.Visible) note.FocusDrawingSurface();
             NotifyDrawingTarget();
             NotesChanged();
         }
@@ -347,7 +347,7 @@ namespace gInk
                     root.FormCollection.SelectTool(Tools.txtLeftAligned,Filling.Empty);
                 note.SyncInkTool(root);
                 note.BringToFront();
-                note.Activate();
+                note.FocusDrawingSurface();
             }
             bar.UpdateSelection();
             note.QueueMemoEditor();
@@ -369,7 +369,12 @@ namespace gInk
                 if (note.Owner == null) note.Show(root.FormCollection);
                 else note.Show();
             }
-            if (!note.UserHidden) active = note;
+            if (!note.UserHidden)
+            {
+                active?.FinishEditing(true);
+                active = note;
+                note.FocusDrawingSurface();
+            }
             bar.UpdateSelection();
             KeepWindowsOnTop();
             NotifyDrawingTarget();
@@ -1059,7 +1064,7 @@ namespace gInk
             get
             {
                 CreateParams cp = base.CreateParams;
-                cp.ExStyle |= 0x00000080 | 0x08000000; // TOOLWINDOW | NOACTIVATE
+                cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
                 return cp;
             }
         }
