@@ -87,6 +87,7 @@ namespace gInk
         {
             if (!long.TryParse(destination, NumberStyles.Integer, CultureInfo.InvariantCulture, out long raw)) return;
             var parent = new IntPtr(raw);
+            using (var dpi = new ScreenFrameDpiScope(true))
             using (var dispatcher = new Control())
             using (var bars = new ShellAppBars(
                 () => PostMessage(parent, NotifyWindow.Callback, IntPtr.Zero, IntPtr.Zero),

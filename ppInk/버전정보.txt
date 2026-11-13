@@ -1,3 +1,3 @@
-﻿ArcDraw v0.57 — 화면 액자 장식 복원
-2026-11-14 00:33:16 KST
-EXE SHA256: dd1d4f990244638d8d833a93ca897bc39e93c5c6e9b266ccc7bf02bbeee06fb1
+﻿ArcDraw v0.58 — 화면 액자 정렬과 Esc 초기화
+2026-11-14 06:51:22 KST
+EXE SHA256: ad17ddd224fb1599d52afcd14805d6a8255c57c014507ecca1f375b15ad6c52f

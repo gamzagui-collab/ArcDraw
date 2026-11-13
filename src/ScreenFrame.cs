@@ -10,6 +10,7 @@ namespace gInk
 {
     internal sealed class ScreenFrame : IDisposable
     {
+        private readonly Root root;
         private readonly DrawingSettings settings;
         private readonly NoteVisualWindow[] edges = new NoteVisualWindow[4];
         private readonly ScreenFrameAppBars reservations;
@@ -22,12 +23,13 @@ namespace gInk
         private bool fullscreen, disposed, reservationFailed;
         private Rectangle lastBounds;
         private int lastWidth, lastTheme = -1, lastOpacity = -1;
-        private Rectangle targetBounds, frameBounds;
+        private Rectangle targetBounds, frameBounds, reservedWorkArea;
         private Padding frameInsets;
 
-        internal ScreenFrame(DrawingSettings settings)
+        internal ScreenFrame(Root root)
         {
-            this.settings = settings;
+            this.root = root;
+            settings = root.Settings;
             layoutTimer = new Timer { Interval = 75 };
             layoutTimer.Tick += delegate { layoutTimer.Stop(); Refresh(); };
             reservations = new ScreenFrameAppBars(QueueLayout, active => { fullscreen = active; QueueLayout(); });
@@ -57,6 +59,23 @@ namespace gInk
         internal void Refresh()
         {
             if (disposed) return;
+            Rectangle previousWorkArea = reservedWorkArea;
+            using (var dpi = new ScreenFrameDpiScope(true)) RefreshFrame();
+            UpdateWorkAreaPreview();
+            if (!reservedWorkArea.IsEmpty && reservedWorkArea != previousWorkArea)
+                KeepToolbarInsideWorkArea();
+        }
+
+        internal void KeepToolbarInsideWorkArea()
+        {
+            if (reservedWorkArea.IsEmpty || root.FormCollection?.Visible != true) return;
+            // The toolbar is still a legacy DPI-scaled window.
+            if (ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out Rectangle monitor, out Rectangle work))
+                root.FormCollection.FitToolbarToWorkArea(monitor, work);
+        }
+
+        private void RefreshFrame()
+        {
             bool reserve = settings.ScreenFrameEnabled && settings.ScreenFrameReserveWorkArea;
             bool expandTaskbar = settings.ScreenFrameExpandTaskbar && !reserve;
             if (!reserve)
@@ -64,12 +83,17 @@ namespace gInk
                 reservations.Release();
                 fullscreen = false;
             }
-            Screen screen = Screen.AllScreens.FirstOrDefault(item => item.DeviceName == settings.ScreenFrameMonitor) ?? Screen.PrimaryScreen;
-            targetBounds = screen.Bounds;
+            if (!ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out targetBounds, out Rectangle workArea))
+            {
+                reservations.Release();
+                reservedWorkArea = Rectangle.Empty;
+                foreach (var edge in edges) edge?.Hide();
+                return;
+            }
             int width = Math.Max(3, Math.Min(targetBounds.Width, targetBounds.Height) * settings.ScreenFrameWidth / 100);
             int theme = settings.ScreenFrameTheme;
             reservationFailed = false;
-            Rectangle bounds = expandTaskbar ? targetBounds : screen.WorkingArea;
+            Rectangle bounds = expandTaskbar ? targetBounds : workArea;
             Padding inset = ScreenFrameStyle.GetInsets(targetBounds.Size, width, theme);
             if (reserve)
             {
@@ -78,12 +102,14 @@ namespace gInk
                 else
                 {
                     reservationFailed = true;
-                    bounds = screen.WorkingArea;
+                    if (ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out _, out Rectangle restored)) bounds = restored;
                 }
             }
             frameBounds = bounds;
             frameInsets = inset;
-            UpdateWorkAreaPreview();
+            reservedWorkArea = Rectangle.Empty;
+            if (reserve && !reservationFailed)
+                ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out _, out reservedWorkArea);
             if ((!settings.ScreenFrameEnabled && !previewingFrame) ||
                 (reserve && fullscreen && settings.ScreenFrameHideFullscreen && !previewingFrame))
             {
@@ -115,7 +141,9 @@ namespace gInk
                 edges[i].Bounds = new Rectangle(location, strip.Size);
                 using (var bitmap = new Bitmap(strip.Width, strip.Height, PixelFormat.Format32bppPArgb))
                 {
-                    using (Graphics g = Graphics.FromImage(bitmap))
+                    if (theme >= ScreenFrameStyle.CategorySize)
+                        ScreenFrameStyle.RenderArtworkStrip(bitmap, bounds.Size, strip, inset, theme);
+                    else using (Graphics g = Graphics.FromImage(bitmap))
                     {
                         g.TranslateTransform(-strip.X, -strip.Y);
                         ScreenFrameStyle.Paint(g, bounds.Size, width, theme, inset);
@@ -153,6 +181,9 @@ namespace gInk
             e.Graphics.FillRectangle(Brushes.SteelBlue, frame);
             frame = RectangleF.FromLTRB(frame.Left + frameInsets.Left * scale, frame.Top + frameInsets.Top * scale,
                 frame.Right - frameInsets.Right * scale, frame.Bottom - frameInsets.Bottom * scale);
+            if (!reservedWorkArea.IsEmpty)
+                frame = new RectangleF(x + (reservedWorkArea.Left - targetBounds.Left) * scale,
+                    y + (reservedWorkArea.Top - targetBounds.Top) * scale, reservedWorkArea.Width * scale, reservedWorkArea.Height * scale);
             if (frame.Width > 0 && frame.Height > 0) e.Graphics.FillRectangle(Brushes.AliceBlue, frame);
         }
 
@@ -181,8 +212,12 @@ namespace gInk
             var monitor = new ComboBox { Name = "ScreenFrameMonitor", DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(96, 79, 280, 24) };
             Screen[] screens = Screen.AllScreens;
             int selectedMonitor = Array.FindIndex(screens, item => item.DeviceName == settings.ScreenFrameMonitor);
-            for (int i = 0; i < screens.Length; i++)
-                monitor.Items.Add("화면 " + (i + 1) + "  ·  " + screens[i].Bounds.Width + "×" + screens[i].Bounds.Height + (screens[i].Primary ? "  (주 화면)" : ""));
+            using (var dpi = new ScreenFrameDpiScope(true))
+                for (int i = 0; i < screens.Length; i++)
+                {
+                    ScreenFrameDisplay.Read(screens[i].DeviceName, out Rectangle pixels, out _);
+                    monitor.Items.Add("화면 " + (i + 1) + "  ·  " + pixels.Width + "×" + pixels.Height + (screens[i].Primary ? "  (주 화면)" : ""));
+                }
             monitor.SelectedIndex = selectedMonitor < 0 ? Array.FindIndex(screens, item => item.Primary) : selectedMonitor;
             var width = new TrackBar
             {
@@ -288,6 +323,12 @@ namespace gInk
             options.Show();
         }
 
+        internal void CloseOptions()
+        {
+            gallery?.Close();
+            options?.Close();
+        }
+
         public void Dispose()
         {
             if (disposed) return;
@@ -296,7 +337,7 @@ namespace gInk
             SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
             layoutTimer.Dispose();
             reservations.Dispose();
-            options?.Close();
+            CloseOptions();
             for (int i = 0; i < edges.Length; i++)
             {
                 edges[i]?.Dispose();

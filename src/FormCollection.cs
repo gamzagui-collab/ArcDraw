@@ -6469,6 +6469,23 @@ namespace gInk
             if(IsMovingToolbar==2)MoveToolbarWithCursor();
         }
 
+        internal void FitToolbarToWorkArea(Rectangle monitor, Rectangle work)
+        {
+            if (IsToolbarDragging || !IsHandleCreated) return;
+            Point origin = PointToScreen(Point.Empty);
+            var toolbar = new Rectangle(origin.X + gpButtonsLeft, origin.Y + gpButtonsTop, gpButtonsWidth, gpButtonsHeight);
+            if (!monitor.Contains(new Point(toolbar.Left + toolbar.Width / 2, toolbar.Top + toolbar.Height / 2))) return;
+            int x = Math.Max(work.Left, Math.Min(toolbar.Left, work.Right - toolbar.Width));
+            int y = Math.Max(work.Top, Math.Min(toolbar.Top, work.Bottom - toolbar.Height));
+            int dx = x - toolbar.Left, dy = y - toolbar.Top;
+            if (dx == 0 && dy == 0) return;
+            gpButtonsLeft += dx;
+            gpButtonsTop += dy;
+            gpButtons.Location = new Point(gpButtons.Left + dx, gpButtons.Top + dy);
+            Root.UponAllDrawingUpdate = true;
+            Root.UponButtonsUpdate |= 0x5;
+        }
+
         private void MoveToolbarWithCursor()
         {
             Point cursor=MousePosition;

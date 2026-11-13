@@ -571,7 +571,7 @@ namespace gInk
             }
             
             Settings=new DrawingSettings(this);
-            ScreenFrame = new ScreenFrame(Settings);
+            ScreenFrame = new ScreenFrame(this);
 			//FormCollection = null;
 			//FormDisplay = null;
             FormCollection = new FormCollection(this);
@@ -713,6 +713,7 @@ namespace gInk
 
             if (DrawingSession != null) DrawingSession.Start();
             FormCollection.PrepareEntryLayout();
+            ScreenFrame?.KeepToolbarInsideWorkArea();
             FormDisplay.ClearCanvus();FormDisplay.DrawStrokes();FormDisplay.DrawButtons(true);
             FormDisplay.UpdateFormDisplay(true);
             UponAllDrawingUpdate=false;UponButtonsUpdate=0;
@@ -736,6 +737,7 @@ namespace gInk
                 return;
             }
             if(FormCollection.IC.Enabled)FormCollection.IC.Enabled=false;
+            ScreenFrame?.CloseOptions();
             if (DrawingSession != null) DrawingSession.Stop();
             if (Whiteboards != null) Whiteboards.Hide();
             FormCollection.Initializing = true;

@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.57-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.58-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.57 화면 액자 장식 복원
+## v0.58 화면 액자 정렬과 Esc 초기화
 
-첨부 시안 100종의 테두리를 다시 그려 모서리 소품, 곡선, 빛 효과가 더 온전히 보이도록 했습니다. 가운데는 투명하고 안쪽 경계는 부드럽게 이어집니다. 안쪽 폭은 장식 전체의 크기를 조절하며, 작업 영역 자동 확보를 켜면 테마에 맞춰 네 방향의 여백이 조정됩니다.
+Windows 화면 배율이 적용된 환경에서도 액자와 작업 영역이 같은 픽셀 좌표를 사용합니다. 작업 영역 자동 확보 시 ArcDraw 도구막대도 안쪽으로 옮깁니다. 사진 액자의 장식이 경계에서 끊기지 않게 그리며, 안쪽 폭은 가장 두꺼운 쪽의 최대 폭을 정합니다. 그리기 중 Esc를 누르면 액자 설정과 테마 창도 함께 닫힙니다.
 
-Windows Release|x86 빌드와 110종 렌더링, 대표 시안의 장식과 안쪽 경계, 실제 Windows 작업 영역 정렬 및 복구를 확인했습니다.
+Windows Release|x86 빌드, 110종 렌더링, 화면 배율이 적용된 Windows에서 스피드런 12% 정렬과 Esc 초기화를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

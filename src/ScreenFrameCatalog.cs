@@ -44,7 +44,8 @@ namespace gInk
         };
         internal static readonly string[] Names = GetNames();
         private static int cachedArtworkNumber;
-        private static Bitmap cachedArtwork;
+        private static Size cachedArtworkSize;
+        private static byte[] cachedArtwork;
 
         // Insets up to the solid artwork, as percentages of source width and height.
         // The opening starts farther in so the soft edge has its own space.
@@ -73,21 +74,20 @@ namespace gInk
         };
 
         // Keep only the most recently drawn source so browsing doesn't retain all 100 bitmaps.
-        private static Bitmap GetArtwork(int number)
+        private static byte[] GetArtwork(int number)
         {
             if (cachedArtworkNumber == number && cachedArtwork != null) return cachedArtwork;
             using (Stream resource = typeof(ScreenFrameStyle).Assembly.GetManifestResourceStream("ArcDraw.ScreenFrameArtwork"))
             using (var archive = new ZipArchive(resource, ZipArchiveMode.Read))
             using (Stream entry = archive.GetEntry(number.ToString("D3") + ".jpg").Open())
             using (var decoded = new Bitmap(entry))
+            using (Bitmap artwork = decoded.Clone(new Rectangle(Point.Empty, decoded.Size), PixelFormat.Format32bppArgb))
             {
-                Bitmap copy = decoded.Clone(new Rectangle(Point.Empty, decoded.Size), PixelFormat.Format32bppArgb);
-                try { FeatherOpening(copy, SourceInsets(copy.Size, number)); }
-                catch { copy.Dispose(); throw; }
-                cachedArtwork?.Dispose();
-                cachedArtwork = copy;
+                byte[] pixels = ReadArtwork(artwork, SourceInsets(artwork.Size, number));
+                cachedArtworkSize = artwork.Size;
+                cachedArtwork = pixels;
                 cachedArtworkNumber = number;
-                return copy;
+                return pixels;
             }
         }
 
@@ -101,7 +101,7 @@ namespace gInk
                 size.Height * ArtworkOpenings[index + 3] / 100 + transition);
         }
 
-        private static void FeatherOpening(Bitmap artwork, Padding inset)
+        private static byte[] ReadArtwork(Bitmap artwork, Padding inset)
         {
             // Fade toward the open rectangle. The corner art stays opaque and each
             // inner side reaches zero alpha before the desktop opening starts.
@@ -109,32 +109,35 @@ namespace gInk
             int feather = Math.Max(4, artwork.Height / 9) - samplingGuard;
             int right = artwork.Width - inset.Right, bottom = artwork.Height - inset.Bottom;
             Rectangle bounds = new Rectangle(Point.Empty, artwork.Size);
-            BitmapData data = artwork.LockBits(bounds, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            int rowBytes = artwork.Width * 4;
+            var pixels = new byte[rowBytes * artwork.Height];
+            BitmapData data = artwork.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
             try
             {
-                var row = new byte[artwork.Width * 4];
                 for (int y = 0; y < artwork.Height; y++)
                 {
                     IntPtr address = IntPtr.Add(data.Scan0, y * data.Stride);
-                    Marshal.Copy(address, row, 0, row.Length);
+                    Marshal.Copy(address, pixels, y * rowBytes, rowBytes);
                     int dy = Math.Max(0, Math.Max(inset.Top - y, y - bottom + 1) - samplingGuard);
                     for (int x = 0; x < artwork.Width; x++)
                     {
                         int dx = Math.Max(0, Math.Max(inset.Left - x, x - right + 1) - samplingGuard);
+                        int offset = y * rowBytes + x * 4;
                         if (dx >= feather || dy >= feather) continue;
                         float distance = (float)Math.Sqrt(dx * dx + dy * dy) / feather;
-                        if (distance < 1)
-                            row[x * 4 + 3] = (byte)Math.Round(row[x * 4 + 3] * distance * distance * (3 - 2 * distance));
+                        if (distance >= 1) continue;
+                        int alpha = (int)(255 * distance * distance * (3 - 2 * distance) + .5f);
+                        for (int c = 0; c < 3; c++) pixels[offset + c] = (byte)((pixels[offset + c] * alpha + 127) / 255);
+                        pixels[offset + 3] = (byte)alpha;
                     }
-                    Marshal.Copy(row, 0, address, row.Length);
                 }
             }
             finally { artwork.UnlockBits(data); }
+            return pixels;
         }
 
         internal static void ReleaseArtwork()
         {
-            cachedArtwork?.Dispose();
             cachedArtwork = null;
         }
 
@@ -153,10 +156,12 @@ namespace gInk
         {
             if (theme < CategorySize) return new Padding(width);
             int number = theme - CategorySize + 1;
-            Bitmap source = GetArtwork(number);
-            Padding inset = SourceInsets(source.Size, number);
-            float scale = Math.Min(width / (source.Height * .21f),
-                Math.Min(size.Width * .58f / inset.Horizontal, size.Height * .58f / inset.Vertical));
+            GetArtwork(number);
+            Padding inset = SourceInsets(cachedArtworkSize, number);
+            // Anchor width to the visible ornament, including the soft edge, and
+            // leave most of the display usable even at the largest slider value.
+            int longest = Math.Max(Math.Max(inset.Left, inset.Right), Math.Max(inset.Top, inset.Bottom));
+            float scale = width / (float)longest;
             return new Padding(Math.Max(1, (int)Math.Round(inset.Left * scale)),
                 Math.Max(1, (int)Math.Round(inset.Top * scale)),
                 Math.Max(1, (int)Math.Round(inset.Right * scale)),
@@ -165,26 +170,82 @@ namespace gInk
 
         private static void PaintArtwork(Graphics g, Size size, Padding inset, int number)
         {
-            Bitmap source = GetArtwork(number);
-            Padding original = SourceInsets(source.Size, number);
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.Half;
-            int[] srcX = { 0, original.Left, source.Width - original.Right, source.Width };
-            int[] srcY = { 0, original.Top, source.Height - original.Bottom, source.Height };
-            int[] dstX = { 0, inset.Left, size.Width - inset.Right, size.Width };
-            int[] dstY = { 0, inset.Top, size.Height - inset.Bottom, size.Height };
-            using (var sampling = new ImageAttributes())
+            using (var preview = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb))
             {
-                sampling.SetWrapMode(WrapMode.TileFlipXY);
-                for (int row = 0; row < 3; row++)
-                for (int col = 0; col < 3; col++)
+                RenderArtworkStrip(preview, size, new Rectangle(Point.Empty, size), inset, number + CategorySize - 1);
+                g.DrawImageUnscaled(preview, Point.Empty);
+            }
+        }
+
+        internal static void RenderArtworkStrip(Bitmap target, Size size, Rectangle strip, Padding inset, int theme)
+        {
+            int number = theme - CategorySize + 1;
+            byte[] source = GetArtwork(number);
+            Size sourceSize = cachedArtworkSize;
+            Padding original = SourceInsets(sourceSize, number);
+            float[] columns = MapAxis(strip.Left, strip.Width, size.Width, sourceSize.Width, inset.Left, inset.Right, original.Left, original.Right);
+            float[] rows = MapAxis(strip.Top, strip.Height, size.Height, sourceSize.Height, inset.Top, inset.Bottom, original.Top, original.Bottom);
+            var x0 = new int[columns.Length];
+            var x1 = new int[columns.Length];
+            var xWeight = new int[columns.Length];
+            for (int x = 0; x < columns.Length; x++)
+            {
+                int pixel = (int)columns[x];
+                x0[x] = pixel * 4;
+                x1[x] = Math.Min(pixel + 1, sourceSize.Width - 1) * 4;
+                xWeight[x] = (int)((columns[x] - pixel) * 256);
+            }
+            BitmapData data = target.LockBits(new Rectangle(Point.Empty, target.Size), ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+            try
+            {
+                var scanline = new byte[strip.Width * 4];
+                for (int y = 0; y < rows.Length; y++)
                 {
-                    if (row == 1 && col == 1) continue;
-                    Rectangle destination = Rectangle.FromLTRB(dstX[col], dstY[row], dstX[col + 1], dstY[row + 1]);
-                    g.DrawImage(source, destination, srcX[col], srcY[row], srcX[col + 1] - srcX[col],
-                        srcY[row + 1] - srcY[row], GraphicsUnit.Pixel, sampling);
+                    int sourceY = (int)rows[y];
+                    int row0 = sourceY * sourceSize.Width * 4;
+                    int row1 = Math.Min(sourceY + 1, sourceSize.Height - 1) * sourceSize.Width * 4;
+                    int below = (int)((rows[y] - sourceY) * 256), above = 256 - below;
+                    for (int x = 0; x < columns.Length; x++)
+                    {
+                        int right = xWeight[x], left = 256 - right;
+                        for (int c = 0; c < 4; c++)
+                        {
+                            int a = source[row0 + x0[x] + c] * left + source[row0 + x1[x] + c] * right;
+                            int b = source[row1 + x0[x] + c] * left + source[row1 + x1[x] + c] * right;
+                            scanline[x * 4 + c] = (byte)((a * above + b * below + 32768) >> 16);
+                        }
+                    }
+                    Marshal.Copy(scanline, 0, IntPtr.Add(data.Scan0, y * data.Stride), scanline.Length);
                 }
             }
+            finally { target.UnlockBits(data); }
+        }
+
+        private static float[] MapAxis(int start, int count, int targetLength, int sourceLength,
+            int near, int far, int sourceNear, int sourceFar)
+        {
+            var coordinates = new float[count];
+            float middle = (sourceLength - sourceNear - sourceFar) / (float)(targetLength - near - far);
+            float nearRate = sourceNear / (float)near, farRate = sourceFar / (float)far;
+            // Smooth the change of scale at the two joins. Every strip samples
+            // the same continuous image, including across corner boundaries.
+            float blend = Math.Min(Math.Min(near, far) * .06f, (targetLength - near - far) * .15f);
+            for (int i = 0; i < count; i++)
+            {
+                float x = start + i + .5f;
+                float position = x * nearRate + (middle - nearRate) * SmoothStepDistance(x - near, blend) +
+                    (farRate - middle) * SmoothStepDistance(x - (targetLength - far), blend);
+                coordinates[i] = Math.Max(0, Math.Min(sourceLength - 1, position - .5f));
+            }
+            return coordinates;
+        }
+
+        private static float SmoothStepDistance(float distance, float radius)
+        {
+            if (distance <= -radius) return 0;
+            if (distance >= radius) return distance;
+            float t = (distance + radius) / (2 * radius);
+            return radius * t * t * t * (2 - t);
         }
     }
 
