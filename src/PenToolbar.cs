@@ -104,7 +104,7 @@ namespace gInk
             ReplaceButtonImage(mainColorButton, PenSample.Swatch(pen.Color));
             ReplaceButtonImage(penSettingsButton, PenSample.Line(Root, pen));
             Root.UponButtonsUpdate |= 2;
-            Root.DrawingSession?.RefreshPenSizeSlider();
+            Root.DrawingSession?.RefreshSizeSlider();
         }
 
         private void ChooseMainColor(Button anchor)

@@ -14,10 +14,12 @@ namespace gInk
         private bool dragging;
         private int dragTop;
         private Color sampleColor = Color.White;
+        private string unit = "px";
 
-        internal int Maximum { get; set; } = 200;
+        internal const int BrushMaximum = 200;
+        internal const int TextMaximum = 144;
+        internal int Maximum { get; private set; } = BrushMaximum;
         internal bool IsDragging { get { return dragging; } }
-        internal string Unit { get; set; } = "px";
         internal Color SampleColor
         {
             get { return sampleColor; }
@@ -36,7 +38,17 @@ namespace gInk
         }
 
         internal event Action<int> Dragged;
-        internal event Action<int> DragFinished;
+
+        internal void SetMode(bool text, int maximum)
+        {
+            string next = text ? "pt" : "px";
+            if (unit == next && Maximum == maximum) return;
+            Capture = false;
+            unit = next;
+            Maximum = maximum;
+            AccessibleName = text ? "글자 크기 (포인트)" : "브러시 크기 (픽셀)";
+            Invalidate();
+        }
 
         internal VerticalSizeSlider()
         {
@@ -78,7 +90,6 @@ namespace gInk
             base.OnMouseCaptureChanged(e);
             if (!dragging || Capture) return;
             dragging = false;
-            DragFinished?.Invoke(Value);
         }
 
         private void SlideTo(int y)
@@ -105,29 +116,31 @@ namespace gInk
                 g.DrawLine(track, middle, TrackTop, middle, TrackBottom);
                 g.DrawLine(active, middle, thumb, middle, TrackBottom);
                 g.FillEllipse(Brushes.White, middle - 7, thumb - 7, 14, 14);
-                if (Unit == "px")
+                if (unit == "px")
                 {
                     float diameter = Math.Min(25, Value);
                     g.DrawEllipse(Pens.White, middle - diameter / 2, 18 - diameter / 2, diameter, diameter);
                     g.FillEllipse(sample, middle - diameter / 2, 18 - diameter / 2, diameter, diameter);
                 }
             }
-            TextRenderer.DrawText(g, Value + " " + Unit, SystemFonts.MessageBoxFont,
-                new Rectangle(0, Unit == "px" ? 32 : 12, Width, 19), Color.White,
+            TextRenderer.DrawText(g, Value + " " + unit, SystemFonts.MessageBoxFont,
+                new Rectangle(0, unit == "px" ? 32 : 12, Width, 19), Color.White,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
         }
     }
 
-    internal sealed class PenSizeSidebar : Form
+    internal sealed class DrawingSizeSidebar : Form
     {
+        private Rectangle lastToolbar, lastNoteToolbar;
+
         internal VerticalSizeSlider Slider { get; } = new VerticalSizeSlider
         {
-            Name = "BrushSizeSlider", AccessibleName = "브러시 크기 (픽셀)", Dock = DockStyle.Fill
+            Name = "DrawingSizeSlider", AccessibleName = "브러시 크기 (픽셀)", Dock = DockStyle.Fill
         };
 
-        internal PenSizeSidebar()
+        internal DrawingSizeSidebar()
         {
-            Name = "PenSizeSidebar";
+            Name = "DrawingSizeSidebar";
             AutoScaleMode = AutoScaleMode.None;
             ClientSize = Slider.Size;
             FormBorderStyle = FormBorderStyle.None;
@@ -159,16 +172,48 @@ namespace gInk
             base.WndProc(ref message);
         }
 
-        internal void PlaceBesideDrawingArea(FormCollection host)
+        internal void PlaceBesideToolbar(Rectangle toolbar, Rectangle noteToolbar)
         {
-            Rectangle toolbar = host.gpButtons.RectangleToScreen(host.gpButtons.ClientRectangle);
-            Rectangle work = Rectangle.Intersect(host.Bounds, Screen.FromRectangle(toolbar).WorkingArea);
-            if (work.IsEmpty) work = Screen.FromRectangle(toolbar).WorkingArea;
-            bool toolbarOnLeft = toolbar.Left + toolbar.Width / 2 < work.Left + work.Width / 2;
-            int x = toolbarOnLeft ? work.Right - Width - 16 : work.Left + 16;
-            int y = work.Top + Math.Max(0, (work.Height - Height) / 2);
-            Point target = new Point(Math.Max(work.Left, x), y);
-            if (Location != target) Location = target;
+            if (Visible && lastToolbar == toolbar && lastNoteToolbar == noteToolbar) return;
+            lastToolbar = toolbar;
+            lastNoteToolbar = noteToolbar;
+            Rectangle work = Screen.FromRectangle(toolbar).WorkingArea;
+            const int gap = 6;
+            int x = Math.Max(work.Left, Math.Min(toolbar.Left, work.Right - Width));
+            int y = Math.Max(work.Top, Math.Min(toolbar.Top + (toolbar.Height - Height) / 2, work.Bottom - Height));
+            Point left = new Point(toolbar.Left - Width - gap, y);
+            Point right = new Point(toolbar.Right + gap, y);
+            Point above = new Point(x, toolbar.Top - Height - gap);
+            Point below = new Point(x, toolbar.Bottom + gap);
+            bool moreRoomOnRight = work.Right - toolbar.Right > toolbar.Left - work.Left;
+            bool moreRoomBelow = work.Bottom - toolbar.Bottom > toolbar.Top - work.Top;
+            var candidates = new[]
+            {
+                moreRoomOnRight ? right : left, moreRoomOnRight ? left : right,
+                moreRoomBelow ? below : above, moreRoomBelow ? above : below
+            };
+            foreach (Point candidate in candidates)
+            {
+                var bounds = new Rectangle(candidate, Size);
+                if (work.Contains(bounds) && !bounds.IntersectsWith(noteToolbar))
+                {
+                    if (Location != candidate) Location = candidate;
+                    return;
+                }
+            }
+            Point nearest = candidates[0];
+            Location = new Point(Math.Max(work.Left, Math.Min(nearest.X, work.Right - Width)), y);
+        }
+
+        internal void EnableForTextEditor()
+        {
+            // ShowDialog disables other windows on this thread, including this
+            // non-activating tool. Re-enable just this window for live sizing.
+            if (!IsWindowEnabled(Handle))
+            {
+                EnableWindow(Handle, true);
+                RaiseWithoutActivation();
+            }
         }
 
         internal void RaiseWithoutActivation()
@@ -178,5 +223,9 @@ namespace gInk
 
         [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowEnabled(IntPtr window);
+        [DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr window, bool enabled);
     }
 }

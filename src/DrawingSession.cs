@@ -19,7 +19,9 @@ namespace gInk
         private readonly ToolbarKeyTips keyTips;
         private readonly DrawingModeBorder modeBorder;
         private readonly DrawingTargetSwitcher targetSwitcher;
-        private PenSizeSidebar penSizeSidebar;
+        private DrawingSizeSidebar sizeSidebar;
+        private FormInput sizeEditor;
+        private bool sizingText;
         private bool targetSwitching;
         private int targetSwitchEpoch;
         private sealed class TargetCommand {internal int Epoch;internal bool Begin,Reverse,Commit;}
@@ -47,9 +49,9 @@ namespace gInk
                 (root.FormOptions != null && root.FormOptions.Visible); }
         }
 
-        private static bool ModalWindowOpen()
+        private static bool ModalWindowOpen(Form except = null)
         {
-            foreach(Form form in Application.OpenForms)if(form.Modal&&form.Visible)return true;
+            foreach(Form form in Application.OpenForms)if(form!=except&&form.Modal&&form.Visible)return true;
             return false;
         }
 
@@ -136,7 +138,7 @@ namespace gInk
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
-            penSizeSidebar?.Hide();
+            sizeSidebar?.Hide();
             modeBorder.Update(false);
             timer.Interval = 250; // Remember the external app while the launcher is idle.
             timer.Start();
@@ -275,7 +277,7 @@ namespace gInk
             root.FormCollection.UpdateCompactStatus();
             bool editing=Editing;
             keyTips.Update((modifiers&48)!=0&&!editing&&root.Snapping==0);
-            UpdatePenSizeSidebar(editing);
+            UpdateSizeSidebar(editing);
             RefreshDrawingTarget();
             // Stable mode needs no Ink COM polling or repeated note updates.
             if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
@@ -318,47 +320,77 @@ namespace gInk
             finally { applying = false; }
         }
 
-        private void UpdatePenSizeSidebar(bool editing)
+        internal void RefreshSizeSidebar()
+        {
+            UpdateSizeSidebar(Editing);
+        }
+
+        private void UpdateSizeSidebar(bool editing)
         {
             FormCollection host = root.FormCollection;
-            bool visible = DrawingEnabled && !editing && !root.Docked && !ToolbarHidden &&
+            FormInput editor = root.FormDisplay?.ScreenTextEditor;
+            if (editor != null && (!editor.Visible || editor.IsDisposed)) editor = null;
+            bool text = editor != null || root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned;
+            bool canSize = editor == null ? !editing : !OptionsOpen && !ModalWindowOpen(editor);
+            bool visible = DrawingEnabled && canSize && !root.Docked && !ToolbarHidden &&
                 !root.PointerMode && !root.EraserMode && !root.PanMode && !root.LassoMode &&
                 root.Snapping == 0 && !root.UponTakingSnap &&
-                Array.IndexOf(DrawingSettings.PresetTools, root.ToolSelected) >= 0;
+                (text || Array.IndexOf(DrawingSettings.PresetTools, root.ToolSelected) >= 0);
             if (!visible)
             {
-                if (penSizeSidebar != null && penSizeSidebar.Visible) penSizeSidebar.Hide();
+                sizeEditor = null;
+                if (sizeSidebar != null && sizeSidebar.Visible) sizeSidebar.Hide();
                 return;
             }
-            if (penSizeSidebar == null || penSizeSidebar.IsDisposed)
-                penSizeSidebar = new PenSizeSidebar();
-            if (penSizeSidebar.Owner != host)
+            if (sizeSidebar == null || sizeSidebar.IsDisposed)
             {
-                if (penSizeSidebar.Owner is FormCollection previous)
-                    penSizeSidebar.Slider.Dragged -= previous.SetPenSizeFromSlider;
-                penSizeSidebar.Slider.Dragged += host.SetPenSizeFromSlider;
-                penSizeSidebar.Owner = host;
+                sizeSidebar = new DrawingSizeSidebar { Owner = host };
+                sizeSidebar.Slider.Dragged += SetSizeFromSlider;
             }
-            if (!penSizeSidebar.Visible)
+            bool changed = sizeEditor != editor || sizingText != text;
+            if (changed) sizeSidebar.Slider.Capture = false;
+            sizeEditor = editor;
+            sizingText = text;
+            if (text || changed || !sizeSidebar.Visible) RefreshSizeSlider();
+            if (!sizeSidebar.Slider.IsDragging)
             {
-                RefreshPenSizeSlider();
-                penSizeSidebar.PlaceBesideDrawingArea(host);
-                penSizeSidebar.Show();
+                var toolbar = host.gpButtons.RectangleToScreen(host.gpButtons.ClientRectangle);
+                var noteToolbar = root.Whiteboards?.ToolbarSurface;
+                sizeSidebar.PlaceBesideToolbar(toolbar,
+                    noteToolbar != null && noteToolbar.Visible ? noteToolbar.Bounds : System.Drawing.Rectangle.Empty);
             }
-            else if (!penSizeSidebar.Slider.IsDragging && host.IsToolbarDragging)
-                penSizeSidebar.PlaceBesideDrawingArea(host);
+            if (!sizeSidebar.Visible) sizeSidebar.Show();
+            if (editor != null) sizeSidebar.EnableForTextEditor();
         }
 
-        internal void RefreshPenSizeSlider()
+        private void SetSizeFromSlider(int value)
         {
-            if (penSizeSidebar == null || penSizeSidebar.IsDisposed || penSizeSidebar.Slider.IsDragging) return;
-            penSizeSidebar.Slider.Value = root.FormCollection.WorkingPenPixels;
-            penSizeSidebar.Slider.SampleColor = root.FormCollection.WorkingPenColor;
+            if (sizeEditor != null) sizeEditor.SetLiveTextSize(value);
+            else if (sizingText) root.FormCollection.TextSize = value;
+            else root.FormCollection.SetPenSizeFromSlider(value);
         }
 
-        internal void RaisePenSizeSidebar()
+        internal void RefreshSizeSlider()
         {
-            penSizeSidebar?.RaiseWithoutActivation();
+            if (sizeSidebar == null || sizeSidebar.IsDisposed || sizeSidebar.Slider.IsDragging) return;
+            VerticalSizeSlider slider = sizeSidebar.Slider;
+            FormCollection host = root.FormCollection;
+            if (sizingText)
+            {
+                slider.SetMode(true, sizeEditor?.MaximumTextSize ?? VerticalSizeSlider.TextMaximum);
+                slider.Value = sizeEditor?.LiveTextSize ?? host.TextSize;
+            }
+            else
+            {
+                slider.SetMode(false, VerticalSizeSlider.BrushMaximum);
+                slider.Value = host.WorkingPenPixels;
+                slider.SampleColor = host.WorkingPenColor;
+            }
+        }
+
+        internal void RaiseSizeSidebar()
+        {
+            sizeSidebar?.RaiseWithoutActivation();
         }
 
         public void ToggleCaps()
@@ -491,7 +523,7 @@ namespace gInk
             keyTips.Dispose();
             modeBorder.Dispose();
             targetSwitcher.Dispose();
-            penSizeSidebar?.Dispose();
+            sizeSidebar?.Dispose();
             timer.Dispose();
         }
 

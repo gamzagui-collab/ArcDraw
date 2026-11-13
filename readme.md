@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.37-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.38-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,9 +50,9 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.37 실시간 크기 슬라이더
+## v0.38 공용 크기 슬라이더
 
-펜과 도형을 쓸 때 화면 옆 슬라이더를 드래그해 굵기를 조절합니다. 원형 견본과 px 값이 움직이는 동안 바뀝니다. 화면 T 입력창의 왼쪽 슬라이더는 작성 중인 글자 크기에 즉시 적용됩니다.
+툴바 옆 세로 슬라이더 하나로 크기를 조절합니다. 펜·도형에서는 굵기(px), 화면 T에서는 글자 크기(pt)가 표시됩니다. 텍스트를 입력하는 동안 드래그하면 화면과 입력창에 즉시 반영됩니다.
 
 Windows Release|x86 빌드와 실제 마우스 드래그, 한글 입력 확정을 확인했습니다.
 
