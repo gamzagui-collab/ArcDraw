@@ -1,3 +1,3 @@
-﻿ArcDraw v0.53 — 화면 액자와 헤드라인 최근 사용
-2026-11-13 23:50:49 KST
-EXE SHA256: 52f12f24a47a9e64a19ddc2d79694d30845f7489e8214e9efaeb0a4d9bbf2d60
+﻿ArcDraw v0.54 — 화면 액자 미리보기와 작업표시줄 설정
+2026-11-14 00:07:12 KST
+EXE SHA256: 39de5417a4b2cc9592907b232fc879a6286e410f2f109dfff7432bd976cafd9e

@@ -13,6 +13,7 @@ namespace gInk
         private readonly DrawingSettings settings;
         private readonly NoteVisualWindow[] edges = new NoteVisualWindow[4];
         private Form options;
+        private ScreenFrameThemePicker gallery;
         private Rectangle lastBounds;
         private int lastWidth, lastTheme = -1;
 
@@ -20,6 +21,13 @@ namespace gInk
         {
             this.settings = settings;
             SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
+            SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
+        }
+
+        private void OnPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+        {
+            if (e.Category == UserPreferenceCategory.Desktop || e.Category == UserPreferenceCategory.General)
+                OnDisplayChanged(sender, e);
         }
 
         private void OnDisplayChanged(object sender, EventArgs e)
@@ -38,11 +46,15 @@ namespace gInk
                 return;
             }
             Screen screen = Screen.AllScreens.FirstOrDefault(item => item.DeviceName == settings.ScreenFrameMonitor) ?? Screen.PrimaryScreen;
-            Rectangle bounds = screen.Bounds;
+            Rectangle bounds = settings.ScreenFrameExpandTaskbar ? screen.Bounds : screen.WorkingArea;
             int width = Math.Max(3, Math.Min(bounds.Width, bounds.Height) * settings.ScreenFrameWidth / 100);
             if (bounds == lastBounds && width == lastWidth && settings.ScreenFrameTheme == lastTheme && edges[0] != null)
             {
-                foreach (var edge in edges) if (!edge.Visible) edge.Show();
+                foreach (var edge in edges)
+                {
+                    if (!edge.Visible) edge.Show();
+                    if (settings.ScreenFrameExpandTaskbar) edge.RaiseWithoutActivation();
+                }
                 return;
             }
             Rectangle[] strips =
@@ -68,6 +80,7 @@ namespace gInk
                     edges[i].Present(bitmap, location);
                 }
                 if (!edges[i].Visible) edges[i].Show();
+                if (settings.ScreenFrameExpandTaskbar) edges[i].RaiseWithoutActivation();
             }
             lastBounds = bounds;
             lastWidth = width;
@@ -83,15 +96,16 @@ namespace gInk
             }
             options = new Form
             {
-                Name = "ScreenFrameOptions", Text = "화면 액자", ClientSize = new Size(360, 201),
+                Name = "ScreenFrameOptions", Text = "화면 액자", ClientSize = new Size(390, 237),
                 StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog,
                 ShowInTaskbar = false, TopMost = true, MaximizeBox = false, MinimizeBox = false
             };
             var enabled = new CheckBox { Name = "ScreenFrameEnabled", Text = "화면 액자 표시", Checked = settings.ScreenFrameEnabled, Bounds = new Rectangle(14, 10, 330, 24) };
-            var theme = new ComboBox { Name = "ScreenFrameTheme", DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(96, 44, 250, 24) };
-            theme.Items.AddRange(ScreenFrameStyle.Names);
-            theme.SelectedIndex = settings.ScreenFrameTheme;
-            var monitor = new ComboBox { Name = "ScreenFrameMonitor", DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(96, 76, 250, 24) };
+            var theme = new Button { Name = "ScreenFrameTheme", Text = ScreenFrameStyle.Names[settings.ScreenFrameTheme] + "   ▾",
+                AccessibleName = "액자 테마 미리보기", Bounds = new Rectangle(96, 44, 280, 26) };
+            var expandTaskbar = new CheckBox { Name = "ScreenFrameExpandTaskbar", Text = "작업표시줄 확장",
+                Checked = settings.ScreenFrameExpandTaskbar, Bounds = new Rectangle(14, 151, 345, 24) };
+            var monitor = new ComboBox { Name = "ScreenFrameMonitor", DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(96, 79, 280, 24) };
             Screen[] screens = Screen.AllScreens;
             int selectedMonitor = Array.FindIndex(screens, item => item.DeviceName == settings.ScreenFrameMonitor);
             for (int i = 0; i < screens.Length; i++)
@@ -100,14 +114,37 @@ namespace gInk
             var width = new TrackBar
             {
                 Name = "ScreenFrameWidth", AccessibleName = "화면 안쪽을 덮는 폭", Minimum = 1, Maximum = 12, Value = settings.ScreenFrameWidth,
-                TickStyle = TickStyle.None, AutoSize = false, Bounds = new Rectangle(90, 113, 208, 26)
+                TickStyle = TickStyle.None, AutoSize = false, Bounds = new Rectangle(90, 113, 238, 26)
             };
-            var amount = new Label { Text = width.Value + "%", Bounds = new Rectangle(306, 117, 40, 24) };
-            var done = new Button { Name = "CloseScreenFrameOptions", Text = "닫기", Bounds = new Rectangle(264, 159, 82, 28) };
+            var amount = new Label { Text = width.Value + "%", Bounds = new Rectangle(336, 117, 40, 24) };
+            var done = new Button { Name = "CloseScreenFrameOptions", Text = "닫기", Bounds = new Rectangle(294, 192, 82, 28) };
             var update = new Timer { Interval = 30 };
             update.Tick += delegate { update.Stop(); Refresh(); };
             enabled.CheckedChanged += delegate { settings.ScreenFrameEnabled = enabled.Checked; Refresh(); settings.SaveToolSettings(); };
-            theme.SelectedIndexChanged += delegate { settings.ScreenFrameTheme = theme.SelectedIndex; Refresh(); settings.SaveToolSettings(); };
+            expandTaskbar.CheckedChanged += delegate
+            {
+                settings.ScreenFrameExpandTaskbar = expandTaskbar.Checked;
+                Refresh();
+                settings.SaveToolSettings();
+            };
+            theme.Click += delegate
+            {
+                if (gallery != null)
+                {
+                    gallery.Activate();
+                    return;
+                }
+                gallery = new ScreenFrameThemePicker(settings.ScreenFrameTheme, settings.ScreenFrameWidth);
+                gallery.ThemeChosen += index =>
+                {
+                    settings.ScreenFrameTheme = index;
+                    theme.Text = ScreenFrameStyle.Names[index] + "   ▾";
+                    Refresh();
+                    settings.SaveToolSettings();
+                };
+                gallery.FormClosed += delegate { gallery = null; };
+                gallery.Show(options);
+            };
             monitor.SelectedIndexChanged += delegate
             {
                 if (monitor.SelectedIndex < 0) return;
@@ -125,7 +162,7 @@ namespace gInk
                 Refresh();
                 settings.SaveToolSettings();
             };
-            options.Controls.AddRange(new Control[] { enabled, theme, monitor, width, amount, done,
+            options.Controls.AddRange(new Control[] { enabled, theme, monitor, width, amount, expandTaskbar, done,
                 new Label { Text = "테마", Location = new Point(14, 47), AutoSize = true },
                 new Label { Text = "대상 화면", Location = new Point(14, 79), AutoSize = true },
                 new Label { Text = "안쪽 폭", Location = new Point(14, 117), AutoSize = true } });
@@ -135,23 +172,19 @@ namespace gInk
         public void Dispose()
         {
             SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
+            SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
             options?.Close();
             for (int i = 0; i < edges.Length; i++)
             {
                 edges[i]?.Dispose();
                 edges[i] = null;
             }
+            ScreenFrameStyle.ReleaseArtwork();
         }
     }
 
-    internal static class ScreenFrameStyle
+    internal static partial class ScreenFrameStyle
     {
-        internal static readonly string[] Names =
-        {
-            "엔틱 클래식", "모던 미니멀", "사이버펑크", "달빛 무협", "파스텔 구름",
-            "심플 라인", "금빛 물결", "벚꽃", "초록 잎", "판타지"
-        };
-
         private static readonly Color[] Colors =
         {
             Color.FromArgb(245, 185, 91), Color.FromArgb(171, 203, 232), Color.Cyan,
@@ -161,6 +194,11 @@ namespace gInk
 
         internal static void Paint(Graphics g, Size screen, int width, int theme)
         {
+            if (theme >= CategorySize)
+            {
+                PaintArtwork(g, screen, width, theme - CategorySize + 1);
+                return;
+            }
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Color color = Colors[theme];
             if (theme != 5)

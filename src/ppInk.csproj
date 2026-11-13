@@ -218,6 +218,7 @@
     <Compile Include="HeadlineTemplates.cs" />
     <Compile Include="HeadlineCatalog.cs" />
     <Compile Include="ScreenFrame.cs" />
+    <Compile Include="ScreenFrameCatalog.cs" />
     <Compile Include="NoteIdentity.cs" />
     <Compile Include="NoteMemo.cs" />
     <Compile Include="NotePersistence.cs" />
@@ -228,6 +229,7 @@
     <Compile Include="ArcDrawBranding.cs" />
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.png"><LogicalName>ArcDraw.Image</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArcDrawAssets\HeadlineIllustrations.zip"><LogicalName>ArcDraw.HeadlineIllustrations</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="ArcDrawAssets\ScreenFrameArtwork.zip"><LogicalName>ArcDraw.ScreenFrameArtwork</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArcDrawAssets\ArcDraw.ico"><LogicalName>ArcDraw.Icon</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArcDrawAssets\MIT-ppInk-gInk.txt"><LogicalName>ArcDraw.UpstreamLicense</LogicalName></EmbeddedResource>
     <EmbeddedResource Include="ArrowSelDlg.resx">

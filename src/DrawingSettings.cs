@@ -31,6 +31,7 @@ namespace gInk
         internal int ScreenFrameTheme { get; set; }
         internal int ScreenFrameWidth { get; set; } = 2;
         internal string ScreenFrameMonitor { get; set; }
+        internal bool ScreenFrameExpandTaskbar { get; set; }
         private const int RecentFontLimit = 5;
         private readonly List<string> recentFonts = new List<string>();
         internal IReadOnlyList<string> RecentFonts => recentFonts;
@@ -69,6 +70,7 @@ namespace gInk
             ScreenFrameTheme = 0;
             ScreenFrameWidth = 2;
             ScreenFrameMonitor = null;
+            ScreenFrameExpandTaskbar = false;
             recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
@@ -232,6 +234,7 @@ namespace gInk
                 if (int.TryParse(Attr(frame, "width"), NumberStyles.Integer, Invariant, out int width))
                     ScreenFrameWidth = Math.Max(1, Math.Min(12, width));
                 ScreenFrameMonitor = Attr(frame, "monitor");
+                ScreenFrameExpandTaskbar = bool.TryParse(Attr(frame, "expandTaskbar"), out bool expand) && expand;
             }
             if (recent != null)
             {
@@ -302,10 +305,10 @@ namespace gInk
             }
             SaveHeadlineList(document, "FavoriteHeadlines", favoriteHeadlines);
             SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
-            if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || !String.IsNullOrEmpty(ScreenFrameMonitor))
+            if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar || !String.IsNullOrEmpty(ScreenFrameMonitor))
                 document.Add(new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
                     new XAttribute("theme", ScreenFrameTheme), new XAttribute("width", ScreenFrameWidth),
-                    new XAttribute("monitor", ScreenFrameMonitor ?? "")));
+                    new XAttribute("monitor", ScreenFrameMonitor ?? ""), new XAttribute("expandTaskbar", ScreenFrameExpandTaskbar)));
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",
                     ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,
