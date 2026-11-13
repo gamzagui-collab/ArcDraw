@@ -19,6 +19,7 @@ namespace gInk
         private readonly ToolbarKeyTips keyTips;
         private readonly DrawingModeBorder modeBorder;
         private readonly DrawingTargetSwitcher targetSwitcher;
+        private PenSizeSidebar penSizeSidebar;
         private bool targetSwitching;
         private int targetSwitchEpoch;
         private sealed class TargetCommand {internal int Epoch;internal bool Begin,Reverse,Commit;}
@@ -135,6 +136,7 @@ namespace gInk
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
+            penSizeSidebar?.Hide();
             modeBorder.Update(false);
             timer.Interval = 250; // Remember the external app while the launcher is idle.
             timer.Start();
@@ -273,6 +275,7 @@ namespace gInk
             root.FormCollection.UpdateCompactStatus();
             bool editing=Editing;
             keyTips.Update((modifiers&48)!=0&&!editing&&root.Snapping==0);
+            UpdatePenSizeSidebar(editing);
             RefreshDrawingTarget();
             // Stable mode needs no Ink COM polling or repeated note updates.
             if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
@@ -313,6 +316,49 @@ namespace gInk
                 }
             }
             finally { applying = false; }
+        }
+
+        private void UpdatePenSizeSidebar(bool editing)
+        {
+            FormCollection host = root.FormCollection;
+            bool visible = DrawingEnabled && !editing && !root.Docked && !ToolbarHidden &&
+                !root.PointerMode && !root.EraserMode && !root.PanMode && !root.LassoMode &&
+                root.Snapping == 0 && !root.UponTakingSnap &&
+                Array.IndexOf(DrawingSettings.PresetTools, root.ToolSelected) >= 0;
+            if (!visible)
+            {
+                if (penSizeSidebar != null && penSizeSidebar.Visible) penSizeSidebar.Hide();
+                return;
+            }
+            if (penSizeSidebar == null || penSizeSidebar.IsDisposed)
+                penSizeSidebar = new PenSizeSidebar();
+            if (penSizeSidebar.Owner != host)
+            {
+                if (penSizeSidebar.Owner is FormCollection previous)
+                    penSizeSidebar.Slider.Dragged -= previous.SetPenSizeFromSlider;
+                penSizeSidebar.Slider.Dragged += host.SetPenSizeFromSlider;
+                penSizeSidebar.Owner = host;
+            }
+            if (!penSizeSidebar.Visible)
+            {
+                RefreshPenSizeSlider();
+                penSizeSidebar.PlaceBesideDrawingArea(host);
+                penSizeSidebar.Show();
+            }
+            else if (!penSizeSidebar.Slider.IsDragging && host.IsToolbarDragging)
+                penSizeSidebar.PlaceBesideDrawingArea(host);
+        }
+
+        internal void RefreshPenSizeSlider()
+        {
+            if (penSizeSidebar == null || penSizeSidebar.IsDisposed || penSizeSidebar.Slider.IsDragging) return;
+            penSizeSidebar.Slider.Value = root.FormCollection.WorkingPenPixels;
+            penSizeSidebar.Slider.SampleColor = root.FormCollection.WorkingPenColor;
+        }
+
+        internal void RaisePenSizeSidebar()
+        {
+            penSizeSidebar?.RaiseWithoutActivation();
         }
 
         public void ToggleCaps()
@@ -445,6 +491,7 @@ namespace gInk
             keyTips.Dispose();
             modeBorder.Dispose();
             targetSwitcher.Dispose();
+            penSizeSidebar?.Dispose();
             timer.Dispose();
         }
 

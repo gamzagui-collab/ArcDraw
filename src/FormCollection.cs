@@ -5168,6 +5168,7 @@ namespace gInk
 
             //if (Root.CanvasCursor == 1)
             SetPenTipCursor();
+            RememberCurrentPenSize();
 
             Root.gpPenWidthVisible = false;
             Root.UponSubPanelUpdate = true;
@@ -5198,6 +5199,7 @@ namespace gInk
         {
             //if (Root.CanvasCursor == 1)
             SetPenTipCursor();
+            RememberCurrentPenSize();
 
             Root.gpPenWidthVisible = false;
             Root.UponSubPanelUpdate = true;
@@ -6407,6 +6409,7 @@ namespace gInk
             //if (Root.CanvasCursor == 1)
             if(Root.ToolSelected != Tools.Edit && Root.ToolSelected != Tools.txtLeftAligned && Root.ToolSelected != Tools.txtRightAligned && Root.ToolSelected != Tools.NumberTag && Root.ToolSelected != Tools.Invalid)
                 SetPenTipCursor();
+            RememberCurrentPenSize();
             return;
         }
 

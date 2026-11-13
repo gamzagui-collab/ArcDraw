@@ -14,6 +14,29 @@ namespace gInk
         private Button mainColorButton, penSettingsButton, presetsButton;
         private DrawingAttributes workingPen;
 
+        internal int WorkingPenPixels
+        {
+            get { return Math.Max(1, Root.HiMetricToPixel(IC.DefaultDrawingAttributes.Width)); }
+        }
+
+        internal Color WorkingPenColor { get { return IC.DefaultDrawingAttributes.Color; } }
+
+        internal void SetPenSizeFromSlider(int pixels)
+        {
+            if (pixels == WorkingPenPixels || ScreenContentBusy || IC.CollectingInk ||
+                (Root.Whiteboards?.HasBusyInk ?? false)) return;
+            DrawingAttributes pen = IC.DefaultDrawingAttributes.Clone();
+            ResizePen(pen, pixels);
+            ApplyWorkingPen(pen);
+        }
+
+        private void ResizePen(DrawingAttributes pen, double pixels)
+        {
+            float previous = pen.Width;
+            pen.Width = Math.Max(1, Root.PixelToHiMetric(pixels));
+            pen.Height = Math.Max(1, pen.Height * pen.Width / previous);
+        }
+
         private void EnsurePenToolbar()
         {
             if (mainColorButton != null) return;
@@ -57,6 +80,13 @@ namespace gInk
             Root.GlobalPenWidth = pen.Width;
         }
 
+        private void RememberCurrentPenSize()
+        {
+            workingPen = IC.DefaultDrawingAttributes.Clone();
+            RefreshPenToolbar();
+            Root.Whiteboards?.RefreshInkTools();
+        }
+
         private void ApplyWorkingPen(DrawingAttributes pen)
         {
             workingPen = pen.Clone();
@@ -74,6 +104,7 @@ namespace gInk
             ReplaceButtonImage(mainColorButton, PenSample.Swatch(pen.Color));
             ReplaceButtonImage(penSettingsButton, PenSample.Line(Root, pen));
             Root.UponButtonsUpdate |= 2;
+            Root.DrawingSession?.RefreshPenSizeSlider();
         }
 
         private void ChooseMainColor(Button anchor)
@@ -122,9 +153,7 @@ namespace gInk
                 dialog.AcceptButton = apply;
                 dialog.CancelButton = cancel;
                 if (ShowPenDialog(dialog, anchor) != DialogResult.OK) return;
-                float previousWidth = pen.Width;
-                pen.Width = Math.Max(1, Root.PixelToHiMetric((double)width.Value));
-                pen.Height = Math.Max(1, pen.Height * pen.Width / previousWidth);
+                ResizePen(pen, (double)width.Value);
                 pen.Transparency = (byte)(255 - Math.Round(opacity.Value * 255 / 100));
                 pen.PenTip = tip.SelectedIndex == 0 ? PenTip.Ball : PenTip.Rectangle;
                 if (pen.ExtendedProperties.Contains(Root.DASHED_LINE_GUID))

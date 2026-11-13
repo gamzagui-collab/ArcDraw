@@ -428,6 +428,7 @@ namespace gInk
             foreach (WhiteboardLayerForm note in notes)
                 if (note != active) RaiseWithoutFocus(note);
             RaiseWithoutFocus(active);
+            root.DrawingSession?.RaisePenSizeSidebar();
             RaiseWithoutFocus(bar);
         }
 

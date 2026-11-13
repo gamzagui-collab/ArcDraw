@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.36-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.37-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,13 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.36 텍스트 편집과 공용 색상
+## v0.37 실시간 크기 슬라이더
 
-화면 텍스트 입력 중 Shift+Enter를 누르면 빈 행만 있어도 입력창과 텍스트 영역이 커집니다. 입력창에서 글꼴·크기·색상을 바꾸면 현재 객체에 바로 적용됩니다.
+펜과 도형을 쓸 때 화면 옆 슬라이더를 드래그해 굵기를 조절합니다. 원형 견본과 px 값이 움직이는 동안 바뀝니다. 화면 T 입력창의 왼쪽 슬라이더는 작성 중인 글자 크기에 즉시 적용됩니다.
 
-툴바에서 색상을 먼저 고른 다음 자유펜과 화면 텍스트에 같은 색을 씁니다. 자유펜 옆에서 굵기, 불투명도, 펜촉과 선 모양을 조절합니다. 프리셋은 한 메뉴에서 선 견본과 수치로 구분합니다.
-
-Windows Release|x86 빌드와 실제 한글 입력, 공용 색상 및 실시간 서식을 확인했습니다.
+Windows Release|x86 빌드와 실제 마우스 드래그, 한글 입력 확정을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

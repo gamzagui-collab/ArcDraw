@@ -26,6 +26,7 @@ namespace gInk
         private FlowLayoutPanel textStyleBar;
         private int editorMinimumHeight;
         private Rectangle buttonRow;
+        private VerticalSizeSlider textSizeSlider;
 
 
         public FormInput(string caption, string label, string txt, bool ML, gInk.Root rt = null, Microsoft.Ink.Stroke stk = null, bool invisible = false)
@@ -175,6 +176,15 @@ namespace gInk
             editorMinimumHeight = 31;
             InputML.ScrollBars = ScrollBars.Vertical;
             InputML.WordWrap = false;
+            textSizeSlider = new VerticalSizeSlider
+            {
+                Name = "ScreenTextSizeSlider", AccessibleName = "글자 크기 (포인트)",
+                Unit = "pt", Maximum = 144, Location = new Point(InputML.Left, InputML.Top)
+            };
+            int sliderInset = textSizeSlider.Width + 9;
+            InputML.Left += sliderInset;
+            InputML.Width -= sliderInset;
+            Controls.Add(textSizeSlider);
             textStyleBar = new FlowLayoutPanel
             {
                 Name = "ScreenTextStyle", FlowDirection = FlowDirection.LeftToRight,
@@ -193,6 +203,10 @@ namespace gInk
                 Minimum = 1, Maximum = Math.Max(144, (decimal)Saved_Font.SizeInPoints), DecimalPlaces = 1,
                 Value = (decimal)Saved_Font.SizeInPoints
             };
+            textSizeSlider.Maximum = (int)points.Maximum;
+            textSizeSlider.Value = (int)Math.Round(points.Value);
+            textSizeSlider.Dragged += value => points.Value = value;
+            textSizeSlider.DragFinished += _ => { InputML.Focus(); InputML.ScrollToCaret(); };
             var color = new Button
             {
                 Name = "LiveTextColor", AccessibleName = "텍스트 색상", Text = "색상",
@@ -211,7 +225,11 @@ namespace gInk
             });
             Controls.Add(textStyleBar);
             family.SelectedIndexChanged += delegate { ApplyLiveFont(family.Text, (float)points.Value); InputML.Focus(); };
-            points.ValueChanged += delegate { ApplyLiveFont(family.Text, (float)points.Value); };
+            points.ValueChanged += delegate
+            {
+                textSizeSlider.Value = (int)Math.Round(points.Value);
+                ApplyLiveFont(family.Text, (float)points.Value);
+            };
             points.KeyDown += (sender, args) =>
             {
                 if (args.KeyCode != Keys.Enter) return;
@@ -331,7 +349,7 @@ namespace gInk
                 textStyleBar.Location = new Point(InputML.Left, InputML.Bottom + 6);
                 btOK.Location = new Point(buttonRow.Left, textStyleBar.Bottom + 3);
                 btCancel.Top = btOK.Top;
-                ClientSize = new Size(ClientSize.Width, btOK.Bottom + 10);
+                ClientSize = new Size(ClientSize.Width, Math.Max(btOK.Bottom, textSizeSlider.Bottom) + 10);
                 if (Bottom > work.Bottom) Top = Math.Max(work.Top, work.Bottom - Height);
             }
             finally { ResumeLayout(false); }
