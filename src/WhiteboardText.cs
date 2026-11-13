@@ -214,9 +214,12 @@ namespace gInk
                 if (save && !old.IsDisposed)
                 {
                     string content = old.Text;
-                    if (wasMemo && memoFontPoints != old.Font.SizeInPoints)
+                    if (wasMemo && (memoFontFamily != old.Font.Name || memoFontPoints != old.Font.SizeInPoints ||
+                        memoFontStyle != old.Font.Style))
                     {
+                        memoFontFamily = old.Font.Name;
                         memoFontPoints = old.Font.SizeInPoints;
+                        memoFontStyle = old.Font.Style;
                         manager.NotesChanged();
                     }
                     if (wasMemo && memoColor.ToArgb() != old.ForeColor.ToArgb())
@@ -241,9 +244,12 @@ namespace gInk
                         }
                         if(item.Content!=content)contentChanged=true;
                         item.Content = content;
-                        if (wasMemo && item.FontSize != old.Font.SizeInPoints)
+                        if (wasMemo && (item.FontFamily != old.Font.Name || item.FontSize != old.Font.SizeInPoints ||
+                            item.FontStyle != old.Font.Style))
                         {
+                            item.FontFamily = old.Font.Name;
                             item.FontSize = old.Font.SizeInPoints;
+                            item.FontStyle = old.Font.Style;
                             contentChanged = true;
                         }
                         if (wasMemo && item.Color.ToArgb() != old.ForeColor.ToArgb())
@@ -260,6 +266,7 @@ namespace gInk
             {
                 textEditor = null;
                 pendingMemoPoints = 0;
+                pendingMemoFamily = null;
                 editingText = null;
                 editingMemo=false;
                 paper.Controls.Remove(old);

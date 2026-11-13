@@ -11,10 +11,11 @@ namespace gInk
 {
     public partial class FormCollection
     {
-        private Button mainColorButton, penSettingsButton, presetsButton;
+        private Button mainColorButton, toolbarFontButton, penSettingsButton, presetsButton;
         private DrawingAttributes workingPen;
         private ToolbarColorPalette colorPalette;
-        private ToolbarColorHitTarget colorHitTarget;
+        private ToolbarButtonHitTarget colorHitTarget, fontHitTarget;
+        private ToolbarFontPalette fontPalette;
         private FormInput colorEditor;
         private WhiteboardLayerForm colorNote;
         private bool textColorMode;
@@ -47,6 +48,9 @@ namespace gInk
         {
             if (mainColorButton != null) return;
             mainColorButton = AddPenToolbarButton("penMainColor", "색상", ToggleColorPalette);
+            toolbarFontButton = AddPenToolbarButton("ToolbarTextFont", "글꼴", ToggleFontPalette);
+            toolbarFontButton.Enabled = false;
+            ReplaceButtonImage(toolbarFontButton, PenSample.FontIcon());
             penSettingsButton = AddPenToolbarButton("penSettings", "펜 설정", EditWorkingPen);
             presetsButton = AddPenToolbarButton("DrawingPresets", "프리셋", ShowPenPresets);
             RefreshPenToolbar();
@@ -78,6 +82,14 @@ namespace gInk
             if (buttons.Remove(btHand)) first.Insert(1, btHand);
             foreach (Control control in first) buttons.Remove(control);
             buttons.InsertRange(0, first);
+            buttons.Remove(toolbarFontButton);
+            int text = buttons.IndexOf(btText);
+            if (text >= 0)
+            {
+                buttons.Insert(text + 1, toolbarFontButton);
+                toolbarFontButton.Show();
+            }
+            else toolbarFontButton.Hide();
         }
 
         private void SetWorkingPenAttributes(DrawingAttributes pen)
@@ -144,11 +156,13 @@ namespace gInk
             if (colorEditor != editor || colorNote != note || textColorMode != text)
             {
                 colorPalette?.Hide();
+                fontPalette?.Hide();
                 colorEditor = editor;
                 colorNote = note;
                 textColorMode = text;
                 mainColorButton.Text = text ? "글자색" : "펜 색상";
                 mainColorButton.AccessibleName = mainColorButton.Text;
+                toolbarFontButton.Enabled = text;
                 Root.UponButtonsUpdate |= 2;
                 RefreshColorSwatch();
             }
@@ -159,41 +173,62 @@ namespace gInk
             }
             if (note != null || editor != null)
             {
-                if (colorHitTarget == null)
-                {
-                    colorHitTarget = new ToolbarColorHitTarget { Owner = this };
-                    colorHitTarget.Click += delegate { ToggleColorPalette(mainColorButton); };
-                }
-                Rectangle bounds = mainColorButton.RectangleToScreen(mainColorButton.ClientRectangle);
-                if (colorHitTarget.Bounds != bounds) colorHitTarget.Bounds = bounds;
-                if (!colorHitTarget.Visible) colorHitTarget.Show();
-                if (editor != null) colorHitTarget.EnableForTextEditor();
+                ShowToolbarHitTarget(ref colorHitTarget, mainColorButton, ToggleColorPalette, "ToolbarColorHitTarget", editor != null);
+                if (toolbarFontButton.Visible && toolbarFontButton.Enabled)
+                    ShowToolbarHitTarget(ref fontHitTarget, toolbarFontButton, ToggleFontPalette, "ToolbarFontHitTarget", editor != null);
+                else fontHitTarget?.Hide();
             }
-            else colorHitTarget?.Hide();
-            if (colorPalette != null && colorPalette.Visible)
+            else
             {
-                Rectangle anchor = mainColorButton.RectangleToScreen(mainColorButton.ClientRectangle);
-                Point mouse = System.Windows.Forms.Cursor.Position;
-                if ((GetAsyncKeyState(1) & 0x8000) != 0 && !anchor.Contains(mouse) &&
-                    !colorPalette.Bounds.Contains(mouse))
-                    colorPalette.Hide();
-                else
-                {
-                    colorPalette.PlaceAt(mainColorButton);
-                    if (editor != null) colorPalette.EnableForTextEditor();
-                }
+                colorHitTarget?.Hide();
+                fontHitTarget?.Hide();
             }
+            UpdateToolbarPopup(colorPalette, mainColorButton);
+            UpdateToolbarPopup(fontPalette, toolbarFontButton);
             if (note != null) RefreshColorSwatch();
+        }
+
+        private void ShowToolbarHitTarget(ref ToolbarButtonHitTarget target, Button button, Action<Button> click,
+            string name, bool modalEditor)
+        {
+            if (target == null)
+            {
+                target = new ToolbarButtonHitTarget { Owner = this, Name = name };
+                target.Click += delegate { click(button); };
+            }
+            Rectangle bounds = button.RectangleToScreen(button.ClientRectangle);
+            if (target.Bounds != bounds) target.Bounds = bounds;
+            if (!target.Visible) target.Show();
+            if (modalEditor) target.EnableForTextEditor();
+            target.RaiseIfCovered();
+        }
+
+        private void UpdateToolbarPopup(NonActivatingToolbarWindow popup, Button button)
+        {
+            if (popup == null || !popup.Visible) return;
+            Rectangle anchor = button.RectangleToScreen(button.ClientRectangle);
+            Point mouse = System.Windows.Forms.Cursor.Position;
+            if (!button.Visible || ((GetAsyncKeyState(1) & 0x8000) != 0 && !anchor.Contains(mouse) &&
+                !popup.Bounds.Contains(mouse)))
+                popup.Hide();
+            else
+            {
+                popup.PlaceAt(button);
+                if (colorEditor != null) popup.EnableForTextEditor();
+            }
         }
 
         internal void HideColorToolbar()
         {
             colorHitTarget?.Hide();
             colorPalette?.Hide();
+            fontHitTarget?.Hide();
+            fontPalette?.Hide();
         }
 
         private void ToggleColorPalette(Button anchor)
         {
+            fontPalette?.Hide();
             if (colorPalette != null && colorPalette.Visible)
             {
                 colorPalette.Hide();
@@ -208,6 +243,38 @@ namespace gInk
             colorPalette.Show();
             if (colorEditor != null) colorPalette.EnableForTextEditor();
             colorPalette.RaiseWithoutActivation();
+        }
+
+        private void ToggleFontPalette(Button anchor)
+        {
+            if (!textColorMode) return;
+            colorPalette?.Hide();
+            if (fontPalette != null && fontPalette.Visible)
+            {
+                fontPalette.Hide();
+                return;
+            }
+            if (fontPalette == null) fontPalette = new ToolbarFontPalette(ApplyToolbarFont) { Owner = this };
+            fontPalette.SetCurrentFamily(colorEditor?.LiveTextFamily ?? colorNote?.LiveMemoFamily ??
+                Root.Settings.ScreenTextFamily ?? TextFont);
+            fontPalette.PlaceAt(anchor);
+            fontPalette.Show();
+            if (colorEditor != null) fontPalette.EnableForTextEditor();
+            fontPalette.RaiseWithoutActivation();
+        }
+
+        private void ApplyToolbarFont(string family)
+        {
+            fontPalette.Hide();
+            if (colorEditor != null)
+            {
+                if (Root.FormDisplay.ScreenTextEditor == colorEditor) colorEditor.SetLiveTextFamily(family);
+            }
+            else if (colorNote != null)
+            {
+                if (Root.Whiteboards.ActiveNote == colorNote) colorNote.SetLiveMemoFamily(family);
+            }
+            else if (textColorMode) Root.Settings.SetScreenTextFamily(family);
         }
 
         private void ApplyToolbarColor(Color color)
@@ -335,14 +402,22 @@ namespace gInk
         }
     }
 
-    internal sealed class ToolbarColorHitTarget : NonActivatingToolbarWindow
+    internal sealed class ToolbarButtonHitTarget : NonActivatingToolbarWindow
     {
-        internal ToolbarColorHitTarget()
+        internal ToolbarButtonHitTarget()
         {
-            Name = "ToolbarColorHitTarget";
             Opacity = 0.01;
             Cursor = System.Windows.Forms.Cursors.Hand;
         }
+
+        internal void RaiseIfCovered()
+        {
+            Point center = new Point(Left + Width / 2, Top + Height / 2);
+            if (WindowFromPoint(center) != Handle) RaiseWithoutActivation();
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr WindowFromPoint(Point point);
     }
 
     internal sealed class ToolbarColorPalette : NonActivatingToolbarWindow
@@ -352,7 +427,6 @@ namespace gInk
         private readonly Panel customColors;
         private readonly Button customPreview;
         private Color currentColor;
-        private Rectangle lastAnchor;
 
         internal ToolbarColorPalette(Action<Color> select)
         {
@@ -415,7 +489,6 @@ namespace gInk
             foreach (TrackBar channel in channels) channel.ValueChanged += delegate { RefreshCustomColor(); };
             customColors.Controls.Add(customPreview);
             Controls.Add(customColors);
-            SizeChanged += delegate { lastAnchor = Rectangle.Empty; };
         }
 
         internal void SetCurrentColor(Color current)
@@ -444,14 +517,6 @@ namespace gInk
             customPreview.ForeColor = color.GetBrightness() > 0.55f ? Color.Black : Color.White;
         }
 
-        internal void PlaceAt(Control anchor)
-        {
-            Rectangle bounds = anchor.RectangleToScreen(anchor.ClientRectangle);
-            if (Visible && bounds == lastAnchor) return;
-            lastAnchor = bounds;
-            Place(this, anchor);
-        }
-
         internal static void Place(Form dialog, Control anchor)
         {
             Rectangle button = anchor.RectangleToScreen(anchor.ClientRectangle);
@@ -473,7 +538,7 @@ namespace gInk
             dialog.Location = new Point(x, y);
         }
 
-        private sealed class PaletteButton : Button
+        internal sealed class PaletteButton : Button
         {
             internal PaletteButton()
             {
@@ -496,8 +561,85 @@ namespace gInk
         }
     }
 
+    internal sealed class ToolbarFontPalette : NonActivatingToolbarWindow
+    {
+        private const int PageSize = 8;
+        private readonly string[] families;
+        private readonly Button[] rows = new Button[PageSize];
+        private readonly Button previous, next;
+        private readonly Label page;
+        private string current;
+        private int offset;
+
+        internal ToolbarFontPalette(Action<string> select)
+        {
+            Name = "ToolbarFontPalette";
+            BackColor = Color.FromArgb(31, 34, 40);
+            ClientSize = new Size(236, 250);
+            families = FontFamily.Families.Select(family =>
+            {
+                using (family) return family.Name;
+            }).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            for (int index = 0; index < PageSize; index++)
+            {
+                var row = new ToolbarColorPalette.PaletteButton
+                {
+                    Bounds = new Rectangle(6, 6 + index * 27, 224, 25),
+                    TextAlign = ContentAlignment.MiddleLeft, UseMnemonic = false
+                };
+                row.Click += delegate { select((string)row.Tag); };
+                rows[index] = row;
+                Controls.Add(row);
+            }
+            previous = new ToolbarColorPalette.PaletteButton { Text = "‹", AccessibleName = "이전 글꼴 목록", Bounds = new Rectangle(6, 222, 42, 22) };
+            next = new ToolbarColorPalette.PaletteButton { Text = "›", AccessibleName = "다음 글꼴 목록", Bounds = new Rectangle(188, 222, 42, 22) };
+            page = new Label { Bounds = new Rectangle(50, 222, 136, 22), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
+            previous.Click += delegate { offset -= PageSize; RefreshPage(); };
+            next.Click += delegate { offset += PageSize; RefreshPage(); };
+            Controls.AddRange(new Control[] { previous, page, next });
+        }
+
+        internal void SetCurrentFamily(string family)
+        {
+            current = family;
+            int index = Array.FindIndex(families, name => String.Equals(name, family, StringComparison.CurrentCultureIgnoreCase));
+            offset = Math.Max(0, index) / PageSize * PageSize;
+            RefreshPage();
+        }
+
+        private void RefreshPage()
+        {
+            for (int index = 0; index < rows.Length; index++)
+            {
+                Button row = rows[index];
+                int position = offset + index;
+                row.Visible = position < families.Length;
+                if (position >= families.Length) continue;
+                string family = families[position];
+                bool selected = String.Equals(current, family, StringComparison.CurrentCultureIgnoreCase);
+                row.Tag = family;
+                row.Text = selected ? "✓ " + family : family;
+                row.AccessibleName = family;
+                row.BackColor = selected ? Color.FromArgb(191, 230, 246) : Color.WhiteSmoke;
+            }
+            previous.Enabled = offset > 0;
+            next.Enabled = offset + PageSize < families.Length;
+            page.Text = (offset / PageSize + 1) + " / " + Math.Max(1, (families.Length + PageSize - 1) / PageSize);
+        }
+    }
+
     internal static class PenSample
     {
+        internal static Bitmap FontIcon()
+        {
+            var bitmap = new Bitmap(48, 48);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            using (var font = new Font("Segoe UI", 25, FontStyle.Regular, GraphicsUnit.Pixel))
+                TextRenderer.DrawText(graphics, "Aa", font, new Rectangle(0, 0, 48, 48), Color.Black,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            return bitmap;
+        }
+
         internal static Bitmap Swatch(Color color)
         {
             var bitmap = new Bitmap(48, 48);

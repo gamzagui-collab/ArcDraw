@@ -313,11 +313,12 @@ namespace gInk
                 }
                 else if(item!=null)text.Remove(item);
             }
-            float points = IsMemoEditor ? editorFont.SizeInPoints : memoFontPoints;
+            Font liveFont = IsMemoEditor ? editorFont : null;
+            float points = liveFont?.SizeInPoints ?? memoFontPoints;
             Color color = LiveMemoColor ?? memoColor;
             result=new XElement("Note",new XAttribute("id",Number),new XAttribute("name",DisplayName),new XAttribute("hidden",UserHidden),
                 new XAttribute("x",Left),new XAttribute("y",Top),new XAttribute("width",Width),new XAttribute("height",Height),
-                new XElement("MemoStyle",new XAttribute("family",memoFontFamily),new XAttribute("points",points.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)memoFontStyle),new XAttribute("color",color.ToArgb())),
+                new XElement("MemoStyle",new XAttribute("family",liveFont?.Name ?? memoFontFamily),new XAttribute("points",points.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)(liveFont?.Style ?? memoFontStyle)),new XAttribute("color",color.ToArgb())),
                 new XElement("Ink",Convert.ToBase64String(history[historyPosition].Ink)));
             foreach(var item in text)result.Add(new XElement("Text",new XAttribute("x",item.Position.X),new XAttribute("y",item.Position.Y),new XAttribute("width",item.LayoutWidth),new XAttribute("color",item.Color.ToArgb()),
                 new XAttribute("family",item.FontFamily),new XAttribute("points",item.FontSize.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)item.FontStyle),new XAttribute("memo",item.IsMemo),new XElement("Content",item.Content??"")));

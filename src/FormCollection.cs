@@ -2150,7 +2150,7 @@ namespace gInk
             st.ExtendedProperties.Add(Root.TEXTY_GUID, (double)pt.Y);
             st.ExtendedProperties.Add(Root.TEXTHALIGN_GUID, Align);
             st.ExtendedProperties.Add(Root.TEXTVALIGN_GUID, StringAlignment.Near);
-            st.ExtendedProperties.Add(Root.TEXTFONT_GUID, TextFont);
+            st.ExtendedProperties.Add(Root.TEXTFONT_GUID, Root.Settings.ScreenTextFamily ?? TextFont);
             st.ExtendedProperties.Add(Root.TEXTFONTSIZE_GUID, (double)TextSize);
             st.ExtendedProperties.Add(Root.TEXTFONTSTYLE_GUID, (TextItalic ? FontStyle.Italic : FontStyle.Regular) | (TextBold ? FontStyle.Bold : FontStyle.Regular));
             st.ExtendedProperties.Add(Root.ROTATION_GUID, TextTheta);
@@ -2909,6 +2909,7 @@ namespace gInk
                     {
                         ComputeTextBoxSize(ref st);
                         Root.Settings.SetToolColor(st.DrawingAttributes.Color, true);
+                        Root.Settings.SetScreenTextFamily((string)st.ExtendedProperties[Root.TEXTFONT_GUID].Data);
                     }
                 }
                 else if ((Root.ToolSelected == Tools.Move) || (Root.ToolSelected == Tools.Copy))// Move : do Nothing

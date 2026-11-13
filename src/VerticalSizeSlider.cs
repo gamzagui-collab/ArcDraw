@@ -133,6 +133,9 @@ namespace gInk
 
     internal class NonActivatingToolbarWindow : Form
     {
+        private Rectangle lastAnchor;
+        private Size lastPopupSize;
+
         protected NonActivatingToolbarWindow()
         {
             AutoScaleMode = AutoScaleMode.None;
@@ -177,6 +180,15 @@ namespace gInk
         internal void RaiseWithoutActivation()
         {
             if (Visible) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0013);
+        }
+
+        internal void PlaceAt(Control anchor)
+        {
+            Rectangle bounds = anchor.RectangleToScreen(anchor.ClientRectangle);
+            if (Visible && lastAnchor == bounds && lastPopupSize == Size) return;
+            lastAnchor = bounds;
+            lastPopupSize = Size;
+            ToolbarColorPalette.Place(this, anchor);
         }
 
         [DllImport("user32.dll")]

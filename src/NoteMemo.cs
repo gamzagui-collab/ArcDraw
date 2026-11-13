@@ -47,7 +47,9 @@ namespace gInk
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
         internal int? LiveMemoSize => IsMemoEditor ? (int?)Math.Round(editorFont.SizeInPoints) : null;
         internal Color? LiveMemoColor => IsMemoEditor ? (Color?)textEditor.ForeColor : null;
+        internal string LiveMemoFamily => IsMemoEditor ? editorFont.Name : null;
         private int pendingMemoPoints;
+        private string pendingMemoFamily;
         internal void SetLiveMemoColor(Color color)
         {
             if (!IsMemoEditor || completingEditor || textEditor.ForeColor.ToArgb() == color.ToArgb()) return;
@@ -75,36 +77,46 @@ namespace gInk
 
         internal void SetLiveMemoSize(int points)
         {
+            SetLiveMemoFont(null, points);
+        }
+
+        internal void SetLiveMemoFamily(string family)
+        {
+            SetLiveMemoFont(family, 0);
+        }
+
+        private void SetLiveMemoFont(string family, int points)
+        {
             if (!IsMemoEditor || completingEditor) return;
-            if (pendingMemoPoints != 0)
-            {
-                pendingMemoPoints = points;
-                return;
-            }
+            bool pending = pendingMemoFamily != null || pendingMemoPoints != 0;
+            if (family != null) pendingMemoFamily = family;
+            if (points != 0) pendingMemoPoints = points;
+            if (pending) return;
             NoteTextEditor editor = textEditor;
             if (editor.HasComposition())
             {
-                pendingMemoPoints = points;
                 editor.FinishComposition(true);
                 // Let EDIT receive the Korean result before WM_SETFONT.
                 editor.BeginInvoke(new Action(delegate
                 {
                     if (textEditor != editor) return;
-                    int next = pendingMemoPoints;
-                    pendingMemoPoints = 0;
-                    ApplyLiveMemoSize(next);
+                    ApplyPendingMemoFont();
                 }));
                 return;
             }
-            ApplyLiveMemoSize(points);
+            ApplyPendingMemoFont();
         }
 
-        private void ApplyLiveMemoSize(int points)
+        private void ApplyPendingMemoFont()
         {
-            if (points == 0 || editorFont.SizeInPoints == points) return;
             Font previous = editorFont;
-            editorFont = new Font(previous.Name, points, previous.Style, GraphicsUnit.Point,
-                previous.GdiCharSet, previous.GdiVerticalFont);
+            string family = pendingMemoFamily ?? previous.Name;
+            float points = pendingMemoPoints == 0 ? previous.SizeInPoints : pendingMemoPoints;
+            pendingMemoFamily = null;
+            pendingMemoPoints = 0;
+            if (family == previous.Name && points == previous.SizeInPoints) return;
+            try { editorFont = new Font(family, points, previous.Style, GraphicsUnit.Point); }
+            catch (ArgumentException) { editorFont = new Font(family, points, FontStyle.Regular, GraphicsUnit.Point); }
             textEditor.Font = editorFont;
             previous.Dispose();
             manager.NotesChanged();

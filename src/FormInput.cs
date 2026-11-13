@@ -30,6 +30,21 @@ namespace gInk
         internal int LiveTextSize => (int)Math.Round(textSize.Value);
         internal int MaximumTextSize => (int)textSize.Maximum;
         internal Color LiveTextColor => stroke.DrawingAttributes.Color;
+        internal string LiveTextFamily => editorFont.Name;
+
+        internal void SetLiveTextFamily(string family)
+        {
+            if (InputML.HasComposition())
+            {
+                InputML.CompleteComposition();
+                InputML.BeginInvoke(new Action(delegate
+                {
+                    if (Visible) ApplyLiveFont(family, (float)textSize.Value);
+                }));
+                return;
+            }
+            ApplyLiveFont(family, (float)textSize.Value);
+        }
 
         internal void SetLiveTextSize(int value)
         {
@@ -195,13 +210,6 @@ namespace gInk
                 Name = "ScreenTextStyle", FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false, Height = 33, Width = InputML.Width
             };
-            var family = new ComboBox { Name = "LiveTextFont", Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, MaxDropDownItems = 14 };
-            foreach (FontFamily available in FontFamily.Families)
-            {
-                using (available) family.Items.Add(available.Name);
-            }
-            if (!family.Items.Contains(Saved_Font.Name)) family.Items.Add(Saved_Font.Name);
-            family.SelectedItem = Saved_Font.Name;
             textSize = new NumericUpDown
             {
                 Name = "LiveTextSize", AccessibleName = "글자 크기 (pt)", Width = 66,
@@ -210,14 +218,12 @@ namespace gInk
             };
             textStyleBar.Controls.AddRange(new Control[]
             {
-                new Label { Text = "글꼴", AutoSize = true, Margin = new Padding(0, 7, 4, 0) }, family,
                 new Label { Text = "크기", AutoSize = true, Margin = new Padding(8, 7, 4, 0) }, textSize
             });
             Controls.Add(textStyleBar);
-            family.SelectedIndexChanged += delegate { ApplyLiveFont(family.Text, (float)textSize.Value); InputML.Focus(); };
             textSize.ValueChanged += delegate
             {
-                ApplyLiveFont(family.Text, (float)textSize.Value);
+                ApplyLiveFont(LiveTextFamily, (float)textSize.Value);
                 Root.DrawingSession?.RefreshSizeSlider();
             };
             textSize.KeyDown += (sender, args) =>
@@ -248,7 +254,7 @@ namespace gInk
         private void ApplyLiveFont(string family, float points)
         {
             Font next;
-            try { next = new Font(family, points, Saved_Font.Style, GraphicsUnit.Point); }
+            try { next = new Font(family, points, editorFont.Style, GraphicsUnit.Point); }
             catch (ArgumentException) { next = new Font(family, points, FontStyle.Regular, GraphicsUnit.Point); }
             SetEditorFont(next);
             stroke.ExtendedProperties.Add(Root.TEXTFONT_GUID, next.Name);
@@ -500,7 +506,7 @@ namespace gInk
             enterPending = PostMessage(Handle, CompleteIme, lineBreak ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
         }
 
-        private void CompleteComposition()
+        internal void CompleteComposition()
         {
             IntPtr window = Handle;
             IntPtr context = ImmGetContext(window);
@@ -513,7 +519,7 @@ namespace gInk
             finally { ImmReleaseContext(window, context); }
         }
 
-        private bool HasComposition()
+        internal bool HasComposition()
         {
             IntPtr window = Handle;
             IntPtr context = ImmGetContext(window);

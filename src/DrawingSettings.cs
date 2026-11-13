@@ -29,6 +29,7 @@ namespace gInk
         public FontStyle FontStyle {get;private set;}=FontStyle.Regular;
         internal Color? ScreenTextColor { get; private set; }
         internal Color? BrushColor { get; private set; }
+        internal string ScreenTextFamily { get; private set; }
         private string FileName {get{return Path.Combine(Program.RunningFolder,"drawing-settings.xml");}}
         public DrawingSettings(Root root)
         {
@@ -51,6 +52,7 @@ namespace gInk
             HasFont = false;
             ScreenTextColor = null;
             BrushColor = null;
+            ScreenTextFamily = null;
         }
 
         internal void SetToolColor(Color color, bool text)
@@ -59,10 +61,22 @@ namespace gInk
             if (previous?.ToArgb() == color.ToArgb()) return;
             if (text) ScreenTextColor = color;
             else BrushColor = color;
+            SaveToolSettings();
+        }
+
+        internal void SetScreenTextFamily(string family)
+        {
+            if (ScreenTextFamily == family) return;
+            ScreenTextFamily = family;
+            SaveToolSettings();
+        }
+
+        private void SaveToolSettings()
+        {
             try { Save(); }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
             {
-                root.trayIcon?.ShowBalloonTip(4500, "ArcDraw", "색상 설정을 저장하지 못했습니다.", ToolTipIcon.Warning);
+                root.trayIcon?.ShowBalloonTip(4500, "ArcDraw", "도구 설정을 저장하지 못했습니다.", ToolTipIcon.Warning);
             }
         }
         public bool HasPreset(int slot){return presets.ContainsKey(slot);}
@@ -108,8 +122,10 @@ namespace gInk
         public void SaveFont(Font font)
         {
             string oldFamily=FontFamily;float oldPoints=FontPoints;FontStyle oldStyle=FontStyle;bool oldHas=HasFont;
+            string oldScreenFamily = ScreenTextFamily;
+            ScreenTextFamily = null;
             FontFamily=font.Name;FontPoints=Math.Max(6,Math.Min(144,font.SizeInPoints));FontStyle=font.Style&(FontStyle.Bold|FontStyle.Italic);HasFont=true;
-            try {Save();}catch {FontFamily=oldFamily;FontPoints=oldPoints;FontStyle=oldStyle;HasFont=oldHas;throw;}
+            try {Save();}catch {FontFamily=oldFamily;FontPoints=oldPoints;FontStyle=oldStyle;HasFont=oldHas;ScreenTextFamily=oldScreenFamily;throw;}
             ApplyFontDefaults();
         }
         private void ApplyFontDefaults()
@@ -137,6 +153,7 @@ namespace gInk
             if(font!=null)
             {FontFamily=Attr(font,"family","Malgun Gothic");FontPoints=Math.Max(6,Math.Min(144,Number(font,"points",17)));FontStyle=(FontStyle)(Int(font,"style")&3);HasFont=true;}
             XElement colors = document.Element("ToolColors");
+            ScreenTextFamily = (string)document.Element("ScreenTextFamily");
             if (int.TryParse((string)colors?.Attribute("text"), NumberStyles.Integer, Invariant, out int text))
                 ScreenTextColor = Color.FromArgb(text);
             if (int.TryParse((string)colors?.Attribute("brush"), NumberStyles.Integer, Invariant, out int brush))
@@ -158,6 +175,7 @@ namespace gInk
         private void Save()
         {
             var document=new XElement("ArcDrawSettings",new XAttribute("version",1));
+            if (ScreenTextFamily != null) document.Add(new XElement("ScreenTextFamily", ScreenTextFamily));
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",
                     ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,
