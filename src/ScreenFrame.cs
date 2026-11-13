@@ -272,6 +272,7 @@ namespace gInk
                 gallery.ThemeChosen += index =>
                 {
                     settings.ScreenFrameTheme = index;
+                    settings.RememberScreenFrame(index);
                     previewingFrame = true;
                     theme.Text = ScreenFrameStyle.Names[index] + "   ▾";
                     Refresh();

@@ -37,6 +37,9 @@ namespace gInk
         internal bool ScreenFrameHideFullscreen { get; set; } = true;
         private readonly List<int> favoriteScreenFrames = new List<int>();
         internal IReadOnlyList<int> FavoriteScreenFrames => favoriteScreenFrames;
+        internal const int RecentScreenFrameLimit = 5;
+        private readonly List<int> recentScreenFrames = new List<int>();
+        internal IReadOnlyList<int> RecentScreenFrames => recentScreenFrames;
         private const int RecentFontLimit = 5;
         private readonly List<string> recentFonts = new List<string>();
         internal IReadOnlyList<string> RecentFonts => recentFonts;
@@ -80,6 +83,7 @@ namespace gInk
             ScreenFrameOpacity = 100;
             ScreenFrameHideFullscreen = true;
             favoriteScreenFrames.Clear();
+            recentScreenFrames.Clear();
             recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
@@ -133,6 +137,14 @@ namespace gInk
         {
             if (!favoriteScreenFrames.Remove(theme)) favoriteScreenFrames.Add(theme);
             SaveToolSettings();
+        }
+
+        internal void RememberScreenFrame(int theme)
+        {
+            recentScreenFrames.Remove(theme);
+            recentScreenFrames.Insert(0, theme);
+            if (recentScreenFrames.Count > RecentScreenFrameLimit)
+                recentScreenFrames.RemoveAt(RecentScreenFrameLimit);
         }
 
         internal void RememberToolbarFont(string family, bool asScreenDefault)
@@ -255,11 +267,8 @@ namespace gInk
                     ScreenFrameOpacity = Math.Max(10, Math.Min(100, opacity));
                 if (bool.TryParse(Attr(frame, "hideFullscreen"), out bool hideFullscreen))
                     ScreenFrameHideFullscreen = hideFullscreen;
-                var seen = new HashSet<int>();
-                foreach (XElement entry in frame.Elements("Favorite"))
-                    if (int.TryParse(entry.Value, NumberStyles.Integer, Invariant, out int index) &&
-                        index >= 0 && index < ScreenFrameStyle.Names.Length && seen.Add(index))
-                        favoriteScreenFrames.Add(index);
+                LoadScreenFrameList(frame.Elements("Favorite"), favoriteScreenFrames, ScreenFrameStyle.Names.Length);
+                LoadScreenFrameList(frame.Elements("Recent"), recentScreenFrames, RecentScreenFrameLimit);
             }
             if (recent != null)
             {
@@ -287,6 +296,17 @@ namespace gInk
                 float fading=Number(element,"fading",0);if(fading>0)pen.ExtendedProperties.Add(Root.FADING_PEN,fading);
                 var value=new DrawingPreset {Slot=slot,Name=Attr(element,"name","프리셋 "+Shortcut(slot)),Tool=Int(element,"tool"),Fill=Int(element,"fill"),Attributes=pen};
                 Validate(value);presets[slot]=value;
+            }
+        }
+
+        private static void LoadScreenFrameList(IEnumerable<XElement> entries, List<int> themes, int limit)
+        {
+            foreach (XElement entry in entries)
+            {
+                if (int.TryParse(entry.Value, NumberStyles.Integer, Invariant, out int index) &&
+                    index >= 0 && index < ScreenFrameStyle.Names.Length && !themes.Contains(index))
+                    themes.Add(index);
+                if (themes.Count == limit) break;
             }
         }
 
@@ -332,7 +352,7 @@ namespace gInk
             SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
             if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar ||
                 ScreenFrameReserveWorkArea || ScreenFrameOpacity != 100 || !ScreenFrameHideFullscreen ||
-                favoriteScreenFrames.Count > 0 || !String.IsNullOrEmpty(ScreenFrameMonitor))
+                favoriteScreenFrames.Count > 0 || recentScreenFrames.Count > 0 || !String.IsNullOrEmpty(ScreenFrameMonitor))
             {
                 var frame = new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
                     new XAttribute("theme", ScreenFrameTheme), new XAttribute("width", ScreenFrameWidth),
@@ -340,6 +360,7 @@ namespace gInk
                     new XAttribute("reserveWorkArea", ScreenFrameReserveWorkArea), new XAttribute("opacity", ScreenFrameOpacity),
                     new XAttribute("hideFullscreen", ScreenFrameHideFullscreen));
                 foreach (int index in favoriteScreenFrames) frame.Add(new XElement("Favorite", index));
+                foreach (int index in recentScreenFrames) frame.Add(new XElement("Recent", index));
                 document.Add(frame);
             }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
