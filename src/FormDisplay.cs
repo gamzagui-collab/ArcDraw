@@ -18,6 +18,7 @@ namespace gInk
 	public partial class FormDisplay : Form
 	{
 		public Root Root;
+        internal FormInput ScreenTextEditor { get; set; }
 		IntPtr Canvus;
 		IntPtr canvusDc;
 		IntPtr OneStrokeCanvus;
@@ -1002,6 +1003,7 @@ namespace gInk
                 }
                 else if (Root.Snapping<=0)
                     DrawCustomOnGraphic(gOutCanvus, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
+                ScreenTextEditor?.DrawScreenCaret(gOutCanvus, gOneStrokeCanvus);
             }
 
             if (Root.FormCollection.SpotLightMode || Root.FormCollection.SpotLightTemp)

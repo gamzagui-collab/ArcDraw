@@ -22,6 +22,10 @@ namespace gInk
         bool Saved_White;
         bool Saved_Black;
         private readonly bool multiline;
+        private Font editorFont;
+        private FlowLayoutPanel textStyleBar;
+        private int editorMinimumHeight;
+        private Rectangle buttonRow;
 
 
         public FormInput(string caption, string label, string txt, bool ML, gInk.Root rt = null, Microsoft.Ink.Stroke stk = null, bool invisible = false)
@@ -98,6 +102,13 @@ namespace gInk
                     InputML.SelectAll();
                 else
                     InputSL.SelectAll();
+                if (ML) CreateTextStyleBar();
+                Disposed += delegate
+                {
+                    editorFont?.Dispose();
+                    Saved_Font?.Dispose();
+                    FontDlg.Dispose();
+                };
             }
             ActiveControl = multiline ? InputML : InputSL;
         }
@@ -151,11 +162,180 @@ namespace gInk
             if (t.Length == 0) t = " ";
             stroke.ExtendedProperties.Remove(Root.TEXT_GUID);
             stroke.ExtendedProperties.Add(Root.TEXT_GUID, t);
-            if(!stroke.ExtendedProperties.Contains(Root.ISTAG_GUID))
+            UpdateTextPreview();
+            ResizeTextEditor();
+        }
+
+        private void CreateTextStyleBar()
+        {
+            FontBtn.Hide();
+            ColorBtn.Hide();
+            boxingCb.Hide();
+            buttonRow = btOK.Bounds;
+            editorMinimumHeight = 31;
+            InputML.ScrollBars = ScrollBars.Vertical;
+            InputML.WordWrap = false;
+            textStyleBar = new FlowLayoutPanel
+            {
+                Name = "ScreenTextStyle", FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, Height = 33, Width = InputML.Width
+            };
+            var family = new ComboBox { Name = "LiveTextFont", Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, MaxDropDownItems = 14 };
+            foreach (FontFamily available in FontFamily.Families)
+            {
+                using (available) family.Items.Add(available.Name);
+            }
+            if (!family.Items.Contains(Saved_Font.Name)) family.Items.Add(Saved_Font.Name);
+            family.SelectedItem = Saved_Font.Name;
+            var points = new NumericUpDown
+            {
+                Name = "LiveTextSize", AccessibleName = "글자 크기 (pt)", Width = 66,
+                Minimum = 1, Maximum = Math.Max(144, (decimal)Saved_Font.SizeInPoints), DecimalPlaces = 1,
+                Value = (decimal)Saved_Font.SizeInPoints
+            };
+            var color = new Button
+            {
+                Name = "LiveTextColor", AccessibleName = "텍스트 색상", Text = "색상",
+                Width = 74, Height = 26, UseVisualStyleBackColor = false
+            };
+            void ShowColor(Color value)
+            {
+                color.BackColor = value;
+                color.ForeColor = value.GetBrightness() > 0.55f ? Color.Black : Color.White;
+            }
+            ShowColor(stroke.DrawingAttributes.Color);
+            textStyleBar.Controls.AddRange(new Control[]
+            {
+                new Label { Text = "글꼴", AutoSize = true, Margin = new Padding(0, 7, 4, 0) }, family,
+                new Label { Text = "크기", AutoSize = true, Margin = new Padding(8, 7, 4, 0) }, points, color
+            });
+            Controls.Add(textStyleBar);
+            family.SelectedIndexChanged += delegate { ApplyLiveFont(family.Text, (float)points.Value); InputML.Focus(); };
+            points.ValueChanged += delegate { ApplyLiveFont(family.Text, (float)points.Value); };
+            points.KeyDown += (sender, args) =>
+            {
+                if (args.KeyCode != Keys.Enter) return;
+                args.SuppressKeyPress = true;
+                InputML.Focus();
+            };
+            points.PreviewKeyDown += (sender, args) => { if (args.KeyCode == Keys.Enter) args.IsInputKey = true; };
+            color.Click += delegate
+            {
+                Color? next = DrawingColorPicker.Choose(this, color, stroke.DrawingAttributes.Color);
+                if (next.HasValue)
+                {
+                    stroke.DrawingAttributes.Color = next.Value;
+                    ShowColor(next.Value);
+                    UpdateTextPreview();
+                }
+                InputML.Focus();
+            };
+            SetEditorFont((Font)Saved_Font.Clone());
+            Shown += delegate
+            {
+                ResizeTextEditor();
+                InputML.Focus();
+                UpdateTextPreview();
+            };
+            InputML.KeyUp += delegate { if (Visible) UpdateCaretPreview(); };
+            InputML.MouseUp += delegate { if (Visible) UpdateCaretPreview(); };
+            FormClosed += delegate { Root.FormDisplay.ScreenTextEditor = null; Root.UponAllDrawingUpdate = true; };
+        }
+
+        private void ApplyLiveFont(string family, float points)
+        {
+            Font next;
+            try { next = new Font(family, points, Saved_Font.Style, GraphicsUnit.Point); }
+            catch (ArgumentException) { next = new Font(family, points, FontStyle.Regular, GraphicsUnit.Point); }
+            SetEditorFont(next);
+            stroke.ExtendedProperties.Add(Root.TEXTFONT_GUID, next.Name);
+            stroke.ExtendedProperties.Add(Root.TEXTFONTSIZE_GUID, (double)next.SizeInPoints);
+            stroke.ExtendedProperties.Add(Root.TEXTFONTSTYLE_GUID, next.Style);
+            UpdateTextPreview();
+            ResizeTextEditor();
+        }
+
+        private void SetEditorFont(Font font)
+        {
+            Font previous = editorFont;
+            editorFont = font;
+            InputML.Font = font;
+            previous?.Dispose();
+        }
+
+        private void UpdateTextPreview()
+        {
+            if (!stroke.ExtendedProperties.Contains(Root.ISTAG_GUID))
                 Root.FormCollection.ComputeTextBoxSize(ref stroke);
             Root.FormDisplay.ClearCanvus();
             Root.FormDisplay.DrawStrokes();
+            if (Visible && textStyleBar != null) Root.FormDisplay.ScreenTextEditor = this;
             Root.FormDisplay.UpdateFormDisplay(true);
+        }
+
+        private void UpdateCaretPreview()
+        {
+            if (Root.FormDisplay.ScreenTextEditor == this)
+                Root.FormDisplay.UpdateFormDisplay(true);
+        }
+
+        internal void DrawScreenCaret(Graphics graphics, Graphics coordinates)
+        {
+            if (!Visible || !InputML.Focused || InputML.SelectionLength > 0 || stroke.Deleted) return;
+            var properties = stroke.ExtendedProperties;
+            Point anchor = new Point((int)(double)properties[Root.TEXTX_GUID].Data, (int)(double)properties[Root.TEXTY_GUID].Data);
+            Root.FormCollection.IC.Renderer.InkSpaceToPixel(coordinates, ref anchor);
+            string text = InputML.Text;
+            int index = InputML.SelectionStart;
+            int lineStart = index == 0 ? 0 : text.LastIndexOf('\n', index - 1) + 1;
+            int lineEnd = text.IndexOf('\n', index);
+            if (lineEnd < 0) lineEnd = text.Length;
+            int row = 0;
+            for (int i = 0; i < lineStart; i++) if (text[i] == '\n') row++;
+            using (var format = new StringFormat(StringFormat.GenericTypographic))
+            using (var dark = new Pen(Color.FromArgb(20, 25, 35), 3))
+            using (var light = new Pen(Color.White, 1))
+            {
+                format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces | StringFormatFlags.NoWrap;
+                float x = coordinates.MeasureString(text.Substring(lineStart, index - lineStart), editorFont, PointF.Empty, format).Width;
+                if ((StringAlignment)properties[Root.TEXTHALIGN_GUID].Data == StringAlignment.Far)
+                    x -= coordinates.MeasureString(text.Substring(lineStart, lineEnd - lineStart).TrimEnd('\r'), editorFont, PointF.Empty, format).Width;
+                float lineHeight = editorFont.GetHeight(coordinates);
+                var state = graphics.Save();
+                try
+                {
+                    graphics.TranslateTransform(anchor.X, anchor.Y);
+                    if (properties.Contains(Root.ROTATION_GUID))
+                        graphics.RotateTransform((float)(double)properties[Root.ROTATION_GUID].Data);
+                    graphics.DrawLine(dark, x, row * lineHeight, x, (row + 1) * lineHeight);
+                    graphics.DrawLine(light, x, row * lineHeight, x, (row + 1) * lineHeight);
+                }
+                finally { graphics.Restore(state); }
+            }
+        }
+
+        private void ResizeTextEditor()
+        {
+            if (textStyleBar == null || !InputML.IsHandleCreated) return;
+            Rectangle work = Screen.FromControl(this).WorkingArea;
+            int lines = Math.Max(1, InputML.GetLineFromCharIndex(InputML.TextLength) + 1);
+            // Native EDIT can still report the preceding line for an empty tail.
+            int explicitLines = InputML.Text.Count(ch => ch == '\n') + 1;
+            int available = Math.Max(editorMinimumHeight, work.Height - InputML.Top - 110);
+            int desired = Math.Max(editorMinimumHeight, Math.Max(lines, explicitLines) * InputML.Font.Height + 9);
+            int height = Math.Min(available, desired);
+            SuspendLayout();
+            try
+            {
+                InputML.Height = height;
+                textStyleBar.Location = new Point(InputML.Left, InputML.Bottom + 6);
+                btOK.Location = new Point(buttonRow.Left, textStyleBar.Bottom + 3);
+                btCancel.Top = btOK.Top;
+                ClientSize = new Size(ClientSize.Width, btOK.Bottom + 10);
+                if (Bottom > work.Bottom) Top = Math.Max(work.Top, work.Bottom - Height);
+            }
+            finally { ResumeLayout(false); }
+            if (InputML.Focused) InputML.ScrollToCaret();
         }
 
         private void ConfirmScreenText()
@@ -176,9 +356,10 @@ namespace gInk
 
         }
 
-        private void btCancel_Click(object sender, EventArgs e)
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            if(stroke != null )
+            base.OnFormClosing(e);
+            if (!e.Cancel && DialogResult == DialogResult.Cancel && stroke != null && Saved_Font != null)
             {
                 InputML.Text = Saved_Txt;
                 stroke.ExtendedProperties.Add(Root.TEXTFONT_GUID, Saved_Font.Name);
@@ -278,7 +459,11 @@ namespace gInk
                 }
                 enterPending = false;
                 if (HasComposition()) return;
-                if (lineBreak) SelectedText = Environment.NewLine;
+                if (lineBreak)
+                {
+                    SelectedText = Environment.NewLine;
+                    ScrollToCaret();
+                }
                 else ConfirmRequested?.Invoke(this, EventArgs.Empty);
                 return;
             }

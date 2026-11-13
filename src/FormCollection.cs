@@ -1419,8 +1419,8 @@ namespace gInk
             ToTopMost();
             StopAllZooms();
             Root.PointerMode = true; // will be set to false within SelectPen(0) below
-            SelectPen(0);
-            IC.DefaultDrawingAttributes.Width = Root.PenAttr[0].Width; //required to ensure width
+            SelectPen(0, true);
+            if (workingPen == null) IC.DefaultDrawingAttributes.Width = Root.PenAttr[0].Width;
             SelectTool(Tools.Hand, Filling.Empty); // Select Hand Drawing by Default
 
             SaveStrokeFile = "";
@@ -2184,34 +2184,36 @@ namespace gInk
             AllowInteractions(true);
             //ToThrough();
 
-            FormInput inp = new FormInput(Root.Local.DlgTextCaption, Root.Local.DlgTextLabel, txt, true, Root, stk, invisibleDlg);
-
-            Point pt = stk.GetPoint(0);
-            IC.Renderer.InkSpaceToPixel(Root.FormDisplay.gOneStrokeCanvus, ref pt);
-            pt = PointToScreen(pt);
-            inp.Top = pt.Y - inp.Height - 10;// +this.Top ;
-            inp.Left = pt.X;// +this.Left;
-            //Console.WriteLine("Edit {0},{1}", inp.Left, inp.Top);
-            Screen scr = Screen.FromPoint(pt);
-            if ((inp.Right >= scr.Bounds.Right) || (inp.Top <= scr.Bounds.Top))
-            {   // if the dialog can not be displayed above the text we will display it in the middle of the primary screen
-                inp.Top = ((int)(scr.Bounds.Top + scr.Bounds.Bottom - inp.Height) / 2);//System.Windows.SystemParameters.PrimaryScreenHeight)-inp.Height) / 2;
-                inp.Left = ((int)(scr.Bounds.Left + scr.Bounds.Right - inp.Width) / 2);// System.Windows.SystemParameters.PrimaryScreenWidth) - inp.Width) / 2;
-            }
-            DialogResult ret = inp.ShowDialog();  // cancellation process is within the cancel button
-            TextEdited = true;
-            AllowInteractions(false);
-            try
+            using (var inp = new FormInput(Root.Local.DlgTextCaption, Root.Local.DlgTextLabel, txt, true, Root, stk, invisibleDlg))
             {
-                ScreenInkCursor = cursorred;
-            }
-            catch
-            {
-                ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
-            }
-            System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
 
-            return ret;
+                Point pt = stk.GetPoint(0);
+                IC.Renderer.InkSpaceToPixel(Root.FormDisplay.gOneStrokeCanvus, ref pt);
+                pt = PointToScreen(pt);
+                inp.Top = pt.Y - inp.Height - 10;// +this.Top ;
+                inp.Left = pt.X;// +this.Left;
+                //Console.WriteLine("Edit {0},{1}", inp.Left, inp.Top);
+                Screen scr = Screen.FromPoint(pt);
+                if ((inp.Right >= scr.Bounds.Right) || (inp.Top <= scr.Bounds.Top))
+                {   // if the dialog can not be displayed above the text we will display it in the middle of the primary screen
+                    inp.Top = ((int)(scr.Bounds.Top + scr.Bounds.Bottom - inp.Height) / 2);//System.Windows.SystemParameters.PrimaryScreenHeight)-inp.Height) / 2;
+                    inp.Left = ((int)(scr.Bounds.Left + scr.Bounds.Right - inp.Width) / 2);// System.Windows.SystemParameters.PrimaryScreenWidth) - inp.Width) / 2;
+                }
+                DialogResult ret = inp.ShowDialog();  // cancellation process is within the cancel button
+                TextEdited = true;
+                AllowInteractions(false);
+                try
+                {
+                    ScreenInkCursor = cursorred;
+                }
+                catch
+                {
+                    ScreenInkCursor = getCursFromDiskOrRes(Root.cursorarrowFileName, System.Windows.Forms.Cursors.NoMove2D);
+                }
+                System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
+
+                return ret;
+            }
         }
 
         private float NearestStroke(Point pt, bool ptInPixel, out Stroke minStroke, out float pos, bool Search4Text = true, bool butLast = false, bool Magnet = true)
@@ -3026,13 +3028,20 @@ namespace gInk
 
         public void ComputeTextBoxSize(ref Stroke st)
         {
-            System.Drawing.StringFormat stf = new System.Drawing.StringFormat(System.Drawing.StringFormatFlags.NoClip);
-            stf.Alignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTHALIGN_GUID].Data);
-            stf.LineAlignment = (System.Drawing.StringAlignment)(st.ExtendedProperties[Root.TEXTVALIGN_GUID].Data);
-            SizeF layoutSize = new SizeF(2000.0F, 2000.0F);
-            layoutSize = Root.FormDisplay.gOneStrokeCanvus.MeasureString((string)(st.ExtendedProperties[Root.TEXT_GUID].Data),
-                            new Font((string)st.ExtendedProperties[Root.TEXTFONT_GUID].Data, (float)(double)st.ExtendedProperties[Root.TEXTFONTSIZE_GUID].Data,
-                            (System.Drawing.FontStyle)(int)st.ExtendedProperties[Root.TEXTFONTSTYLE_GUID].Data), layoutSize, stf);
+            var alignment = (StringAlignment)st.ExtendedProperties[Root.TEXTHALIGN_GUID].Data;
+            string text = (string)st.ExtendedProperties[Root.TEXT_GUID].Data;
+            SizeF layoutSize;
+            using (var format = new StringFormat(StringFormatFlags.NoClip | StringFormatFlags.MeasureTrailingSpaces))
+            using (var font = new Font((string)st.ExtendedProperties[Root.TEXTFONT_GUID].Data,
+                (float)(double)st.ExtendedProperties[Root.TEXTFONTSIZE_GUID].Data, (FontStyle)(int)st.ExtendedProperties[Root.TEXTFONTSTYLE_GUID].Data))
+            {
+                format.Alignment = alignment;
+                format.LineAlignment = (StringAlignment)st.ExtendedProperties[Root.TEXTVALIGN_GUID].Data;
+                // GDI+ omits the final empty line when the string ends in a newline.
+                // Measure that line without putting a placeholder into saved text.
+                if (text.EndsWith("\n", StringComparison.Ordinal)) text += "\u00a0";
+                layoutSize = Root.FormDisplay.gOneStrokeCanvus.MeasureString(text, font, PointF.Empty, format);
+            }
             st.ExtendedProperties.Add(Root.TEXTWIDTH_GUID, (double)layoutSize.Width);
             st.ExtendedProperties.Add(Root.TEXTHEIGHT_GUID, (double)layoutSize.Height);
             if (!st.ExtendedProperties.Contains(Root.ISTAG_GUID))
@@ -3041,7 +3050,7 @@ namespace gInk
                 //IC.Renderer.PixelToInkSpace(IC.Handle, ref pt);
                 Point pt2 = new Point((int)layoutSize.Width, (int)layoutSize.Height);
                 IC.Renderer.PixelToInkSpace(Root.FormDisplay.gOneStrokeCanvus, ref pt2);
-                if (stf.Alignment == StringAlignment.Near) //align Left
+                if (alignment == StringAlignment.Near) //align Left
                     st.SetPoints(new Point[] { pt, new Point((int)(pt.X+pt2.X / 2),pt.Y+0), new Point((int)(pt.X+pt2.X),pt.Y+0),
                                                new Point((int)(pt.X+pt2.X),(int)(pt.Y+pt2.Y/2)),new Point((int)(pt.X+pt2.X),(int)(pt.Y+pt2.Y)),
                                                new Point((int)(pt.X+pt2.X/2),(int)(pt.Y+pt2.Y)),new Point((int)(pt.X+0),(int)(pt.Y+pt2.Y)),
@@ -4368,6 +4377,11 @@ namespace gInk
         }
 
         public void SelectPen(int pen)
+        {
+            SelectPen(pen, false);
+        }
+
+        private void SelectPen(int pen, bool keepWorkingPen)
         // -4 = Lasso, -3 = pan, -2 = pointer, -1 = erasor, >=0 = pens
         {
             bool bb = Root.ColorPickerMode;
@@ -4587,6 +4601,10 @@ namespace gInk
                 LastPenSelected = pen;
                 IC.DefaultDrawingAttributes.AntiAliased = true;
                 IC.DefaultDrawingAttributes.FitToCurve = Root.FitToCurve;
+                if (keepWorkingPen && workingPen != null)
+                    SetWorkingPenAttributes(workingPen);
+                else
+                    workingPen = null;
                 /*for (int b = 0; b < Root.MaxDisplayedPens; b++)
                 {
                     //btPen[b].Image = image_pen[b];
@@ -4640,6 +4658,7 @@ namespace gInk
 
             }
             Root.CurrentPen = pen;
+            RefreshPenToolbar();
             RefreshScreenInkCursor();
             if (Root.gpPenWidthVisible)
             {
@@ -6344,6 +6363,11 @@ namespace gInk
 
         public void recomputePensSet(int firstPen = -1, int currentPen = -1)
         {
+            if (mainColorButton != null)
+            {
+                Root.UponButtonsUpdate |= 2;
+                return;
+            }
             if(firstPen<0)
             {
                 firstPen = FirstPenDisplayed;
@@ -7374,7 +7398,7 @@ namespace gInk
                 SavedFilled = -1;
             }
             if (i >= Tools.Hand)
-                SelectPen(LastPenSelected);
+                SelectPen(LastPenSelected, true);
             SelectTool(i,f);
         }
 

@@ -200,6 +200,7 @@
     <Compile Include="DrawingSession.cs" />
     <Compile Include="WhiteboardHistory.cs" />
     <Compile Include="ToolbarAppearance.cs" />
+    <Compile Include="PenToolbar.cs" />
     <Compile Include="ToolbarDesign.cs" />
     <Compile Include="ToolbarKeyTips.cs" />
     <Compile Include="DrawingCursorHalo.cs" />

@@ -189,6 +189,7 @@ namespace gInk
                 toolbarRedo.Click+=delegate {if(ToolbarMoved){ToolbarMoved=false;return;}Root.RedoInk();};
                 gpButtons.Controls.Add(toolbarRedo);toolTip.SetToolTip(toolbarRedo,"다시 실행 (Ctrl+Shift+Z)");
             }
+            EnsurePenToolbar();
             // Keep the two configured quick stamps; the full picker remains available.
             btClip3.Visible=false;
             btClip1.AccessibleName="체크";btClip2.AccessibleName="별표";
@@ -308,13 +309,15 @@ namespace gInk
             bool twoRows=Root.DrawingSession!=null&&Root.DrawingSession.Appearance.DoubleRow;
             Rectangle screen=Screen.FromControl(this).WorkingArea;
             List<Control> buttons=new List<Control>();
-            foreach(Control control in appearanceBaseBounds.Keys)if(control.Visible&&!IsCompactHeader(control))buttons.Add(control);
+            foreach(Control control in appearanceBaseBounds.Keys)
+                if(control.Visible&&!IsCompactHeader(control)&&!IsLegacyPenButton(control))buttons.Add(control);
             buttons.Sort(delegate(Control a,Control b) {
                 Rectangle aa=appearanceBaseBounds[a],bb=appearanceBaseBounds[b];
                 int major=appearanceBaseOrientation<=Orientation.Horizontal?aa.X.CompareTo(bb.X):aa.Y.CompareTo(bb.Y);
                 return major!=0?major:(appearanceBaseOrientation<=Orientation.Horizontal?aa.Y.CompareTo(bb.Y):aa.X.CompareTo(bb.X));
             });
             if(buttons.Remove(toolbarRedo))buttons.Insert(Math.Max(0,buttons.IndexOf(btUndo)+1),toolbarRedo);
+            PlacePenToolbarFirst(buttons);
             int cell=Math.Max(20,(int)Math.Round(34*percent/100f)),gap=Math.Max(1,theme.Gap),pad=4;
             int rows=vertical?(buttons.Count+1)/2+1:(twoRows?2:1);
             int columns=vertical?2:(twoRows?(buttons.Count+1)/2:buttons.Count);
