@@ -1,3 +1,3 @@
-﻿ArcDraw v0.51 — 헤드라인 카탈로그 120종과 색상 분리
-2026-11-13 23:34:29 KST
-EXE SHA256: 90675b0d57778dd1186027154aa8ed3fe95fa0ccfd96ffc915ff4aa3e9bdbf3f
+﻿ArcDraw v0.52 — 헤드라인 즐겨찾기
+2026-11-13 23:40:15 KST
+EXE SHA256: e99a99cc8e09fa035e624f3ceb1aed17b4c51c62fcda980e35c8727dcabb7954

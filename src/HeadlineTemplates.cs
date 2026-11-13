@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace gInk
@@ -344,51 +345,68 @@ namespace gInk
 
     internal sealed class HeadlineTemplatePicker : ToolStripDropDown
     {
+        private const int Favorites = 0;
         private const int PageSize = 30;
-        private readonly Button[] choices = new Button[PageSize];
-        private readonly Button[] categories = new Button[4];
-        private int page;
+        private const int GridHeight = 434;
+        private readonly DrawingSettings settings;
+        private readonly Button[] choices = new Button[PageSize], stars = new Button[PageSize];
+        private readonly Button[] categories = new Button[HeadlineTemplate.Count / PageSize + 1];
+        private readonly TableLayoutPanel grid;
+        private readonly Panel pagination;
+        private readonly Button previousPage, nextPage;
+        private readonly Label empty, pageNumber;
+        private int category, favoritePage;
         private NoteBackgroundShape current;
         private Color? previewColor, previewFill;
         internal event Action<NoteBackgroundShape> Selected;
 
-        internal HeadlineTemplatePicker()
+        internal HeadlineTemplatePicker(DrawingSettings settings)
         {
+            this.settings = settings;
             Name = "HeadlineTemplatePicker";
             Padding = new Padding(3);
             var surface = new Panel { Size = new Size(486, 464), Margin = Padding.Empty, BackColor = Color.FromArgb(237, 242, 248) };
-            string[] titles = { "기본 1–30", "모던 31–60", "캐릭터 61–90", "소품 91–120" };
+            string[] titles = { "★ 즐겨찾기", "기본 1–30", "모던 31–60", "캐릭터 61–90", "소품 91–120" };
             for (int i = 0; i < categories.Length; i++)
             {
-                int category = i;
+                int index = i;
                 var tab = new Button
                 {
-                    Name = "HeadlineCategory" + i, Text = titles[i], FlatStyle = FlatStyle.Flat,
-                    Bounds = new Rectangle(i * 121 + 1, 1, 120, 27), BackColor = Color.White
+                    Name = i == Favorites ? "HeadlineFavorites" : "HeadlineCategory" + (i - 1),
+                    Text = titles[i], FlatStyle = FlatStyle.Flat,
+                    Bounds = new Rectangle(i * 97 + 1, 1, 96, 27), BackColor = Color.White
                 };
                 tab.FlatAppearance.BorderSize = 0;
-                tab.Click += delegate { ShowCategory(category); };
+                tab.Click += delegate { ShowCategory(index); };
                 categories[i] = tab;
                 surface.Controls.Add(tab);
             }
-            var grid = new TableLayoutPanel
+            grid = new TableLayoutPanel
             {
-                Name = "HeadlineTemplateGrid", Bounds = new Rectangle(0, 30, 486, 434), ColumnCount = 3,
+                Name = "HeadlineTemplateGrid", Bounds = new Rectangle(0, 30, 486, GridHeight), ColumnCount = 3,
                 RowCount = 10, BackColor = Color.FromArgb(237, 242, 248), Margin = Padding.Empty
             };
             for (int column = 0; column < 3; column++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
             for (int row = 0; row < 10; row++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 10));
             for (int i = 0; i < choices.Length; i++)
             {
+                var cell = new Panel { Dock = DockStyle.Fill, Margin = new Padding(1) };
                 var tile = new Button
                 {
                     Dock = DockStyle.Fill,
-                    FlatStyle = FlatStyle.Flat, Margin = new Padding(1), BackColor = Color.White, TabIndex = i
+                    FlatStyle = FlatStyle.Flat, BackColor = Color.White, TabIndex = 0
                 };
+                var star = new Button
+                {
+                    Size = new Size(24, 23), FlatStyle = FlatStyle.Flat, BackColor = Color.White, TabIndex = 1
+                };
+                star.FlatAppearance.BorderSize = 0;
+                cell.Resize += delegate { star.Location = new Point(cell.Width - star.Width - 2, 1); };
                 tile.FlatAppearance.BorderSize = 0;
                 tile.Paint += (_, e) =>
                 {
-                    var bounds = new Rectangle(5, 3, tile.Width - 10, tile.Height - 19);
+                    if (tile.Tag == null) return;
+                    var bounds = new Rectangle(5, 3, Math.Max(1, tile.Width - 34), Math.Max(1, tile.Height - 20));
                     HeadlineTemplate.Draw(e.Graphics, bounds, (NoteBackgroundShape)tile.Tag, 255, previewColor, previewFill);
                     TextRenderer.DrawText(e.Graphics, tile.AccessibleName, SystemFonts.MessageBoxFont,
                         new Rectangle(2, bounds.Bottom, tile.Width - 4, 15), Color.FromArgb(32, 52, 74),
@@ -400,31 +418,84 @@ namespace gInk
                     Close(ToolStripDropDownCloseReason.ItemClicked);
                     Selected?.Invoke(shape);
                 };
+                star.Click += delegate
+                {
+                    if (!(tile.Tag is NoteBackgroundShape shape)) return;
+                    settings.ToggleFavoriteHeadline(shape);
+                    RefreshCategory();
+                };
                 choices[i] = tile;
-                grid.Controls.Add(tile, i % 3, i / 3);
+                stars[i] = star;
+                cell.Controls.Add(tile);
+                cell.Controls.Add(star);
+                star.BringToFront();
+                grid.Controls.Add(cell, i % 3, i / 3);
             }
+            empty = new Label
+            {
+                Text = "다른 탭에서 디자인 옆 ☆를 눌러 추가하세요.",
+                Bounds = grid.Bounds, TextAlign = ContentAlignment.MiddleCenter
+            };
+            pagination = new Panel { Bounds = new Rectangle(0, 434, 486, 30) };
+            previousPage = new Button { Name = "PreviousHeadlineFavorites", Text = "이전", Bounds = new Rectangle(142, 3, 65, 24) };
+            nextPage = new Button { Name = "NextHeadlineFavorites", Text = "다음", Bounds = new Rectangle(279, 3, 65, 24) };
+            pageNumber = new Label { Bounds = new Rectangle(209, 3, 68, 24), TextAlign = ContentAlignment.MiddleCenter };
+            previousPage.Click += delegate { favoritePage--; RefreshCategory(); };
+            nextPage.Click += delegate { favoritePage++; RefreshCategory(); };
+            pagination.Controls.AddRange(new Control[] { previousPage, pageNumber, nextPage });
             surface.Controls.Add(grid);
-            ShowCategory(0);
+            surface.Controls.Add(empty);
+            surface.Controls.Add(pagination);
+            pagination.BringToFront();
+            ShowCategory(1);
             Items.Add(new ToolStripControlHost(surface) { AutoSize = false, Size = surface.Size, Margin = Padding.Empty });
         }
 
         private void ShowCategory(int category)
         {
-            page = category;
+            this.category = category;
+            favoritePage = 0;
             for (int i = 0; i < categories.Length; i++)
-                categories[i].BackColor = i == page ? Color.FromArgb(216, 240, 255) : Color.White;
+                categories[i].BackColor = i == category ? Color.FromArgb(216, 240, 255) : Color.White;
+            RefreshCategory();
+        }
+
+        private void RefreshCategory()
+        {
+            var favorites = settings.FavoriteHeadlines;
+            bool showingFavorites = category == Favorites;
+            int pages = Math.Max(1, (favorites.Count + PageSize - 1) / PageSize);
+            favoritePage = Math.Max(0, Math.Min(pages - 1, favoritePage));
+            pagination.Visible = showingFavorites && pages > 1;
+            grid.Height = showingFavorites && pages > 1 ? GridHeight - pagination.Height : GridHeight;
+            previousPage.Enabled = favoritePage > 0;
+            nextPage.Enabled = favoritePage < pages - 1;
+            pageNumber.Text = (favoritePage + 1) + " / " + pages;
+            empty.Visible = showingFavorites && favorites.Count == 0;
+            grid.Visible = !showingFavorites || favorites.Count > 0;
+            int offset = (showingFavorites ? favoritePage : category - 1) * PageSize;
             for (int i = 0; i < choices.Length; i++)
             {
-                int index = page * PageSize + i;
-                var shape = (NoteBackgroundShape)index;
                 Button tile = choices[i];
+                Button star = stars[i];
+                int index = offset + i;
+                bool available = !showingFavorites || index < favorites.Count;
+                tile.Parent.Visible = available;
+                if (!available) continue;
+                var shape = showingFavorites ? favorites[index] : (NoteBackgroundShape)index;
                 tile.Name = "Template" + shape;
-                tile.AccessibleName = (index + 1).ToString("D2") + "  " + HeadlineTemplate.Get(shape).Name;
+                tile.AccessibleName = ((int)shape + 1).ToString("D2") + "  " + HeadlineTemplate.Get(shape).Name;
                 tile.Tag = shape;
                 tile.BackColor = shape == current ? Color.FromArgb(216, 240, 255) : Color.White;
                 tile.FlatAppearance.BorderSize = shape == current ? 1 : 0;
                 tile.FlatAppearance.BorderColor = Color.FromArgb(50, 117, 169);
                 tile.Invalidate();
+                bool favorite = favorites.Contains(shape);
+                star.Name = "Favorite" + shape;
+                star.Text = favorite ? "★" : "☆";
+                star.AccessibleName = tile.AccessibleName + (favorite ? " 즐겨찾기 해제" : " 즐겨찾기 추가");
+                star.ForeColor = favorite ? Color.FromArgb(151, 91, 0) : Color.FromArgb(68, 86, 108);
+                star.BackColor = tile.BackColor;
             }
         }
 
@@ -433,7 +504,7 @@ namespace gInk
             current = selected;
             previewColor = color;
             previewFill = fill;
-            ShowCategory((int)selected / PageSize);
+            ShowCategory(settings.FavoriteHeadlines.Count > 0 ? Favorites : 1 + (int)selected / PageSize);
             Show(source, new Point(source.Width, source.Height), ToolStripDropDownDirection.BelowLeft);
         }
     }

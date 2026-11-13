@@ -41,7 +41,7 @@ namespace gInk
             titleBar.Controls.Add(backgroundSlider);
             if (IsHeadline)
             {
-                backgroundMenu = new HeadlineTemplatePicker();
+                backgroundMenu = new HeadlineTemplatePicker(manager.CurrentRoot.Settings);
                 backgroundMenu.Selected += shape => ChangeNoteBackground(backgroundPercent, shape);
                 backgroundMenu.Closed += delegate { RefreshHeadlineChrome(); };
                 backgroundSlider.Width = 62;

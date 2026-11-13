@@ -22,6 +22,8 @@ namespace gInk
         private readonly Root root;
         private readonly Dictionary<int,DrawingPreset> presets=new Dictionary<int,DrawingPreset>();
         private readonly HashSet<string> favoriteFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<NoteBackgroundShape> favoriteHeadlines = new List<NoteBackgroundShape>();
+        internal IReadOnlyList<NoteBackgroundShape> FavoriteHeadlines => favoriteHeadlines;
         private const int RecentFontLimit = 5;
         private readonly List<string> recentFonts = new List<string>();
         internal IReadOnlyList<string> RecentFonts => recentFonts;
@@ -54,6 +56,7 @@ namespace gInk
         {
             presets.Clear();
             favoriteFonts.Clear();
+            favoriteHeadlines.Clear();
             recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
@@ -85,6 +88,12 @@ namespace gInk
         internal void ToggleFavoriteFont(string family)
         {
             if (!favoriteFonts.Remove(family)) favoriteFonts.Add(family);
+            SaveToolSettings();
+        }
+
+        internal void ToggleFavoriteHeadline(NoteBackgroundShape shape)
+        {
+            if (!favoriteHeadlines.Remove(shape)) favoriteHeadlines.Add(shape);
             SaveToolSettings();
         }
 
@@ -191,6 +200,17 @@ namespace gInk
                 }
             }
             XElement recent = document.Element("RecentFonts");
+            XElement headlines = document.Element("FavoriteHeadlines");
+            if (headlines != null)
+            {
+                var seen = new HashSet<NoteBackgroundShape>();
+                foreach (XElement entry in headlines.Elements("Template"))
+                {
+                    if (Enum.TryParse(entry.Value, out NoteBackgroundShape shape) &&
+                        Enum.IsDefined(typeof(NoteBackgroundShape), shape) && seen.Add(shape))
+                        favoriteHeadlines.Add(shape);
+                }
+            }
             if (recent != null)
             {
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -234,6 +254,13 @@ namespace gInk
                 var recent = new XElement("RecentFonts");
                 foreach (string family in recentFonts) recent.Add(new XElement("Font", family));
                 document.Add(recent);
+            }
+            if (favoriteHeadlines.Count > 0)
+            {
+                var headlines = new XElement("FavoriteHeadlines");
+                foreach (NoteBackgroundShape shape in favoriteHeadlines)
+                    headlines.Add(new XElement("Template", shape.ToString()));
+                document.Add(headlines);
             }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",

@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.51-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.52-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.51 헤드라인 카탈로그 120종과 색상 분리
+## v0.52 헤드라인 즐겨찾기
 
-헤드라인 제목줄의 테두리와 배경 버튼으로 두 색을 각각 변경할 수 있습니다. 선택한 색은 즉시 표시되고 자동으로 저장됩니다. 템플릿 기본색을 누르면 해당 항목만 초기화됩니다. 모양 메뉴에서 기본, 모던, 캐릭터, 소품의 네 탭으로 120종을 미리 보고 고를 수 있습니다. 61–120번의 삽화는 Noto Emoji를 사용했습니다.
+헤드라인 모양 메뉴에서 디자인 옆 ☆를 누르면 첫 번째 즐겨찾기 탭에 추가됩니다. ★를 다시 누르면 해제됩니다. 즐겨찾기가 있으면 모양 메뉴를 열 때 해당 탭이 먼저 표시되고, 앱을 다시 켜도 목록이 유지됩니다.
 
-Windows Release|x86 빌드와 실제 화면에서 두 색의 개별 반영, 글자색 유지, 120종 카탈로그의 네 탭과 디자인 선택, 재실행 후 복원을 확인했습니다.
+Windows Release|x86 빌드와 실제 화면에서 별표 등록, 즐겨찾기에서 적용, 재실행 복원, 등록 해제를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 
