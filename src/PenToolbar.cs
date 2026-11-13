@@ -216,20 +216,24 @@ namespace gInk
 
     internal static class DrawingColorPicker
     {
+        internal static readonly IReadOnlyList<Color> Swatches = Array.AsReadOnly(new[]
+        {
+            Color.Black, Color.White, Color.DimGray, Color.Firebrick, Color.OrangeRed, Color.Gold,
+            Color.ForestGreen, Color.Teal, Color.DeepSkyBlue, Color.RoyalBlue, Color.BlueViolet, Color.DeepPink
+        });
+
         internal static Color? Choose(Form owner, Control anchor, Color current)
         {
             Color? chosen = null;
-            Color[] colors = { Color.Black, Color.White, Color.DimGray, Color.Firebrick, Color.OrangeRed, Color.Gold,
-                Color.ForestGreen, Color.Teal, Color.DeepSkyBlue, Color.RoyalBlue, Color.BlueViolet, Color.DeepPink };
             using (var dialog = new Form
             {
                 Name = "DrawingColorPicker", Text = "색상", ShowInTaskbar = false, TopMost = true,
                 FormBorderStyle = FormBorderStyle.FixedToolWindow, ClientSize = new Size(218, 122), AutoScaleMode = AutoScaleMode.None
             })
             {
-                for (int i = 0; i < colors.Length; i++)
+                for (int i = 0; i < Swatches.Count; i++)
                 {
-                    Color color = colors[i];
+                    Color color = Swatches[i];
                     var button = new Button
                     {
                         Name = "Color" + color.Name, AccessibleName = "#" + (color.ToArgb() & 0xffffff).ToString("X6"),

@@ -46,7 +46,33 @@ namespace gInk
         }
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
         internal int? LiveMemoSize => IsMemoEditor ? (int?)Math.Round(editorFont.SizeInPoints) : null;
+        internal Color? LiveMemoColor => IsMemoEditor ? (Color?)textEditor.ForeColor : null;
         private int pendingMemoPoints;
+        internal void SetLiveMemoColor(Color color)
+        {
+            if (!IsMemoEditor || completingEditor || textEditor.ForeColor.ToArgb() == color.ToArgb()) return;
+            NoteTextEditor editor = textEditor;
+            if (editor.HasComposition())
+            {
+                editor.FinishComposition(true);
+                // Apply the repaint after EDIT receives the composed text.
+                editor.BeginInvoke(new Action(delegate
+                {
+                    if (textEditor == editor && manager.ActiveNote == this) ApplyLiveMemoColor(editor, color);
+                }));
+                return;
+            }
+            ApplyLiveMemoColor(editor, color);
+        }
+
+        private void ApplyLiveMemoColor(NoteTextEditor editor, Color color)
+        {
+            editor.ForeColor = color;
+            manager.NotesChanged();
+            manager.UpdateMemoColorButton();
+        }
+
+
 
         internal void SetLiveMemoSize(int points)
         {

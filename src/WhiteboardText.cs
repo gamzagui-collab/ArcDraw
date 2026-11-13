@@ -195,6 +195,7 @@ namespace gInk
             editor.SelectionStart = editor.TextLength;
             if(memo)editor.ScrollToCaret();
             paper.Invalidate();
+            if (memo) manager.UpdateMemoColorButton();
         }
 
         internal void FinishEditing(bool save)
@@ -219,6 +220,11 @@ namespace gInk
                         memoFontPoints = old.Font.SizeInPoints;
                         manager.NotesChanged();
                     }
+                    if (wasMemo && memoColor.ToArgb() != old.ForeColor.ToArgb())
+                    {
+                        memoColor = old.ForeColor;
+                        manager.NotesChanged();
+                    }
                     if (editingMemo?content.Length>0:!String.IsNullOrWhiteSpace(content))
                     {
                         if (item == null)
@@ -241,6 +247,11 @@ namespace gInk
                             item.FontSize = old.Font.SizeInPoints;
                             contentChanged = true;
                         }
+                        if (wasMemo && item.Color.ToArgb() != old.ForeColor.ToArgb())
+                        {
+                            item.Color = old.ForeColor;
+                            contentChanged = true;
+                        }
                         if(item.IsMemo){item.Position=new Point(8,8);item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);}
                     }
                     else if (item != null) { textItems.Remove(item);contentChanged=true; }
@@ -257,6 +268,7 @@ namespace gInk
                 if (editorFont != null) { editorFont.Dispose(); editorFont = null; }
                 completingEditor = false;
                 manager.TextEditingEnded();
+                if (wasMemo) manager.UpdateMemoColorButton();
                 if(contentChanged&&!closing)QueueHistorySnapshot();
                 if (!paper.IsDisposed)
                 {
