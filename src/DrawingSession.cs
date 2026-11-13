@@ -31,8 +31,6 @@ namespace gInk
         private int modifiers;
         private IntPtr hook;
         private bool capsDown, applying, disposed, escapeRequested;
-        private Form drawingFocusWindow;
-        private Control drawingFocusInput;
         private bool? applied;
         private IntPtr previousApplication;
         private int pendingPreset=-1;
@@ -138,36 +136,16 @@ namespace gInk
                 (root.FormOptions != null && root.FormOptions.Visible) ||
                 root.FormCollection.FontSearchOpen) return;
 
-            drawingFocusWindow = window;
-            drawingFocusInput = input;
-            TryFocusDrawingWindow();
-        }
-
-        private void TryFocusDrawingWindow()
-        {
-            Form window = drawingFocusWindow;
-            Control input = drawingFocusInput;
-            if (window == null) return;
-            if (!DrawingEnabled || window.IsDisposed || input.IsDisposed || !window.Visible ||
-                OptionsOpen || SelectingTarget || ModalWindowOpen() || root.FormCollection.FontSearchOpen ||
-                (root.FormOptions != null && root.FormOptions.Visible))
-            {
-                drawingFocusWindow = null;
-                drawingFocusInput = null;
-                return;
-            }
             if (GetForegroundWindow() != window.Handle)
             {
                 RememberForegroundApplication();
                 SetForegroundWindow(window.Handle);
-                window.Activate();
             }
-            if (!OwnsWindow(GetForegroundWindow())) return;
-            SetActiveWindow(window.Handle);
-            if (!input.Focus()) SetFocus(input.Handle);
-            if (!input.Focused) return;
-            drawingFocusWindow = null;
-            drawingFocusInput = null;
+            if (OwnsWindow(GetForegroundWindow()))
+            {
+                SetActiveWindow(window.Handle);
+                if (!input.Focus()) SetFocus(input.Handle);
+            }
         }
 
         private void FocusCurrentDrawingTarget()
@@ -181,8 +159,6 @@ namespace gInk
         {
             if(disposed)return;
             Running = false;
-            drawingFocusWindow = null;
-            drawingFocusInput = null;
             escapeRequested=false;
             targetSwitching=false;targetSwitchEpoch++;targetSwitcher.Cancel();
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
@@ -257,7 +233,7 @@ namespace gInk
                 {
                     consumed.Add(key);Post(delegate {escapeRequested=true;ApplyMode();});return new IntPtr(1);
                 }
-                if (down && firstPress && DrawingEnabled && !Editing && root.FormCollection?.FontSearchOpen != true)
+                if (down && firstPress && DrawingEnabled && !Editing && !root.FormCollection.FontSearchOpen)
                 {
                     // Track modifier messages in order. Querying asynchronous
                     // key state inside a low-level hook can lag the event.
@@ -283,7 +259,30 @@ namespace gInk
                         int preset=root.Settings.MatchShortcut(key,ctrl,alt:(modifiers&48)!=0,shift:shift,win:(modifiers&192)!=0);
                         if(preset>=0)action=delegate {pendingPreset=preset;ApplyMode();};
                     }
+                    if (action == null && root.Snapping == 0 && !root.UponTakingSnap &&
+                        !OwnsWindow(GetForegroundWindow()))
+                    {
+                        Action shortcut = root.FormCollection.ExternalDrawingShortcut(key, ctrl, altHeld, shift, (modifiers & 192) != 0);
+                        if (shortcut != null) action = delegate
+                        {
+                            if (DrawingEnabled && !Editing && !root.FormCollection.FontSearchOpen &&
+                                root.Snapping == 0 && !root.UponTakingSnap)
+                                shortcut();
+                        };
+                    }
                     if (action != null) { consumed.Add(key); Post(action); return new IntPtr(1); }
+                }
+                if (down && bit == 0 && DrawingEnabled && root.Whiteboards?.ActiveNote?.IsEditingText == true &&
+                    !OwnsWindow(GetForegroundWindow()) && !ModalWindowOpen() &&
+                    !OptionsOpen && !SelectingTarget && !root.FormCollection.FontSearchOpen &&
+                    (modifiers & (12 | 48 | 192)) == 0)
+                {
+                    // An open memo still owns typing while CAPS is on. Do not
+                    // send a character into another application on focus loss.
+                    WhiteboardLayerForm note = root.Whiteboards.ActiveNote;
+                    consumed.Add(key);
+                    Post(note.FocusDrawingSurface);
+                    return new IntPtr(1);
                 }
             }
             return CallNextHookEx(hook, code, message, data);
@@ -339,7 +338,6 @@ namespace gInk
             if(applied==CapsOn&&root.PointerMode==!CapsOn&&pendingScreenActions.Count==0&&pendingPreset<0)
             {
                 if(!CapsOn)RememberForegroundApplication();
-                else TryFocusDrawingWindow();
                 return;
             }
             applying = true;
@@ -432,7 +430,7 @@ namespace gInk
             }
             if (!sizeSidebar.Visible) sizeSidebar.Show();
             if (editor != null) sizeSidebar.EnableForTextEditor();
-            if (memo != null && !host.FontSearchOpen &&
+            if (memo != null && changed && !host.FontSearchOpen &&
                 Control.FromHandle(GetForegroundWindow()) is NonActivatingToolbarWindow)
                 memo.FocusDrawingSurface();
             if (memo != null && changed) sizeSidebar.RaiseWithoutActivation();
@@ -630,6 +628,31 @@ namespace gInk
 
     public partial class FormCollection
     {
+        internal Action ExternalDrawingShortcut(int key, bool ctrl, bool alt, bool shift, bool win)
+        {
+            bool Matches(Hotkey shortcut) => shortcut.Key != 0 && shortcut.Key == key &&
+                shortcut.ModifierMatch(ctrl, Root.AltAsOneCommand == 2 ? -1 : alt ? 1 : 0, shift, win);
+            Action Tool(Button button) => delegate
+            {
+                ToolbarMoved = false;
+                MouseTimeDown = DateTime.Now;
+                btTool_Click(button, null);
+                FromHandToLineOnShift = false;
+            };
+            if (Matches(Root.Hotkey_Hand)) return Tool(btHand);
+            if (Matches(Root.Hotkey_Line)) return Tool(btLine);
+            if (Matches(Root.Hotkey_Rect)) return Tool(btRect);
+            if (Matches(Root.Hotkey_Oval)) return Tool(btOval);
+            if (Matches(Root.Hotkey_Arrow)) return Tool(btArrow);
+            if (Matches(Root.Hotkey_Text)) return Tool(btText);
+            if (Matches(Root.Hotkey_Numb)) return Tool(btNumb);
+            if (Matches(Root.Hotkey_Edit)) return Tool(btEdit);
+            if (Matches(Root.Hotkey_Eraser)) return delegate { ToolbarMoved = false; btEraser_Click(null, null); };
+            if (Matches(Root.Hotkey_Undo)) return delegate { ToolbarMoved = false; btUndo_Click(null, null); };
+            if (Matches(Root.Hotkey_Redo)) return Root.RedoInk;
+            return null;
+        }
+
         private int screenInputDepth;
         internal bool ScreenContentBusy { get { return screenInputDepth!=0; } }
         private void RunScreenInkWork(Action action)

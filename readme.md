@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.47-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.48-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.47 Caps Lock 단축키 포커스 수정
+## v0.48 Caps Lock 입력 전환 안정화
 
-다른 프로그램에 입력 중 Caps Lock으로 그리기를 켜거나 노트를 열면 ArcDraw가 키보드 입력을 받습니다. Caps Lock을 끄면 앞서 입력하던 프로그램으로 돌아갑니다.
+Caps Lock을 켠 뒤 다른 프로그램에 포커스가 남아 있어도 펜, 도형, 텍스트 등 주요 그리기 단축키는 ArcDraw에서 처리합니다. 노트 메모 편집 중에는 입력 포커스를 노트로 돌리고, Caps Lock을 끄면 이전 프로그램에 포커스를 돌려줍니다.
 
-Windows Release|x86 빌드와 별도 프로그램의 입력칸에서 Caps Lock 전환, L·T 단축키, 노트 메모 입력과 이전 입력칸 복귀를 확인했습니다.
+Windows Release|x86 빌드와 세로 툴바에서 사각형·타원·펜 버튼, 별도 프로그램 입력칸에서 L·T 단축키, 메모 입력과 이전 입력칸 복귀를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

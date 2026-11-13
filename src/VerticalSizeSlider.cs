@@ -149,16 +149,6 @@ namespace gInk
 
         protected override bool ShowWithoutActivation => !TakesFocus;
 
-        protected override void SetVisibleCore(bool value)
-        {
-            if (value && !TakesFocus)
-            {
-                if (!IsHandleCreated) CreateHandle();
-                ShowWindow(Handle, 4); // SW_SHOWNOACTIVATE
-            }
-            base.SetVisibleCore(value);
-        }
-
         protected override CreateParams CreateParams
         {
             get
@@ -209,7 +199,6 @@ namespace gInk
         private static extern bool IsWindowEnabled(IntPtr window);
         [DllImport("user32.dll")]
         private static extern bool EnableWindow(IntPtr window, bool enabled);
-        [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
     }
 
     internal sealed class DrawingSizeSidebar : NonActivatingToolbarWindow

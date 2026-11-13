@@ -1,3 +1,3 @@
-﻿ArcDraw v0.47 — Caps Lock 단축키 포커스 수정
-2026-11-13 22:32:31 KST
-EXE SHA256: fc991ad85292807be392571dde173d7420eac83e3ac3dce08a9c8d6feec176b5
+﻿ArcDraw v0.48 — Caps Lock 입력 전환 안정화
+2026-11-13 22:45:54 KST
+EXE SHA256: c66d4dc71dedb031d51ddea4a611f11b3eb9b272d7fbc6fe1a5fa4ef9850c1df
