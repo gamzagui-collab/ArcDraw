@@ -11,13 +11,22 @@ namespace gInk
         Rectangle, Rounded, Oval, Underline, News, Star, Spotlight, Document, Ribbon,
         Corners, Slash, Idea, Minimal, Offset, Technical, SpeechBubble, Dashed, Leaf,
         Sparkle, Notebook, Quote, Speed, Royal, Classic, Blossom, Paper, Hud,
-        Alert, Night, Wave
+        Alert, Night, Wave,
+        Frame31, Frame32, Frame33, Frame34, Frame35, Frame36, Frame37, Frame38, Frame39, Frame40,
+        Frame41, Frame42, Frame43, Frame44, Frame45, Frame46, Frame47, Frame48, Frame49, Frame50,
+        Frame51, Frame52, Frame53, Frame54, Frame55, Frame56, Frame57, Frame58, Frame59, Frame60,
+        Frame61, Frame62, Frame63, Frame64, Frame65, Frame66, Frame67, Frame68, Frame69, Frame70,
+        Frame71, Frame72, Frame73, Frame74, Frame75, Frame76, Frame77, Frame78, Frame79, Frame80,
+        Frame81, Frame82, Frame83, Frame84, Frame85, Frame86, Frame87, Frame88, Frame89, Frame90,
+        Frame91, Frame92, Frame93, Frame94, Frame95, Frame96, Frame97, Frame98, Frame99, Frame100,
+        Frame101, Frame102, Frame103, Frame104, Frame105, Frame106, Frame107, Frame108, Frame109, Frame110,
+        Frame111, Frame112, Frame113, Frame114, Frame115, Frame116, Frame117, Frame118, Frame119, Frame120,
     }
 
-    internal sealed class HeadlineTemplate
+    internal sealed partial class HeadlineTemplate
     {
         private const float W = 360, H = 84;
-        internal static readonly HeadlineTemplate[] All =
+        private static readonly HeadlineTemplate[] Original =
         {
             new HeadlineTemplate("클래식 사각형", 0x255280), new HeadlineTemplate("둥근 프레임", 0x257C9D),
             new HeadlineTemplate("타원", 0x6952AD, 60, 17, 60, 17), new HeadlineTemplate("기본 밑줄", 0x257C9D, 16, 8, 16, 21),
@@ -35,10 +44,28 @@ namespace gInk
             new HeadlineTemplate("사이버 HUD", 0x007FAD, 30, 15, 30, 15), new HeadlineTemplate("강조 알림", 0xCD3348, 73, 12, 29),
             new HeadlineTemplate("달과 구름", 0x213A76, 78, 13, 72), new HeadlineTemplate("웨이브", 0x1386A5, 20, 7, 43, 28),
         };
+        internal const int Count = 120;
 
         internal readonly string Name;
         private readonly Color accent;
         internal Color Accent => accent;
+        private Color? defaultFill;
+        internal bool HasFill => this != Original[(int)NoteBackgroundShape.Underline] &&
+            this != Original[(int)NoteBackgroundShape.Spotlight] && this != Original[(int)NoteBackgroundShape.Corners] &&
+            this != Original[(int)NoteBackgroundShape.Minimal] && this != Original[(int)NoteBackgroundShape.Sparkle] &&
+            this != Original[(int)NoteBackgroundShape.Speed];
+        internal Color DefaultFill
+        {
+            get
+            {
+                if (defaultFill.HasValue) return defaultFill.Value;
+                if (this == Original[(int)NoteBackgroundShape.Rectangle]) return Color.White;
+                if (this == Original[(int)NoteBackgroundShape.Quote] || this == Original[(int)NoteBackgroundShape.Classic] ||
+                    this == Original[(int)NoteBackgroundShape.Blossom] || this == Original[(int)NoteBackgroundShape.Paper] ||
+                    this == Original[(int)NoteBackgroundShape.Night] || this == Original[(int)NoteBackgroundShape.Wave]) return Pale(accent);
+                return Color.FromArgb(250, 252, 255);
+            }
+        }
         private readonly RectangleF text;
 
         private HeadlineTemplate(string name, int rgb, float left = 15, float top = 12, float right = 20, float bottom = 12)
@@ -57,9 +84,11 @@ namespace gInk
                 body.Y + (int)Math.Floor(text.Bottom * body.Height / H));
         }
 
-        internal static HeadlineTemplate Get(NoteBackgroundShape shape) => All[(int)shape];
+        internal static HeadlineTemplate Get(NoteBackgroundShape shape) =>
+            (int)shape < Original.Length ? Original[(int)shape] : Extra.Value[(int)shape - Original.Length];
 
-        internal static void Draw(Graphics graphics, Rectangle bounds, NoteBackgroundShape shape, int alpha, Color? frameColor)
+        internal static void Draw(Graphics graphics, Rectangle bounds, NoteBackgroundShape shape, int alpha,
+            Color? frameColor, Color? fillColor)
         {
             if (alpha <= 0 || bounds.Width < 2 || bounds.Height < 2) return;
             GraphicsState saved = graphics.Save();
@@ -68,17 +97,19 @@ namespace gInk
                 graphics.TranslateTransform(bounds.X, bounds.Y);
                 graphics.ScaleTransform(bounds.Width / W, bounds.Height / H);
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Get(shape).DrawDesign(graphics, shape, alpha, frameColor);
+                HeadlineTemplate template = Get(shape);
+                if ((int)shape < Original.Length) template.DrawDesign(graphics, shape, alpha, frameColor, fillColor);
+                else template.DrawExtra(graphics, (int)shape + 1, alpha, frameColor, fillColor);
             }
             finally { graphics.Restore(saved); }
         }
 
-        private void DrawDesign(Graphics g, NoteBackgroundShape shape, int alpha, Color? frameColor)
+        private void DrawDesign(Graphics g, NoteBackgroundShape shape, int alpha, Color? frameColor, Color? fillColor)
         {
             Color selected = frameColor ?? accent;
             Color color = Color.FromArgb(alpha, selected);
-            Color washColor = Color.FromArgb(alpha, Mix(selected, Color.White, 8, 9));
-            Color surfaceColor = frameColor.HasValue ? washColor : Color.FromArgb(alpha, 250, 252, 255);
+            Color washColor = Color.FromArgb(alpha, fillColor ?? Pale(accent));
+            Color surfaceColor = Color.FromArgb(alpha, fillColor ?? DefaultFill);
             // Keep the small decoration inside a colored badge readable even when its new fill is pale.
             bool light = 299 * selected.R + 587 * selected.G + 114 * selected.B > 165000;
             Color glyph = Color.FromArgb(alpha, frameColor.HasValue && light ? Color.FromArgb(28, 39, 55) : Color.White);
@@ -86,10 +117,11 @@ namespace gInk
             using (var tint = new SolidBrush(color))
             using (var pale = new SolidBrush(washColor))
             using (var paper = new SolidBrush(surfaceColor))
-            using (var whitePaper = new SolidBrush(frameColor.HasValue ? washColor : Color.FromArgb(alpha, Color.White)))
+            using (var whitePaper = new SolidBrush(Color.FromArgb(alpha, fillColor ?? Color.White)))
             using (var mark = new SolidBrush(glyph))
             using (var glyphLine = new Pen(mark, 2.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
             {
+                if (fillColor.HasValue && !HasFill) Box(g, paper, null, 5, 5, 350, 73, 10);
                 switch (shape)
                 {
                     case NoteBackgroundShape.Rectangle:
@@ -239,6 +271,8 @@ namespace gInk
             }
         }
 
+        internal static Color Pale(Color color) => Mix(color, Color.White, 8, 9);
+
         private static Color Mix(Color from, Color to, int part, int total)
         {
             return Color.FromArgb((from.R * (total - part) + to.R * part) / total,
@@ -310,55 +344,96 @@ namespace gInk
 
     internal sealed class HeadlineTemplatePicker : ToolStripDropDown
     {
-        private readonly Button[] choices = new Button[HeadlineTemplate.All.Length];
-        private Color? previewColor;
+        private const int PageSize = 30;
+        private readonly Button[] choices = new Button[PageSize];
+        private readonly Button[] categories = new Button[4];
+        private int page;
+        private NoteBackgroundShape current;
+        private Color? previewColor, previewFill;
         internal event Action<NoteBackgroundShape> Selected;
 
         internal HeadlineTemplatePicker()
         {
             Name = "HeadlineTemplatePicker";
             Padding = new Padding(3);
+            var surface = new Panel { Size = new Size(486, 464), Margin = Padding.Empty, BackColor = Color.FromArgb(237, 242, 248) };
+            string[] titles = { "기본 1–30", "모던 31–60", "캐릭터 61–90", "소품 91–120" };
+            for (int i = 0; i < categories.Length; i++)
+            {
+                int category = i;
+                var tab = new Button
+                {
+                    Name = "HeadlineCategory" + i, Text = titles[i], FlatStyle = FlatStyle.Flat,
+                    Bounds = new Rectangle(i * 121 + 1, 1, 120, 27), BackColor = Color.White
+                };
+                tab.FlatAppearance.BorderSize = 0;
+                tab.Click += delegate { ShowCategory(category); };
+                categories[i] = tab;
+                surface.Controls.Add(tab);
+            }
             var grid = new TableLayoutPanel
             {
-                Name = "HeadlineTemplateGrid", Size = new Size(426, 400), ColumnCount = 3,
+                Name = "HeadlineTemplateGrid", Bounds = new Rectangle(0, 30, 486, 434), ColumnCount = 3,
                 RowCount = 10, BackColor = Color.FromArgb(237, 242, 248), Margin = Padding.Empty
             };
             for (int column = 0; column < 3; column++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
             for (int row = 0; row < 10; row++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 10));
             for (int i = 0; i < choices.Length; i++)
             {
-                var shape = (NoteBackgroundShape)i;
                 var tile = new Button
                 {
-                    Name = "Template" + shape, AccessibleName = HeadlineTemplate.Get(shape).Name, Dock = DockStyle.Fill,
+                    Dock = DockStyle.Fill,
                     FlatStyle = FlatStyle.Flat, Margin = new Padding(1), BackColor = Color.White, TabIndex = i
                 };
                 tile.FlatAppearance.BorderSize = 0;
                 tile.Paint += (_, e) =>
                 {
                     var bounds = new Rectangle(5, 3, tile.Width - 10, tile.Height - 19);
-                    HeadlineTemplate.Draw(e.Graphics, bounds, shape, 255, previewColor);
+                    HeadlineTemplate.Draw(e.Graphics, bounds, (NoteBackgroundShape)tile.Tag, 255, previewColor, previewFill);
                     TextRenderer.DrawText(e.Graphics, tile.AccessibleName, SystemFonts.MessageBoxFont,
                         new Rectangle(2, bounds.Bottom, tile.Width - 4, 15), Color.FromArgb(32, 52, 74),
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
                 };
-                tile.Click += delegate { Close(ToolStripDropDownCloseReason.ItemClicked); Selected?.Invoke(shape); };
+                tile.Click += delegate
+                {
+                    var shape = (NoteBackgroundShape)tile.Tag;
+                    Close(ToolStripDropDownCloseReason.ItemClicked);
+                    Selected?.Invoke(shape);
+                };
                 choices[i] = tile;
                 grid.Controls.Add(tile, i % 3, i / 3);
             }
-            Items.Add(new ToolStripControlHost(grid) { AutoSize = false, Size = grid.Size, Margin = Padding.Empty });
+            surface.Controls.Add(grid);
+            ShowCategory(0);
+            Items.Add(new ToolStripControlHost(surface) { AutoSize = false, Size = surface.Size, Margin = Padding.Empty });
         }
 
-        internal void ShowFor(Button source, NoteBackgroundShape current, Color? color)
+        private void ShowCategory(int category)
         {
-            previewColor = color;
+            page = category;
+            for (int i = 0; i < categories.Length; i++)
+                categories[i].BackColor = i == page ? Color.FromArgb(216, 240, 255) : Color.White;
             for (int i = 0; i < choices.Length; i++)
             {
-                choices[i].BackColor = i == (int)current ? Color.FromArgb(216, 240, 255) : Color.White;
-                choices[i].FlatAppearance.BorderSize = i == (int)current ? 1 : 0;
-                choices[i].FlatAppearance.BorderColor = Color.FromArgb(50, 117, 169);
-                choices[i].Invalidate();
+                int index = page * PageSize + i;
+                var shape = (NoteBackgroundShape)index;
+                Button tile = choices[i];
+                tile.Name = "Template" + shape;
+                tile.AccessibleName = (index + 1).ToString("D2") + "  " + HeadlineTemplate.Get(shape).Name;
+                tile.Tag = shape;
+                tile.BackColor = shape == current ? Color.FromArgb(216, 240, 255) : Color.White;
+                tile.FlatAppearance.BorderSize = shape == current ? 1 : 0;
+                tile.FlatAppearance.BorderColor = Color.FromArgb(50, 117, 169);
+                tile.Invalidate();
             }
+        }
+
+        internal void ShowFor(Button source, NoteBackgroundShape selected, Color? color, Color? fill)
+        {
+            current = selected;
+            previewColor = color;
+            previewFill = fill;
+            ShowCategory((int)selected / PageSize);
             Show(source, new Point(source.Width, source.Height), ToolStripDropDownDirection.BelowLeft);
         }
     }

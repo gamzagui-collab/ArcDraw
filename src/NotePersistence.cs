@@ -255,7 +255,7 @@ namespace gInk
             internal bool IsHeadline;
             internal int BackgroundPercent;
             internal NoteBackgroundShape BackgroundShape;
-            internal Color? HeadlineFrameColor;
+            internal Color? HeadlineFrameColor, HeadlineFillColor;
         }
         private static string Required(XElement value,string name){XAttribute item=value.Attribute(name);if(item==null)throw new InvalidDataException("누락된 노트 속성: "+name);return item.Value;}
         private static int StoredInt(XElement value,string name){return int.Parse(Required(value,name),CultureInfo.InvariantCulture);}
@@ -272,10 +272,16 @@ namespace gInk
             result.BackgroundShape = DefaultBackgroundShape(result.IsHeadline);
             if (result.IsHeadline && Enum.TryParse((string)element.Attribute("shape"), out NoteBackgroundShape shape) &&
                 Enum.IsDefined(typeof(NoteBackgroundShape), shape)) result.BackgroundShape = shape;
-            string frameColor = (string)element.Attribute("frameColor");
-            if (result.IsHeadline && frameColor?.Length == 6 &&
-                int.TryParse(frameColor, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int rgb))
-                result.HeadlineFrameColor = Color.FromArgb(unchecked((int)0xff000000) | rgb);
+            if (result.IsHeadline)
+            {
+                result.HeadlineFrameColor = ReadHeadlineColor(element.Attribute("frameColor"));
+                XAttribute fill = element.Attribute("frameFill");
+                result.HeadlineFillColor = ReadHeadlineColor(fill);
+                // v0.50 derived the inside tint from a custom frame color.
+                if (fill == null && result.HeadlineFrameColor.HasValue &&
+                    HeadlineTemplate.Get(result.BackgroundShape).HasFill)
+                    result.HeadlineFillColor = HeadlineTemplate.Pale(result.HeadlineFrameColor.Value);
+            }
             if(result.Number<=0||result.Number==int.MaxValue||result.Name.Length==0||result.Name.Length>40||result.Bounds.Width<1||result.Bounds.Height<1||result.Bounds.Width>32767||result.Bounds.Height>32767||
                 Math.Abs((long)result.Bounds.X)>100000||Math.Abs((long)result.Bounds.Y)>100000)throw new InvalidDataException("노트 위치/번호를 확인해 주세요.");
             XElement memo=element.Element("MemoStyle");if(memo==null)throw new InvalidDataException("노트 메모 속성이 없습니다.");
@@ -305,6 +311,7 @@ namespace gInk
                 {restored.Load(data.Ink);using(Strokes strokes=restored.Strokes)ink.Ink.AddStrokesAtRectangle(strokes,strokes.GetBoundingBox());}
                 textItems.Clear();textItems.AddRange(CopyText(data.Text));SetDisplayName(data.Name);UserHidden=data.Hidden;
                 headlineFrameColor = data.HeadlineFrameColor;
+                headlineFillColor = data.HeadlineFillColor;
                 RestoreNoteBackground(data.BackgroundPercent, data.BackgroundShape);
                 memoFontFamily=data.Family;memoFontPoints=data.Points;memoFontStyle=data.Style;memoColor=data.Color;
                 history.Clear();history.Add(new NoteState {Ink=data.Ink,Text=CopyText(textItems)});historyPosition=0;snapshotPending=false;
@@ -343,12 +350,23 @@ namespace gInk
             {
                 result.SetAttributeValue("headline", true);
                 result.SetAttributeValue("shape", backgroundShape.ToString());
-                if (headlineFrameColor.HasValue)
-                    result.SetAttributeValue("frameColor", (headlineFrameColor.Value.ToArgb() & 0xffffff).ToString("X6", CultureInfo.InvariantCulture));
+                if (headlineFrameColor.HasValue) result.SetAttributeValue("frameColor", FormatHeadlineColor(headlineFrameColor.Value));
+                result.SetAttributeValue("frameFill", headlineFillColor.HasValue ? FormatHeadlineColor(headlineFillColor.Value) : "default");
             }
             foreach(var item in text)result.Add(new XElement("Text",new XAttribute("x",item.Position.X),new XAttribute("y",item.Position.Y),new XAttribute("width",item.LayoutWidth),new XAttribute("color",item.Color.ToArgb()),
                 new XAttribute("family",item.FontFamily),new XAttribute("points",item.FontSize.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)item.FontStyle),new XAttribute("memo",item.IsMemo),new XElement("Content",item.Content??"")));
             return true;
         }
+
+        private static Color? ReadHeadlineColor(XAttribute attribute)
+        {
+            string value = (string)attribute;
+            if (value?.Length != 6 || !int.TryParse(value, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int rgb))
+                return null;
+            return Color.FromArgb(unchecked((int)0xff000000) | rgb);
+        }
+
+        private static string FormatHeadlineColor(Color color) =>
+            (color.ToArgb() & 0xffffff).ToString("X6", CultureInfo.InvariantCulture);
     }
 }

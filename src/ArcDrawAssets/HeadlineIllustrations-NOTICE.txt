@@ -1,0 +1,9 @@
+ArcDraw headline illustrations (templates 61–120)
+
+Contains Noto Emoji PNG images by Google and the Noto Emoji contributors.
+Copyright 2013 Google LLC.
+Source: https://github.com/googlefonts/noto-emoji/tree/99701e07d3d1fe1bdbcdb14964547f0fd592966f/png/128
+The PNG files were renamed to the ArcDraw template numbers. ArcDraw scales
+and composites these illustrations over its own headline frames.
+Licensed under the Apache License, Version 2.0. The full license is in
+HeadlineIllustrations.zip as LICENSE.txt.

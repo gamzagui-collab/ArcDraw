@@ -14,9 +14,9 @@ namespace gInk
         private static readonly Color PaperKey = Color.FromArgb(254, 253, 252);
         private int backgroundPercent = 100;
         private NoteBackgroundShape backgroundShape;
-        private Color? headlineFrameColor;
+        private Color? headlineFrameColor, headlineFillColor;
         private NoteBackgroundSlider backgroundSlider;
-        private Button backgroundShapeButton, headlineColorButton;
+        private Button backgroundShapeButton, headlineColorButton, headlineFillButton, headlinePaletteAnchor;
         private HeadlineTemplatePicker backgroundMenu;
         private ToolbarColorPalette headlineColorPalette;
         private NoteVisualWindow backgroundVisual;
@@ -44,35 +44,22 @@ namespace gInk
                 backgroundMenu = new HeadlineTemplatePicker();
                 backgroundMenu.Selected += shape => ChangeNoteBackground(backgroundPercent, shape);
                 backgroundMenu.Closed += delegate { RefreshHeadlineChrome(); };
+                backgroundSlider.Width = 62;
                 backgroundShapeButton = new Button
                 {
                     Name = "HeadlineShape", Text = "모양", AccessibleName = "헤드라인 디자인 선택",
-                    Size = new Size(44, 26), Top = 4, TabStop = false,
+                    Size = new Size(38, 26), Top = 4, TabStop = false,
                     FlatStyle = FlatStyle.Flat, BackColor = titleBar.BackColor, ForeColor = title.ForeColor
                 };
                 backgroundShapeButton.FlatAppearance.BorderSize = 0;
                 backgroundShapeButton.Click += delegate
                 {
                     headlineColorPalette?.Hide();
-                    backgroundMenu.ShowFor(backgroundShapeButton, backgroundShape, headlineFrameColor);
+                    backgroundMenu.ShowFor(backgroundShapeButton, backgroundShape, headlineFrameColor, headlineFillColor);
                 };
                 titleBar.Controls.Add(backgroundShapeButton);
-                headlineColorButton = new ToolbarColorPalette.PaletteButton
-                {
-                    Name = "HeadlineFrameColor", AccessibleName = "헤드라인 프레임 색상", Text = "색상",
-                    TextAlign = ContentAlignment.MiddleRight, Size = new Size(54, 26), Top = 4,
-                    BackColor = titleBar.BackColor, ForeColor = title.ForeColor
-                };
-                headlineColorButton.FlatAppearance.BorderSize = 0;
-                headlineColorButton.Paint += (_, e) =>
-                {
-                    using (var brush = new SolidBrush(EffectiveHeadlineFrameColor))
-                        e.Graphics.FillEllipse(brush, 4, 7, 12, 12);
-                    using (var outline = new Pen(Color.FromArgb(100, 100, 116)))
-                        e.Graphics.DrawEllipse(outline, 4, 7, 12, 12);
-                };
-                headlineColorButton.Click += delegate { ToggleHeadlineColorPalette(); };
-                titleBar.Controls.Add(headlineColorButton);
+                headlineColorButton = AddHeadlineColorButton("HeadlineFrameColor", "테두리", 56, false);
+                headlineFillButton = AddHeadlineColorButton("HeadlineFillColor", "배경", 46, true);
                 headlineHoverTimer = new Timer { Interval = 45 };
                 headlineHoverTimer.Tick += delegate { RefreshHeadlineChrome(); };
             }
@@ -86,7 +73,7 @@ namespace gInk
             LocationChanged += delegate
             {
                 if (backgroundVisual != null) backgroundVisual.Location = Location;
-                if (headlineColorPalette?.Visible == true) headlineColorPalette.PlaceAt(headlineColorButton);
+                if (headlineColorPalette?.Visible == true) headlineColorPalette.PlaceAt(headlinePaletteAnchor);
             };
             SizeChanged += delegate { QueueNoteVisual(); };
             VisibleChanged += delegate { UpdateNoteBackground(); };
@@ -114,7 +101,7 @@ namespace gInk
                 if (headlineColorPalette?.Visible == true &&
                     (Control.MouseButtons & MouseButtons.Left) != 0 &&
                     !headlineColorPalette.Bounds.Contains(pointer) &&
-                    !headlineColorButton.RectangleToScreen(headlineColorButton.ClientRectangle).Contains(pointer))
+                    !headlinePaletteAnchor.RectangleToScreen(headlinePaletteAnchor.ClientRectangle).Contains(pointer))
                     headlineColorPalette.Hide();
                 bool interacting = backgroundSlider.Capture || grips.Values.Any(grip => grip.Capture) ||
                     (dragging && (titleBar.Capture || title.Capture));
@@ -142,6 +129,11 @@ namespace gInk
                 backgroundShapeButton.Left = right - backgroundShapeButton.Width;
                 right = backgroundShapeButton.Left - 4;
             }
+            if (headlineFillButton != null)
+            {
+                headlineFillButton.Left = right - headlineFillButton.Width;
+                right = headlineFillButton.Left - 4;
+            }
             if (headlineColorButton != null)
             {
                 headlineColorButton.Left = right - headlineColorButton.Width;
@@ -168,41 +160,76 @@ namespace gInk
             backgroundShape = shape;
             backgroundSlider.Value = percent;
             headlineColorButton?.Invalidate();
+            headlineFillButton?.Invalidate();
             ResizeMemoEditor();
             UpdateNoteBackground();
         }
 
-        private Color EffectiveHeadlineFrameColor => headlineFrameColor ?? HeadlineTemplate.Get(backgroundShape).Accent;
+        private Button AddHeadlineColorButton(string name, string label, int width, bool fill)
+        {
+            var button = new ToolbarColorPalette.PaletteButton
+            {
+                Name = name, AccessibleName = "헤드라인 " + label + " 색상", Text = label,
+                TextAlign = ContentAlignment.MiddleRight, Size = new Size(width, 26), Top = 4,
+                BackColor = titleBar.BackColor, ForeColor = title.ForeColor
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.Paint += (_, e) =>
+            {
+                using (var brush = new SolidBrush(EffectiveHeadlineColor(fill)))
+                    e.Graphics.FillEllipse(brush, 3, 8, 10, 10);
+                using (var outline = new Pen(Color.FromArgb(100, 100, 116)))
+                    e.Graphics.DrawEllipse(outline, 3, 8, 10, 10);
+            };
+            button.Click += delegate { ToggleHeadlineColorPalette(button, fill); };
+            titleBar.Controls.Add(button);
+            return button;
+        }
 
-        private void ToggleHeadlineColorPalette()
+        private Color EffectiveHeadlineColor(bool fill)
+        {
+            HeadlineTemplate template = HeadlineTemplate.Get(backgroundShape);
+            return fill ? headlineFillColor ?? template.DefaultFill : headlineFrameColor ?? template.Accent;
+        }
+
+        private void ToggleHeadlineColorPalette(Button anchor, bool fill)
         {
             if (headlineColorPalette?.Visible == true)
             {
                 headlineColorPalette.Hide();
-                return;
+                if (headlinePaletteAnchor == anchor) return;
             }
+            headlinePaletteAnchor = anchor;
             if (headlineColorPalette == null)
             {
-                headlineColorPalette = new ToolbarColorPalette(color => SetHeadlineFrameColor(color),
-                    () => SetHeadlineFrameColor(null)) { Name = "HeadlineFramePalette", Owner = this };
+                headlineColorPalette = new ToolbarColorPalette(color => SetHeadlineColor(color),
+                    () => SetHeadlineColor(null)) { Name = "HeadlineFramePalette", Owner = this };
                 headlineColorPalette.VisibleChanged += delegate { RefreshHeadlineChrome(); };
                 headlineColorPalette.SizeChanged += delegate
                 {
-                    if (headlineColorPalette.Visible) headlineColorPalette.PlaceAt(headlineColorButton);
+                    if (headlineColorPalette.Visible) headlineColorPalette.PlaceAt(headlinePaletteAnchor);
                 };
             }
-            headlineColorPalette.SetCurrentColor(EffectiveHeadlineFrameColor);
-            headlineColorPalette.PlaceAt(headlineColorButton);
+            headlineColorPalette.SetCurrentColor(EffectiveHeadlineColor(fill));
+            headlineColorPalette.PlaceAt(anchor);
             headlineColorPalette.Show();
             headlineColorPalette.RaiseWithoutActivation();
         }
 
-        private void SetHeadlineFrameColor(Color? color)
+        private void SetHeadlineColor(Color? color)
         {
             headlineColorPalette?.Hide();
-            if (headlineFrameColor == color) return;
-            headlineFrameColor = color;
-            headlineColorButton.Invalidate();
+            if (headlinePaletteAnchor == headlineFillButton)
+            {
+                if (headlineFillColor == color) return;
+                headlineFillColor = color;
+            }
+            else
+            {
+                if (headlineFrameColor == color) return;
+                headlineFrameColor = color;
+            }
+            headlinePaletteAnchor.Invalidate();
             QueueNoteVisual();
             manager.NotesChanged();
         }
@@ -360,7 +387,7 @@ namespace gInk
         {
             if (backgroundPercent == 0 || body.Width < 2 || body.Height < 2) return;
             int alpha = (int)Math.Round(255 * backgroundPercent / 100.0);
-            if (IsHeadline) HeadlineTemplate.Draw(graphics, body, backgroundShape, alpha, headlineFrameColor);
+            if (IsHeadline) HeadlineTemplate.Draw(graphics, body, backgroundShape, alpha, headlineFrameColor, headlineFillColor);
             else using (var brush = new SolidBrush(Color.FromArgb(alpha, Color.White))) graphics.FillRectangle(brush, body);
         }
 
