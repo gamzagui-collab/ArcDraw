@@ -29,6 +29,7 @@ namespace gInk
         }
         private string memoFontFamily="Malgun Gothic";
         private float memoFontPoints=17f;
+        internal const int MinimumMemoPoints = 6;
         private FontStyle memoFontStyle=FontStyle.Regular;
         private Color memoColor=Color.FromArgb(24,33,46);
         private NoteTextItem MemoItem {get{return textItems.Find(item=>item.IsMemo);}}
@@ -44,6 +45,45 @@ namespace gInk
             if(MemoItem!=null)QueueHistorySnapshot();manager.NotesChanged();paper.Invalidate();return true;
         }
         internal bool IsMemoEditor {get{return editingMemo&&IsEditingText;}}
+        internal int? LiveMemoSize => IsMemoEditor ? (int?)Math.Round(editorFont.SizeInPoints) : null;
+        private int pendingMemoPoints;
+
+        internal void SetLiveMemoSize(int points)
+        {
+            if (!IsMemoEditor || completingEditor) return;
+            if (pendingMemoPoints != 0)
+            {
+                pendingMemoPoints = points;
+                return;
+            }
+            NoteTextEditor editor = textEditor;
+            if (editor.HasComposition())
+            {
+                pendingMemoPoints = points;
+                editor.FinishComposition(true);
+                // Let EDIT receive the Korean result before WM_SETFONT.
+                editor.BeginInvoke(new Action(delegate
+                {
+                    if (textEditor != editor) return;
+                    int next = pendingMemoPoints;
+                    pendingMemoPoints = 0;
+                    ApplyLiveMemoSize(next);
+                }));
+                return;
+            }
+            ApplyLiveMemoSize(points);
+        }
+
+        private void ApplyLiveMemoSize(int points)
+        {
+            if (points == 0 || editorFont.SizeInPoints == points) return;
+            Font previous = editorFont;
+            editorFont = new Font(previous.Name, points, previous.Style, GraphicsUnit.Point,
+                previous.GdiCharSet, previous.GdiVerticalFont);
+            textEditor.Font = editorFont;
+            previous.Dispose();
+            manager.NotesChanged();
+        }
         private void EndTextInputFromHeader()
         {
             bool resume=memoPaused||MemoTargetMode||IsMemoEditor;

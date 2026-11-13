@@ -18,6 +18,7 @@ namespace gInk
 
         internal const int BrushMaximum = 200;
         internal const int TextMaximum = 144;
+        private int minimum = 1;
         internal int Maximum { get; private set; } = BrushMaximum;
         internal bool IsDragging { get { return dragging; } }
         internal Color SampleColor
@@ -30,7 +31,7 @@ namespace gInk
             get { return value; }
             set
             {
-                int next = Math.Max(1, Math.Min(Maximum, value));
+                int next = Math.Max(minimum, Math.Min(Maximum, value));
                 if (this.value == next) return;
                 this.value = next;
                 Invalidate();
@@ -39,13 +40,14 @@ namespace gInk
 
         internal event Action<int> Dragged;
 
-        internal void SetMode(bool text, int maximum)
+        internal void SetMode(bool text, int maximum, int minimum = 1)
         {
             string next = text ? "pt" : "px";
-            if (unit == next && Maximum == maximum) return;
+            if (unit == next && Maximum == maximum && this.minimum == minimum) return;
             Capture = false;
             unit = next;
             Maximum = maximum;
+            this.minimum = minimum;
             AccessibleName = text ? "글자 크기 (포인트)" : "브러시 크기 (픽셀)";
             Invalidate();
         }
@@ -96,7 +98,7 @@ namespace gInk
         {
             y = PointToScreen(new Point(0, y)).Y - dragTop;
             double fraction = Math.Max(0, Math.Min(1, (TrackBottom - y) / (double)(TrackBottom - TrackTop)));
-            int next = 1 + (int)Math.Round((Maximum - 1) * fraction * fraction);
+            int next = minimum + (int)Math.Round((Maximum - minimum) * fraction * fraction);
             if (Value == next) return;
             Value = next;
             Dragged?.Invoke(Value);
@@ -108,7 +110,7 @@ namespace gInk
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.FromArgb(31, 34, 40));
             int middle = Width / 2;
-            float thumb = TrackBottom - (float)Math.Sqrt((Value - 1.0) / (Maximum - 1)) * (TrackBottom - TrackTop);
+            float thumb = TrackBottom - (float)Math.Sqrt((Value - (double)minimum) / (Maximum - minimum)) * (TrackBottom - TrackTop);
             using (var track = new Pen(Color.FromArgb(94, 101, 112), 4) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             using (var active = new Pen(Color.FromArgb(79, 216, 219), 4) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             using (var sample = new SolidBrush(SampleColor))

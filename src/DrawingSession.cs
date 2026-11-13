@@ -21,6 +21,7 @@ namespace gInk
         private readonly DrawingTargetSwitcher targetSwitcher;
         private DrawingSizeSidebar sizeSidebar;
         private FormInput sizeEditor;
+        private WhiteboardLayerForm sizeNote;
         private bool sizingText;
         private bool targetSwitching;
         private int targetSwitchEpoch;
@@ -330,8 +331,13 @@ namespace gInk
             FormCollection host = root.FormCollection;
             FormInput editor = root.FormDisplay?.ScreenTextEditor;
             if (editor != null && (!editor.Visible || editor.IsDisposed)) editor = null;
-            bool text = editor != null || root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned;
-            bool canSize = editor == null ? !editing : !OptionsOpen && !ModalWindowOpen(editor);
+            WhiteboardLayerForm note = root.Whiteboards?.ActiveNote;
+            WhiteboardLayerForm memo = editor == null && note != null && note.Visible && note.IsMemoEditor ? note : null;
+            bool text = editor != null || memo != null || (note == null &&
+                (root.ToolSelected == Tools.txtLeftAligned || root.ToolSelected == Tools.txtRightAligned));
+            bool canSize = editor == null && memo == null ? !editing :
+                !OptionsOpen && !SelectingTarget && !ModalWindowOpen(editor) &&
+                (root.FormOptions == null || !root.FormOptions.Visible);
             bool visible = DrawingEnabled && canSize && !root.Docked && !ToolbarHidden &&
                 !root.PointerMode && !root.EraserMode && !root.PanMode && !root.LassoMode &&
                 root.Snapping == 0 && !root.UponTakingSnap &&
@@ -339,7 +345,12 @@ namespace gInk
             if (!visible)
             {
                 sizeEditor = null;
-                if (sizeSidebar != null && sizeSidebar.Visible) sizeSidebar.Hide();
+                sizeNote = null;
+                if (sizeSidebar != null && sizeSidebar.Visible)
+                {
+                    sizeSidebar.Slider.Capture = false;
+                    sizeSidebar.Hide();
+                }
                 return;
             }
             if (sizeSidebar == null || sizeSidebar.IsDisposed)
@@ -347,9 +358,10 @@ namespace gInk
                 sizeSidebar = new DrawingSizeSidebar { Owner = host };
                 sizeSidebar.Slider.Dragged += SetSizeFromSlider;
             }
-            bool changed = sizeEditor != editor || sizingText != text;
+            bool changed = sizeEditor != editor || sizeNote != memo || sizingText != text;
             if (changed) sizeSidebar.Slider.Capture = false;
             sizeEditor = editor;
+            sizeNote = memo;
             sizingText = text;
             if (text || changed || !sizeSidebar.Visible) RefreshSizeSlider();
             if (!sizeSidebar.Slider.IsDragging)
@@ -361,12 +373,20 @@ namespace gInk
             }
             if (!sizeSidebar.Visible) sizeSidebar.Show();
             if (editor != null) sizeSidebar.EnableForTextEditor();
+            if (memo != null && changed) sizeSidebar.RaiseWithoutActivation();
         }
 
         private void SetSizeFromSlider(int value)
         {
             if (sizeEditor != null) sizeEditor.SetLiveTextSize(value);
-            else if (sizingText) root.FormCollection.TextSize = value;
+            else if (sizeNote != null)
+            {
+                if (sizeNote == root.Whiteboards.ActiveNote) sizeNote.SetLiveMemoSize(value);
+            }
+            else if (sizingText)
+            {
+                if (root.Whiteboards?.ActiveNote == null) root.FormCollection.TextSize = value;
+            }
             else root.FormCollection.SetPenSizeFromSlider(value);
         }
 
@@ -377,8 +397,11 @@ namespace gInk
             FormCollection host = root.FormCollection;
             if (sizingText)
             {
-                slider.SetMode(true, sizeEditor?.MaximumTextSize ?? VerticalSizeSlider.TextMaximum);
-                slider.Value = sizeEditor?.LiveTextSize ?? host.TextSize;
+                int? memoPoints = sizeNote?.LiveMemoSize;
+                if (sizeNote != null && !memoPoints.HasValue) return;
+                slider.SetMode(true, sizeEditor?.MaximumTextSize ?? VerticalSizeSlider.TextMaximum,
+                    sizeNote == null ? 1 : WhiteboardLayerForm.MinimumMemoPoints);
+                slider.Value = memoPoints ?? sizeEditor?.LiveTextSize ?? host.TextSize;
             }
             else
             {

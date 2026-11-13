@@ -214,6 +214,11 @@ namespace gInk
                 if (save && !old.IsDisposed)
                 {
                     string content = old.Text;
+                    if (wasMemo && memoFontPoints != old.Font.SizeInPoints)
+                    {
+                        memoFontPoints = old.Font.SizeInPoints;
+                        manager.NotesChanged();
+                    }
                     if (editingMemo?content.Length>0:!String.IsNullOrWhiteSpace(content))
                     {
                         if (item == null)
@@ -231,6 +236,11 @@ namespace gInk
                         }
                         if(item.Content!=content)contentChanged=true;
                         item.Content = content;
+                        if (wasMemo && item.FontSize != old.Font.SizeInPoints)
+                        {
+                            item.FontSize = old.Font.SizeInPoints;
+                            contentChanged = true;
+                        }
                         if(item.IsMemo){item.Position=new Point(8,8);item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);}
                     }
                     else if (item != null) { textItems.Remove(item);contentChanged=true; }
@@ -239,6 +249,7 @@ namespace gInk
             finally
             {
                 textEditor = null;
+                pendingMemoPoints = 0;
                 editingText = null;
                 editingMemo=false;
                 paper.Controls.Remove(old);
@@ -370,12 +381,25 @@ namespace gInk
 
         internal void FinishComposition(bool commit)
         {
-            if (!composing || !IsHandleCreated || IsDisposed) return;
+            if (!IsHandleCreated || IsDisposed) return;
             IntPtr context = ImmGetContext(Handle);
             if (context == IntPtr.Zero) return;
-            try { ImmNotifyIME(context, 0x0015, commit ? 1u : 4u, 0); }
+            try
+            {
+                if (composing || ImmGetCompositionString(context, 8, IntPtr.Zero, 0) > 0)
+                    ImmNotifyIME(context, 0x0015, commit ? 1u : 4u, 0);
+            }
             finally { ImmReleaseContext(Handle, context); }
             composing = false;
+        }
+
+        internal bool HasComposition()
+        {
+            if (!IsHandleCreated || IsDisposed) return false;
+            IntPtr context = ImmGetContext(Handle);
+            if (context == IntPtr.Zero) return false;
+            try { return ImmGetCompositionString(context, 8, IntPtr.Zero, 0) > 0; }
+            finally { ImmReleaseContext(Handle, context); }
         }
 
         [DllImport("imm32.dll")]
@@ -384,5 +408,7 @@ namespace gInk
         private static extern bool ImmReleaseContext(IntPtr window, IntPtr context);
         [DllImport("imm32.dll")]
         private static extern bool ImmNotifyIME(IntPtr context, uint action, uint index, uint value);
+        [DllImport("imm32.dll", CharSet = CharSet.Unicode)]
+        private static extern int ImmGetCompositionString(IntPtr context, uint index, IntPtr buffer, uint size);
     }
 }
