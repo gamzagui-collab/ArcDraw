@@ -75,6 +75,11 @@ namespace gInk
 
         private void PaperPaint(object sender, PaintEventArgs e)
         {
+            if (!renderingNote) PaintNoteContents(e.Graphics, false);
+        }
+
+        private void PaintNoteContents(Graphics graphics, bool composite)
+        {
             InkOverlay ink;
             if (!BeginInkUse(out ink))
             {
@@ -91,18 +96,28 @@ namespace gInk
                     if (strokes.Count > 0)
                     {
                         if (closing) return;
-                        DrawNoteStrokes(e.Graphics,ink,strokes);
+                        DrawNoteStrokes(graphics,ink,strokes,composite);
                     }
                 }
                 if (closing) return;
-                DrawNotePreview(e.Graphics);
+                if (composite && previewInkStroke != null && !previewInkStroke.Deleted)
+                    DrawNoteStrokePreview(graphics, ink, previewInkStroke);
+                DrawNotePreview(graphics);
                 foreach (NoteTextItem item in textItems.ToArray())
                 {
                     if (item == editingText) continue;
                     if(item.IsMemo)item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);
                     using (Font font = item.CreateFont())
-                        TextRenderer.DrawText(e.Graphics, item.Content, font,
-                            GetTextBounds(item, font), item.Color, TextFlags);
+                    {
+                        Rectangle bounds = GetTextBounds(item, font);
+                        if (composite)
+                        {
+                            using (var brush = new SolidBrush(item.Color))
+                            using (var format = new StringFormat(StringFormat.GenericDefault))
+                                graphics.DrawString(item.Content, font, brush, bounds, format);
+                        }
+                        else TextRenderer.DrawText(graphics, item.Content, font, bounds, item.Color, TextFlags);
+                    }
                 }
             }
             finally { EndInkUse(); }
@@ -175,7 +190,7 @@ namespace gInk
             editor.MaxLength = 0;
             editor.Font = editorFont;
             editor.ForeColor = item == null ? (memo?MemoColor:GetReadableTextColor()) : item.Color;
-            editor.BackColor = memo?Color.White:Color.FromArgb(255, 254, 240);
+            editor.BackColor = memo ? (useBackgroundVisual ? PaperKey : Color.White) : Color.FromArgb(255, 254, 240);
             editor.BorderStyle = memo?BorderStyle.None:BorderStyle.FixedSingle;
             editor.Location = origin;
             int width = item == null ? Math.Min(640, Math.Max(90, paper.ClientSize.Width - origin.X - 8))
@@ -193,6 +208,7 @@ namespace gInk
                     FinishEditing(true);
             };
             textEditor = editor;
+            WatchNoteEditor(editor);
             paper.Controls.Add(editor);
             editor.BringToFront();
             editor.Focus();
@@ -326,6 +342,7 @@ namespace gInk
                 noteHaloCursor?.Dispose();
                 noteHaloCursor = null;
                 appliedNoteInkCursor = null;
+                DisposeNoteBackground();
             }
             base.Dispose(disposing);
         }

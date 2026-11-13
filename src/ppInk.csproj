@@ -213,6 +213,7 @@
     <Compile Include="DrawingSettings.cs" />
     <Compile Include="DrawingSettingsDialog.cs" />
     <Compile Include="NoteSession.cs" />
+    <Compile Include="NoteBackground.cs" />
     <Compile Include="NoteIdentity.cs" />
     <Compile Include="NoteMemo.cs" />
     <Compile Include="NotePersistence.cs" />

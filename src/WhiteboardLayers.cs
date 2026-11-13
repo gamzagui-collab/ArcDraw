@@ -32,6 +32,7 @@ namespace gInk
         private Control followedToolbar;
         private bool positioningBar;
         private bool updatingNoteVisibility;
+        private bool creatingNote;
         private bool selectingScreen;
         private int screenDrawingTool=Tools.Hand,screenDrawingFill=Filling.Empty,pendingScreenTool=-1;
         private bool CanShowNotes {get{return open&&(root.DrawingSession==null||!root.DrawingSession.Running||root.DrawingSession.CapsOn);}}
@@ -247,7 +248,30 @@ namespace gInk
             bar.Hide();
         }
 
+        internal WhiteboardLayerForm Headline => notes.Find(note => note.IsHeadline);
+
+        public void ToggleHeadline()
+        {
+            if (disposed) return;
+            WhiteboardLayerForm headline = Headline;
+            if (headline == null) AddNote(true);
+            else ToggleVisibility(headline);
+        }
+
         public void AddNote()
+        {
+            AddNote(false);
+        }
+
+        private void AddNote(bool headline)
+        {
+            if (creatingNote) return;
+            creatingNote = true;
+            try { AddNoteCore(headline); }
+            finally { creatingNote = false; }
+        }
+
+        private void AddNoteCore(bool headline)
         {
             if (disposed) return;
             if (!open) Show();
@@ -255,7 +279,15 @@ namespace gInk
             WhiteboardLayerForm note;
             try
             {
-                note = new WhiteboardLayerForm(this, nextId++, DefaultNoteBounds());
+                Rectangle bounds = DefaultNoteBounds();
+                if (headline)
+                {
+                    Rectangle work = Screen.FromRectangle(bounds).WorkingArea;
+                    bounds.Width = Math.Min(work.Width, Math.Max(420, work.Width / 3));
+                    bounds.Height = 148;
+                    bounds.X = work.Left + (work.Width - bounds.Width) / 2;
+                }
+                note = new WhiteboardLayerForm(this, nextId++, bounds, headline);
             }
             catch (Exception ex)
             {
@@ -264,6 +296,7 @@ namespace gInk
                 return;
             }
             notes.Add(note);
+            active?.FinishEditing(true);
             note.MemoTargetMode=IsTextTool(root.ToolSelected);
             if(root.DrawingSession!=null)note.SetInputPassThrough(!root.DrawingSession.DrawingEnabled);
             if (CanShowNotes&&note.Owner == null) note.Show(root.FormCollection);
@@ -353,6 +386,11 @@ namespace gInk
         public void Remove(WhiteboardLayerForm note)
         {
             if (disposed || note == null || !notes.Contains(note) || changingNoteArchive) return;
+            if (note.IsHeadline)
+            {
+                if (!note.UserHidden) ToggleVisibility(note);
+                return;
+            }
             changingNoteArchive = true;
             try
             {
@@ -458,6 +496,7 @@ namespace gInk
         private readonly ToolTip tips;
         private bool rebuildPending;
         private Button screenButton;
+        private Button headlineButton;
         private ToolbarTheme theme=new ToolbarTheme();
         private int scalePercent=100;
 
@@ -487,6 +526,13 @@ namespace gInk
         public void UpdateSessionDisplay()
         {
             if(screenButton==null||screenButton.IsDisposed)return;
+            if (headlineButton != null && !headlineButton.IsDisposed)
+            {
+                WhiteboardLayerForm headline = manager.Headline;
+                string headlineText = headline == null ? "＋ 헤드라인" :
+                    headline.UserHidden ? "헤드라인 사용" : "헤드라인 숨기기";
+                if (headlineButton.Text != headlineText) headlineButton.Text = headlineText;
+            }
             bool screen=manager.ActiveNote==null;
             string text=screen?"✓ 화면":"화면";
             Color background=screen?theme.Accent:theme.Surface,foreground=screen?Color.White:theme.Text;
@@ -572,7 +618,7 @@ namespace gInk
             int hintHeight=Math.Max(18,(int)Math.Round(20*scale));
             // The card can sit beside a tall toolbar. Use the whole work area,
             // and wrap persistent note rows into columns instead of a popup menu.
-            int rows=Math.Min(manager.Notes.Count,Math.Max(1,(work.Height-24-hintHeight)/cell-5));
+            int rows=Math.Min(manager.Notes.Count,Math.Max(1,(work.Height-24-hintHeight)/cell-6));
             int neededColumns=rows==0?1:(manager.Notes.Count+rows-1)/rows;
             int columns=Math.Min(neededColumns,Math.Max(1,(work.Width-4)/(inner+4)));
             bool scroll=columns<neededColumns;
@@ -641,6 +687,10 @@ namespace gInk
             }
             noteItems.AutoScroll=scroll;noteItems.Size=new Size(listWidth,listHeight);noteItems.Visible=rows>0;
             noteItems.ResumeLayout(true);items.Controls.Add(noteItems);
+            headlineButton = NewButton("＋ 헤드라인", listWidth);
+            headlineButton.Name = "ToggleHeadline";
+            headlineButton.Click += delegate { manager.ToggleHeadline(); };
+            items.Controls.Add(headlineButton);
             Button info=NewButton(ArcDrawBranding.ToolbarCredit,listWidth);info.Name="ArcDrawAbout";
             info.Font=new Font("Malgun Gothic",7.5f);
             info.Click+=delegate {ArcDrawBranding.ShowInfo(manager.CurrentRoot.FormCollection);};
@@ -656,7 +706,7 @@ namespace gInk
                 Font=new Font("Malgun Gothic",8f),AutoSize=false};
             altHint.Disposed+=delegate {altHint.Font.Dispose();};
             items.Controls.Add(altHint);
-            Width=listWidth+8;Height=5*cell+listHeight+8+hintHeight;
+            Width=listWidth+8;Height=6*cell+listHeight+8+hintHeight;
             foreach(Control control in items.Controls)control.Margin=new Padding(0);
             items.ResumeLayout(true);
             UpdateSelection();
@@ -670,7 +720,17 @@ namespace gInk
             Button title=NewButton(note.DisplayName,1);title.Name="NoteLayerTitle";title.AutoEllipsis=true;title.Tag=note;
             title.ContextMenuStrip=manager.NoteContextMenu;title.Click+=delegate {manager.SetActive(note);};
             Button toggle=NewButton("●",1);toggle.Name="ToggleNoteVisibility";toggle.AccessibleName="노트 표시/숨김";toggle.Click+=delegate {manager.ToggleVisibility(note);};
-            Button close=NewButton("×",1);close.Name="DeleteWhiteboardNote";close.AccessibleName="노트 삭제";close.Click+=delegate {manager.Remove(note);};
+            Button close=NewButton("×",1);
+            close.Name="DeleteWhiteboardNote";
+            close.AccessibleName="노트 삭제";
+            if (note.IsHeadline)
+            {
+                close.Text = "";
+                close.Name = "HeadlineRowSpacer";
+                close.AccessibleName = "";
+                close.Enabled = false;
+            }
+            else close.Click+=delegate {manager.Remove(note);};
             row.Controls.AddRange(new Control[]{title,toggle,close});return row;
         }
 
@@ -720,18 +780,20 @@ namespace gInk
 
         private enum ResizeCorner { None, TopLeft, TopRight, BottomLeft, BottomRight }
         public int Number { get; private set; }
+        public bool IsHeadline { get; }
         public bool UserHidden { get; set; }
-        public WhiteboardLayerForm(WhiteboardLayerManager manager, int number, Rectangle bounds)
+        public WhiteboardLayerForm(WhiteboardLayerManager manager, int number, Rectangle bounds, bool isHeadline = false)
         {
             this.manager = manager;
             Number = number;
+            IsHeadline = isHeadline;
             Text = "노트 " + number;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             TopMost = true;
             KeyPreview = true;
-            MinimumSize = new Size(270, 185);
+            MinimumSize = isHeadline ? new Size(320, 105) : new Size(270, 185);
             BackColor = Color.White;
             Bounds = bounds;
 
@@ -767,7 +829,9 @@ namespace gInk
             titleBar.Controls.Add(title);
 
             Button close = new Button();
-            close.Text = "×";
+            close.Text = isHeadline ? "−" : "×";
+            close.AccessibleName = isHeadline ? "헤드라인 숨기기" : "노트 삭제";
+            close.Name = isHeadline ? "HideHeadline" : "CloseNote";
             close.Size = new Size(32, 27);
             close.Anchor = AnchorStyles.Right | AnchorStyles.Top;
             close.Location = new Point(Width - 39, 3);
@@ -803,6 +867,7 @@ namespace gInk
             layerInk.Enabled = true;
             snapshotPending=true;
             FlushHistorySnapshot();
+            InitializeNoteBackground();
             LocationChanged+=delegate {manager.NotesChanged();};
             SizeChanged+=delegate {manager.NotesChanged();};
         }
@@ -818,6 +883,7 @@ namespace gInk
         private void CreateGrip(ResizeCorner corner, System.Windows.Forms.Cursor cursor)
         {
             Panel handle = new Panel();
+            handle.Name = "NoteResize" + corner;
             handle.Size = new Size(15, 15);
             handle.Cursor = cursor;
             handle.BackColor = Color.FromArgb(184, 196, 214);

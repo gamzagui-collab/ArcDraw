@@ -126,7 +126,7 @@ namespace gInk
             if(value)
             {
                 SetWindowLong(Handle,-20,style|0x80000|0x20|0x08000000);
-                SetLayeredWindowAttributes(Handle,0,255,2);
+                SetLayeredWindowAttributes(Handle,0,(byte)Math.Round(Opacity * 255),2);
             }
             else SetWindowLong(Handle,-20,style&~0x20&~0x08000000);
             SyncInkTool(manager.CurrentRoot);

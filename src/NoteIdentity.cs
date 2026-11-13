@@ -93,7 +93,7 @@ namespace gInk
     public sealed partial class WhiteboardLayerForm
     {
         private string noteName;
-        public string DisplayName {get{return noteName??"노트 "+Number;}}
+        public string DisplayName {get{return noteName??(IsHeadline ? "헤드라인" : "노트 "+Number);}}
         internal void SetDisplayName(string value){noteName=value;Text=value;title.Text="⠿  "+value;title.AccessibleName=value;}
         private void InitializeNoteIdentity()
         {
@@ -101,7 +101,7 @@ namespace gInk
             var rename=new Button {Name="RenameNote",Text="✎",AccessibleName="노트 이름·메모 글꼴 설정",Size=new Size(27,27),Top=3,
                 FlatStyle=FlatStyle.Flat,BackColor=titleBar.BackColor,ForeColor=title.ForeColor,Cursor=Cursors.Hand,TabStop=false};
             rename.FlatAppearance.BorderSize=0;rename.Click+=delegate {manager.ShowRenameNote(this);};titleBar.Controls.Add(rename);
-            Action place=delegate {rename.Left=titleBar.ClientSize.Width-71;title.Width=Math.Max(40,rename.Left-title.Left-4);};
+            Action place=delegate {rename.Left=titleBar.ClientSize.Width-71;PlaceNoteTitle(rename.Left);};
             titleBar.Resize+=delegate {place();};place();
             // Shared by headers and list rows. Its lifetime belongs to the manager,
             // never to a Closed event or a rebuilt/disposed source button.

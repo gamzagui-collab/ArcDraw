@@ -153,22 +153,61 @@ namespace gInk
             finally{EndInkUse();}
             if(committed){QueueHistorySnapshot();SyncInkTool(manager.CurrentRoot);}
         }
-        private void DrawNoteStrokes(Graphics g,InkOverlay ink,Strokes strokes)
+        private void DrawNoteStrokes(Graphics g,InkOverlay ink,Strokes strokes,bool composite)
         {
-            if(!noteCustomInk){ink.Renderer.Draw(g,strokes);return;}
+            if(!composite&&!noteCustomInk){ink.Renderer.Draw(g,strokes);return;}
             foreach(Stroke stroke in strokes)
             {
                 DrawingAttributes pen=stroke.DrawingAttributes;
                 bool custom=stroke.ExtendedProperties.Contains(NoteToolGuid),dashed=pen.ExtendedProperties.Contains(Root.DASHED_LINE_GUID);
-                if(custom||dashed)
+                if(composite||custom||dashed)
                 {
                     Point[] points=stroke.GetPoints();ink.Renderer.InkSpaceToPixel(g,ref points);
                     int fill=custom?Convert.ToInt32(stroke.ExtendedProperties[NoteFillGuid].Data):Filling.Empty;
-                    DrawNotePath(g,points,pen,fill,dashed);
-                    if(!dashed)ink.Renderer.Draw(g,stroke);
+                    if (composite && !dashed)
+                    {
+                        DrawNotePath(g, points, pen, fill, false);
+                        DrawNoteStrokePreview(g, ink, stroke);
+                    }
+                    else
+                    {
+                        DrawNotePath(g,points,pen,fill,dashed);
+                        if(!dashed)ink.Renderer.Draw(g,stroke);
+                    }
                 }
                 else ink.Renderer.Draw(g,stroke);
                 if(closing)return;
+            }
+        }
+        private void DrawNoteStrokePreview(Graphics graphics, InkOverlay ink, Stroke stroke)
+        {
+            Point[] points = stroke.GetPoints();
+            if (points.Length == 0) return;
+            ink.Renderer.InkSpaceToPixel(graphics, ref points);
+            DrawingAttributes attributes = stroke.DrawingAttributes;
+            Color color = Color.FromArgb(255 - attributes.Transparency, attributes.Color);
+            float width = Math.Max(1f, manager.CurrentRoot.HiMetricToPixel(attributes.Width));
+            bool round = attributes.PenTip == PenTip.Ball;
+            graphics.SmoothingMode = attributes.AntiAliased ? SmoothingMode.AntiAlias : SmoothingMode.None;
+            if (points.Length == 1 || Array.TrueForAll(points, point => point == points[0]))
+            {
+                var dot = new RectangleF(points[0].X - width / 2, points[0].Y - width / 2, width, width);
+                using (var brush = new SolidBrush(color))
+                {
+                    if (round) graphics.FillEllipse(brush, dot);
+                    else graphics.FillRectangle(brush, dot);
+                }
+                return;
+            }
+            using (var pen = new Pen(color, width)
+            {
+                StartCap = round ? LineCap.Round : LineCap.Square,
+                EndCap = round ? LineCap.Round : LineCap.Square,
+                LineJoin = round ? LineJoin.Round : LineJoin.MiterClipped
+            })
+            {
+                if (attributes.FitToCurve && points.Length > 2) graphics.DrawCurve(pen, points);
+                else graphics.DrawLines(pen, points);
             }
         }
         private void DrawNotePreview(Graphics g)

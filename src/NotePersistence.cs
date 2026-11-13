@@ -67,9 +67,12 @@ namespace gInk
                         document=XDocument.Load(reader,LoadOptions.PreserveWhitespace);
                     XElement data=document.Root;if(data==null||data.Name!="ArcDrawNotes"||(int?)data.Attribute("version")!=1)throw new InvalidDataException("지원하지 않는 노트 파일입니다.");
                     var parsed=new List<WhiteboardLayerForm.StoredNote>();var ids=new HashSet<int>();
+                    bool hasHeadline = false;
                     foreach(XElement element in data.Elements("Note"))
                     {
                         var item=WhiteboardLayerForm.ReadStoredNote(element);
+                        if (item.IsHeadline && hasHeadline) throw new InvalidDataException("헤드라인이 중복되었습니다.");
+                        hasHeadline |= item.IsHeadline;
                         if(!ids.Add(item.Number))throw new InvalidDataException("노트 번호가 중복되었습니다.");
                         parsed.Add(item);
                     }
@@ -124,7 +127,7 @@ namespace gInk
                 bounds.Y = Math.Max(work.Top, Math.Min(bounds.Y, work.Bottom - 34));
             }
 
-            var note = new WhiteboardLayerForm(this, item.Number, bounds);
+            var note = new WhiteboardLayerForm(this, item.Number, bounds, item.IsHeadline);
             try
             {
                 note.RestoreStoredNote(item);
@@ -249,6 +252,9 @@ namespace gInk
         {
             internal int Number;internal string Name,Family;internal float Points;internal FontStyle Style;internal Color Color;
             internal Rectangle Bounds;internal bool Hidden;internal byte[] Ink;internal List<NoteTextItem> Text;
+            internal bool IsHeadline;
+            internal int BackgroundPercent;
+            internal NoteBackgroundShape BackgroundShape;
         }
         private static string Required(XElement value,string name){XAttribute item=value.Attribute(name);if(item==null)throw new InvalidDataException("누락된 노트 속성: "+name);return item.Value;}
         private static int StoredInt(XElement value,string name){return int.Parse(Required(value,name),CultureInfo.InvariantCulture);}
@@ -260,6 +266,11 @@ namespace gInk
         {
             var result=new StoredNote {Number=StoredInt(element,"id"),Name=Required(element,"name"),Hidden=bool.Parse(Required(element,"hidden")),
                 Bounds=new Rectangle(StoredInt(element,"x"),StoredInt(element,"y"),StoredInt(element,"width"),StoredInt(element,"height")),Text=new List<NoteTextItem>()};
+            result.IsHeadline = (bool?)element.Attribute("headline") ?? false;
+            result.BackgroundPercent = Math.Max(0, Math.Min(100, (int?)element.Attribute("background") ?? 100));
+            result.BackgroundShape = DefaultBackgroundShape(result.IsHeadline);
+            if (result.IsHeadline && Enum.TryParse((string)element.Attribute("shape"), out NoteBackgroundShape shape) &&
+                Enum.IsDefined(typeof(NoteBackgroundShape), shape)) result.BackgroundShape = shape;
             if(result.Number<=0||result.Number==int.MaxValue||result.Name.Length==0||result.Name.Length>40||result.Bounds.Width<1||result.Bounds.Height<1||result.Bounds.Width>32767||result.Bounds.Height>32767||
                 Math.Abs((long)result.Bounds.X)>100000||Math.Abs((long)result.Bounds.Y)>100000)throw new InvalidDataException("노트 위치/번호를 확인해 주세요.");
             XElement memo=element.Element("MemoStyle");if(memo==null)throw new InvalidDataException("노트 메모 속성이 없습니다.");
@@ -288,6 +299,7 @@ namespace gInk
                 if(data.Ink.Length>0)using(var restored=new Ink())
                 {restored.Load(data.Ink);using(Strokes strokes=restored.Strokes)ink.Ink.AddStrokesAtRectangle(strokes,strokes.GetBoundingBox());}
                 textItems.Clear();textItems.AddRange(CopyText(data.Text));SetDisplayName(data.Name);UserHidden=data.Hidden;
+                RestoreNoteBackground(data.BackgroundPercent, data.BackgroundShape);
                 memoFontFamily=data.Family;memoFontPoints=data.Points;memoFontStyle=data.Style;memoColor=data.Color;
                 history.Clear();history.Add(new NoteState {Ink=data.Ink,Text=CopyText(textItems)});historyPosition=0;snapshotPending=false;
                 retainedSession=history[0];retainedInkCount=ink.Ink.Strokes.Count;sessionSuspended=true;
@@ -320,6 +332,12 @@ namespace gInk
                 new XAttribute("x",Left),new XAttribute("y",Top),new XAttribute("width",Width),new XAttribute("height",Height),
                 new XElement("MemoStyle",new XAttribute("family",liveFont?.Name ?? memoFontFamily),new XAttribute("points",points.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)(liveFont?.Style ?? memoFontStyle)),new XAttribute("color",color.ToArgb())),
                 new XElement("Ink",Convert.ToBase64String(history[historyPosition].Ink)));
+            result.SetAttributeValue("background", backgroundPercent);
+            if (IsHeadline)
+            {
+                result.SetAttributeValue("headline", true);
+                result.SetAttributeValue("shape", backgroundShape.ToString());
+            }
             foreach(var item in text)result.Add(new XElement("Text",new XAttribute("x",item.Position.X),new XAttribute("y",item.Position.Y),new XAttribute("width",item.LayoutWidth),new XAttribute("color",item.Color.ToArgb()),
                 new XAttribute("family",item.FontFamily),new XAttribute("points",item.FontSize.ToString(CultureInfo.InvariantCulture)),new XAttribute("style",(int)item.FontStyle),new XAttribute("memo",item.IsMemo),new XElement("Content",item.Content??"")));
             return true;
