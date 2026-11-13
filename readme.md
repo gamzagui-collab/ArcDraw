@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.33-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.34-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.33 포인터 테두리 동기화
+## v0.34 화면 텍스트 입력 키
 
-청록색 원을 Windows 커서의 클릭 지점에 합쳤습니다. 펜과 도형을 사용할 때 원이 포인터와 한 이미지로 움직입니다. 별도의 원형 창과 위치 타이머를 제거했습니다.
+화면 T에서 Enter로 입력을 확정하고 Shift+Enter로 줄바꿈합니다. Space는 공백을 넣습니다. 확정 후 다음 위치를 클릭하면 새 텍스트 객체를 입력할 수 있습니다.
 
-Windows Release|x86 빌드와 실제 화면·노트 커서, 툴바·지우개·메모·CAPS OFF 전환을 확인했습니다.
+Windows Release|x86 빌드와 화면 텍스트 연속 입력을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

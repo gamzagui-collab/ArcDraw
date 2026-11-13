@@ -30,7 +30,7 @@ namespace gInk
         {
             this.btOK = new System.Windows.Forms.Button();
             this.btCancel = new System.Windows.Forms.Button();
-            this.InputML = new System.Windows.Forms.TextBox();
+            this.InputML = new ScreenTextBox();
             this.InputSL = new System.Windows.Forms.TextBox();
             this.captionLbl = new System.Windows.Forms.Label();
             this.FontBtn = new System.Windows.Forms.Button();
@@ -75,7 +75,6 @@ namespace gInk
             this.InputML.Text = "inputML\r\nline2";
             this.InputML.Visible = false;
             this.InputML.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.TB_CtrlAPressed);
-            this.InputML.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.FormInput_PreviewKeyDown);
             // 
             // InputSL
             // 
@@ -179,7 +178,7 @@ namespace gInk
 
         private System.Windows.Forms.Button btOK;
         private System.Windows.Forms.Button btCancel;
-        public  System.Windows.Forms.TextBox InputML;
+        public ScreenTextBox InputML;
         public  System.Windows.Forms.TextBox InputSL;
         public  System.Windows.Forms.Label captionLbl;
         public System.Windows.Forms.Button FontBtn;

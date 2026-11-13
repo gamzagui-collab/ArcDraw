@@ -20,10 +20,12 @@ namespace gInk
         bool Saved_Frame;
         bool Saved_White;
         bool Saved_Black;
+        private readonly bool multiline;
 
 
         public FormInput(string caption, string label, string txt, bool ML, gInk.Root rt = null, Microsoft.Ink.Stroke stk = null, bool invisible = false)
         {
+            multiline = ML;
             InitializeComponent();
             
             // local
@@ -37,6 +39,7 @@ namespace gInk
             captionLbl.Text = label;
             if (ML)
             {
+                InputML.CommitOnEnter = stk != null;
                 InputML.Visible = true;
                 txt = txt.Replace("\r\n", "\n").Replace("\n", "\r\n"); //in order to get multiline text to be correctly editable after restore
                 InputML.Text = txt;
@@ -89,11 +92,12 @@ namespace gInk
                 else
                     InputSL.SelectAll();
             }
+            ActiveControl = multiline ? InputML : InputSL;
         }
 
         public void TextIn(string txt)
         {
-            if (InputML.Visible)
+            if (multiline)
                 InputML.Text=txt;
             else
                 InputSL.Text=txt;
@@ -101,7 +105,7 @@ namespace gInk
 
         public string TextOut()
         {
-            if (InputML.Visible)
+            if (multiline)
                 return InputML.Text;
             else
                 return InputSL.Text;
@@ -218,22 +222,56 @@ namespace gInk
             Root.FormDisplay.UpdateFormDisplay(true);
         }
 
-        private void FormInput_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
-        {
-            if (e.Control && (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Return ))
-            {
-                this.DialogResult = DialogResult.OK;
-                this.Close();                
-            }
-        }
-
         private void VisibleCb_CheckedChanged(object sender, EventArgs e)
         {
             this.Opacity=VisibleCb.Checked?Root.TextDlgHiddenOpacity:1;
-            if (this.InputML.Visible)
-                this.InputML.Select();
-            else
-                this.InputML.Select();
+            ActiveControl = multiline ? InputML : InputSL;
+        }
+    }
+
+    public sealed class ScreenTextBox : TextBox
+    {
+        internal bool CommitOnEnter { get; set; }
+        private bool composing;
+
+        protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+        {
+            return HandleEnter(keyData) || base.ProcessCmdKey(ref message, keyData);
+        }
+
+        protected override void WndProc(ref Message message)
+        {
+            const int StartComposition = 0x010D;
+            const int EndComposition = 0x010E;
+            const int KeyDown = 0x0100;
+            const int ImeKeyDown = 0x0290;
+
+            if (message.Msg == StartComposition) composing = true;
+            // Native EDIT and IME messages can bypass WinForms key preprocessing.
+            if ((message.Msg == KeyDown || message.Msg == ImeKeyDown) &&
+                (Keys)message.WParam.ToInt32() == Keys.Enter && HandleEnter(Keys.Enter | ModifierKeys))
+            {
+                message.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref message);
+            if (message.Msg == EndComposition) composing = false;
+        }
+
+        private bool HandleEnter(Keys key)
+        {
+            if (!CommitOnEnter || composing) return false;
+            if (key == (Keys.Shift | Keys.Enter))
+            {
+                SelectedText = Environment.NewLine;
+                return true;
+            }
+            if (key != Keys.Enter && key != (Keys.Control | Keys.Enter)) return false;
+
+            Form dialog = FindForm();
+            if (dialog == null) return false;
+            dialog.DialogResult = DialogResult.OK;
+            return true;
         }
     }
 }
