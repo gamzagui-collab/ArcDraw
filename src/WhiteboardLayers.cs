@@ -1,4 +1,4 @@
-﻿// Whiteboard layers extension for ppInk (https://github.com/pubpub-zz/ppInk)
+// Whiteboard layers extension for ppInk (https://github.com/pubpub-zz/ppInk)
 // Source addition only; the original ppInk license and notices are retained.
 // Target: .NET Framework 4.8 / Windows Forms / Microsoft.Ink.
 using System;
@@ -192,7 +192,6 @@ namespace gInk
         }
 
         internal void TextEditingEnded() { waitForTextKeysReleased = true; }
-        internal void UpdateMemoColorButton() { bar.UpdateMemoColorButton(); }
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int key);
@@ -459,10 +458,6 @@ namespace gInk
         private readonly ToolTip tips;
         private bool rebuildPending;
         private Button screenButton;
-        private Button memoColorButton;
-        private Panel targetActions, memoPalette;
-        private int baseHeight;
-        private WhiteboardLayerForm paletteNote;
         private ToolbarTheme theme=new ToolbarTheme();
         private int scalePercent=100;
 
@@ -492,66 +487,11 @@ namespace gInk
         public void UpdateSessionDisplay()
         {
             if(screenButton==null||screenButton.IsDisposed)return;
-            UpdateMemoColorButton();
             bool screen=manager.ActiveNote==null;
             string text=screen?"✓ 화면":"화면";
             Color background=screen?theme.Accent:theme.Surface,foreground=screen?Color.White:theme.Text;
             if(screenButton.Text==text&&screenButton.BackColor==background&&screenButton.ForeColor==foreground)return;
             screenButton.Text=text;screenButton.BackColor=background;screenButton.ForeColor=foreground;
-        }
-
-        internal void UpdateMemoColorButton()
-        {
-            if (memoColorButton == null || memoColorButton.IsDisposed) return;
-            WhiteboardLayerForm note = manager.ActiveNote;
-            Color? color = note?.LiveMemoColor;
-            if (paletteNote != null && (paletteNote != note || !color.HasValue)) SetMemoPalette(null);
-            int screenWidth = color.HasValue ? (targetActions.Width + 1) / 2 : targetActions.Width;
-            if (screenButton.Width != screenWidth)
-            {
-                screenButton.Width = screenWidth;
-                memoColorButton.Left = screenWidth;
-                memoColorButton.Width = targetActions.Width - screenWidth;
-                memoColorButton.Visible = color.HasValue;
-            }
-            if (!color.HasValue) return;
-            memoColorButton.BackColor = color.Value;
-            memoColorButton.ForeColor = color.Value.GetBrightness() > 0.55f ? Color.Black : Color.White;
-        }
-
-        private void SetMemoPalette(WhiteboardLayerForm note)
-        {
-            paletteNote = note;
-            memoPalette.Visible = note != null;
-            Height = baseHeight + (note == null ? 0 : memoPalette.Height);
-            manager.ToolbarGeometryChanged();
-        }
-
-        private Panel CreateMemoPalette(int width, int cell)
-        {
-            var palette = new Panel { Name = "MemoColorPalette", Size = new Size(width, 2 * cell), Visible = false };
-            const int columns = 6;
-            for (int index = 0; index < DrawingColorPicker.Swatches.Count; index++)
-            {
-                Color color = DrawingColorPicker.Swatches[index];
-                int left = width * (index % columns) / columns;
-                int right = width * (index % columns + 1) / columns;
-                var swatch = new MemoColorButton
-                {
-                    Name = "Color" + color.Name, AccessibleName = "#" + (color.ToArgb() & 0xffffff).ToString("X6"),
-                    Bounds = new Rectangle(left + 1, index / columns * cell + 1, right - left - 2, cell - 2),
-                    BackColor = color, FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
-                    Cursor = Cursors.Hand
-                };
-                swatch.FlatAppearance.BorderColor = Color.Gray;
-                swatch.Click += delegate
-                {
-                    if (paletteNote == manager.ActiveNote) paletteNote?.SetLiveMemoColor(color);
-                    SetMemoPalette(null);
-                };
-                palette.Controls.Add(swatch);
-            }
-            return palette;
         }
 
         public WhiteboardLayersBar(WhiteboardLayerManager manager)
@@ -675,27 +615,10 @@ namespace gInk
             vertical.Click+=delegate {manager.ArrangeNotes(true);};horizontal.Click+=delegate {manager.ArrangeNotes(false);};
             arrange.Controls.Add(vertical);arrange.Controls.Add(horizontal);items.Controls.Add(arrange);
 
-            targetActions = new Panel { Name = "DrawingTargetActions", Size = new Size(listWidth, cell) };
             screenButton=NewButton("화면",listWidth);screenButton.Name="SelectScreenTarget";
             screenButton.Click+=delegate { manager.SelectScreen(); };
             tips.SetToolTip(screenButton,"노트 선택 해제 · 화면에만 삭제/실행 취소 적용");
-            memoColorButton = new MemoColorButton
-            {
-                Name = "LiveMemoColor", Text = "글자색", AccessibleName = "편집 중인 노트 글자색",
-                FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false, Cursor = Cursors.Hand,
-                Visible = false
-            };
-            memoColorButton.FlatAppearance.BorderSize = 0;
-            memoColorButton.Click += delegate
-            {
-                WhiteboardLayerForm note = manager.ActiveNote;
-                SetMemoPalette(paletteNote == null && note?.IsMemoEditor == true ? note : null);
-            };
-            targetActions.Controls.AddRange(new Control[] { screenButton, memoColorButton });
-            items.Controls.Add(targetActions);
-            paletteNote = null;
-            memoPalette = CreateMemoPalette(listWidth, cell);
-            items.Controls.Add(memoPalette);
+            items.Controls.Add(screenButton);
 
             noteItems.SuspendLayout();
             foreach(WhiteboardLayerForm previous in new List<WhiteboardLayerForm>(noteRows.Keys))if(!manager.Notes.Contains(previous))
@@ -724,7 +647,7 @@ namespace gInk
             items.Controls.Add(info);
             foreach(Control control in items.Controls)
             {
-                if(control==noteItems || control==memoPalette)continue;
+                if(control==noteItems)continue;
                 control.Height=cell;
                 foreach(Control child in control.Controls)child.Height=cell;
             }
@@ -733,7 +656,7 @@ namespace gInk
                 Font=new Font("Malgun Gothic",8f),AutoSize=false};
             altHint.Disposed+=delegate {altHint.Font.Dispose();};
             items.Controls.Add(altHint);
-            Width=listWidth+8;baseHeight=5*cell+listHeight+8+hintHeight;Height=baseHeight;
+            Width=listWidth+8;Height=5*cell+listHeight+8+hintHeight;
             foreach(Control control in items.Controls)control.Margin=new Padding(0);
             items.ResumeLayout(true);
             UpdateSelection();
@@ -766,15 +689,6 @@ namespace gInk
             ToolbarDesign.SetTheme(b,theme);
             ToolbarDesign.SetHints(b,()=>b.Name=="CapsDrawingState"?"CAPS":(b.Text=="＋ 노트"?"Ctrl+Shift+B":""));
             return b;
-        }
-
-        private sealed class MemoColorButton : Button
-        {
-            internal MemoColorButton()
-            {
-                SetStyle(ControlStyles.Selectable, false);
-                TabStop = false;
-            }
         }
 
         protected override void Dispose(bool disposing)

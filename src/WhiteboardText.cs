@@ -195,7 +195,6 @@ namespace gInk
             editor.SelectionStart = editor.TextLength;
             if(memo)editor.ScrollToCaret();
             paper.Invalidate();
-            if (memo) manager.UpdateMemoColorButton();
         }
 
         internal void FinishEditing(bool save)
@@ -268,7 +267,6 @@ namespace gInk
                 if (editorFont != null) { editorFont.Dispose(); editorFont = null; }
                 completingEditor = false;
                 manager.TextEditingEnded();
-                if (wasMemo) manager.UpdateMemoColorButton();
                 if(contentChanged&&!closing)QueueHistorySnapshot();
                 if (!paper.IsDisposed)
                 {

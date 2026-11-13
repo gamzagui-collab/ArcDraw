@@ -140,6 +140,7 @@ namespace gInk
             targetCommands.Clear();targetCommitQueued=false;repairTargetHook=false;targetCancelPending=false;
             keyTips.Hide();
             sizeSidebar?.Hide();
+            root.FormCollection?.HideColorToolbar();
             modeBorder.Update(false);
             timer.Interval = 250; // Remember the external app while the launcher is idle.
             timer.Start();
@@ -338,9 +339,11 @@ namespace gInk
             bool canSize = editor == null && memo == null ? !editing :
                 !OptionsOpen && !SelectingTarget && !ModalWindowOpen(editor) &&
                 (root.FormOptions == null || !root.FormOptions.Visible);
-            bool visible = DrawingEnabled && canSize && !root.Docked && !ToolbarHidden &&
+            bool toolbarActive = DrawingEnabled && canSize && !root.Docked && !ToolbarHidden &&
+                root.Snapping == 0 && !root.UponTakingSnap;
+            host?.UpdateColorToolbar(editor, memo, text, toolbarActive);
+            bool visible = toolbarActive &&
                 !root.PointerMode && !root.EraserMode && !root.PanMode && !root.LassoMode &&
-                root.Snapping == 0 && !root.UponTakingSnap &&
                 (text || Array.IndexOf(DrawingSettings.PresetTools, root.ToolSelected) >= 0);
             if (!visible)
             {

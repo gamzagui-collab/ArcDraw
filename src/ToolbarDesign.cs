@@ -83,6 +83,7 @@ namespace gInk
         }
         private static string Label(Button b)
         {
+            if(b.Name=="penMainColor")return b.Text;
             if(b.Name.StartsWith("pen"))return b.Name.Replace("pen","펜");
             switch(b.Name)
             {

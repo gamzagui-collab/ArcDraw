@@ -2141,6 +2141,8 @@ namespace gInk
 
             Stroke st = Root.FormCollection.IC.Ink.CreateStroke(pts);
             st.DrawingAttributes = Root.FormCollection.IC.DefaultDrawingAttributes.Clone();
+            st.DrawingAttributes.Color = Root.Settings.ScreenTextColor ?? Color.Black;
+            st.DrawingAttributes.Transparency = 0;
             st.DrawingAttributes.Width = 100; // no width to hide the point;
             st.DrawingAttributes.FitToCurve = false;
             st.ExtendedProperties.Add(Root.TEXT_GUID, txt);
@@ -2906,6 +2908,7 @@ namespace gInk
                     else
                     {
                         ComputeTextBoxSize(ref st);
+                        Root.Settings.SetToolColor(st.DrawingAttributes.Color, true);
                     }
                 }
                 else if ((Root.ToolSelected == Tools.Move) || (Root.ToolSelected == Tools.Copy))// Move : do Nothing

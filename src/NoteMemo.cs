@@ -69,7 +69,6 @@ namespace gInk
         {
             editor.ForeColor = color;
             manager.NotesChanged();
-            manager.UpdateMemoColorButton();
         }
 
 

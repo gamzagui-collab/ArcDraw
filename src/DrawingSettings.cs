@@ -27,6 +27,8 @@ namespace gInk
         public string FontFamily {get;private set;}="Malgun Gothic";
         public float FontPoints {get;private set;}=17f;
         public FontStyle FontStyle {get;private set;}=FontStyle.Regular;
+        internal Color? ScreenTextColor { get; private set; }
+        internal Color? BrushColor { get; private set; }
         private string FileName {get{return Path.Combine(Program.RunningFolder,"drawing-settings.xml");}}
         public DrawingSettings(Root root)
         {
@@ -36,12 +38,32 @@ namespace gInk
                 try {Load(FileName);}
                 catch(Exception error) when(error is IOException || error is System.Xml.XmlException || error is ArgumentException || error is FormatException || error is OverflowException)
                 {
-                    presets.Clear();HasFont=false;
-                    if(File.Exists(FileName+".bak"))try {Load(FileName+".bak");}catch {presets.Clear();HasFont=false;}
+                    ResetLoadedSettings();
+                    if(File.Exists(FileName+".bak"))try {Load(FileName+".bak");}catch {ResetLoadedSettings();}
                 }
             }
             foreach(DrawingPreset preset in presets.Values)root.PenAttr[preset.Slot]=preset.Attributes.Clone();
             if(HasFont)ApplyFontDefaults();
+        }
+        private void ResetLoadedSettings()
+        {
+            presets.Clear();
+            HasFont = false;
+            ScreenTextColor = null;
+            BrushColor = null;
+        }
+
+        internal void SetToolColor(Color color, bool text)
+        {
+            Color? previous = text ? ScreenTextColor : BrushColor;
+            if (previous?.ToArgb() == color.ToArgb()) return;
+            if (text) ScreenTextColor = color;
+            else BrushColor = color;
+            try { Save(); }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                root.trayIcon?.ShowBalloonTip(4500, "ArcDraw", "색상 설정을 저장하지 못했습니다.", ToolTipIcon.Warning);
+            }
         }
         public bool HasPreset(int slot){return presets.ContainsKey(slot);}
         public string Shortcut(int slot)
@@ -114,6 +136,11 @@ namespace gInk
             XElement font=document.Element("TextFont");
             if(font!=null)
             {FontFamily=Attr(font,"family","Malgun Gothic");FontPoints=Math.Max(6,Math.Min(144,Number(font,"points",17)));FontStyle=(FontStyle)(Int(font,"style")&3);HasFont=true;}
+            XElement colors = document.Element("ToolColors");
+            if (int.TryParse((string)colors?.Attribute("text"), NumberStyles.Integer, Invariant, out int text))
+                ScreenTextColor = Color.FromArgb(text);
+            if (int.TryParse((string)colors?.Attribute("brush"), NumberStyles.Integer, Invariant, out int brush))
+                BrushColor = Color.FromArgb(brush);
             foreach(XElement element in document.Elements("Preset"))
             {
                 int slot=Int(element,"slot",-1);if(slot<0||slot>=Root.MaxDisplayedPens)continue;
@@ -131,6 +158,10 @@ namespace gInk
         private void Save()
         {
             var document=new XElement("ArcDrawSettings",new XAttribute("version",1));
+            if (ScreenTextColor.HasValue || BrushColor.HasValue)
+                document.Add(new XElement("ToolColors",
+                    ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,
+                    BrushColor.HasValue ? new XAttribute("brush", BrushColor.Value.ToArgb()) : null));
             if(HasFont)document.Add(new XElement("TextFont",new XAttribute("family",FontFamily),new XAttribute("points",FontPoints.ToString(Invariant)),new XAttribute("style",(int)FontStyle)));
             foreach(DrawingPreset value in presets.Values)
             {

@@ -29,10 +29,17 @@ namespace gInk
         private NumericUpDown textSize;
         internal int LiveTextSize => (int)Math.Round(textSize.Value);
         internal int MaximumTextSize => (int)textSize.Maximum;
+        internal Color LiveTextColor => stroke.DrawingAttributes.Color;
 
         internal void SetLiveTextSize(int value)
         {
             textSize.Value = value;
+        }
+
+        internal void SetLiveTextColor(Color color)
+        {
+            stroke.DrawingAttributes.Color = color;
+            UpdateTextPreview();
         }
 
 
@@ -201,21 +208,10 @@ namespace gInk
                 Minimum = 1, Maximum = Math.Max(VerticalSizeSlider.TextMaximum, (decimal)Saved_Font.SizeInPoints), DecimalPlaces = 1,
                 Value = (decimal)Saved_Font.SizeInPoints
             };
-            var color = new Button
-            {
-                Name = "LiveTextColor", AccessibleName = "텍스트 색상", Text = "색상",
-                Width = 74, Height = 26, UseVisualStyleBackColor = false
-            };
-            void ShowColor(Color value)
-            {
-                color.BackColor = value;
-                color.ForeColor = value.GetBrightness() > 0.55f ? Color.Black : Color.White;
-            }
-            ShowColor(stroke.DrawingAttributes.Color);
             textStyleBar.Controls.AddRange(new Control[]
             {
                 new Label { Text = "글꼴", AutoSize = true, Margin = new Padding(0, 7, 4, 0) }, family,
-                new Label { Text = "크기", AutoSize = true, Margin = new Padding(8, 7, 4, 0) }, textSize, color
+                new Label { Text = "크기", AutoSize = true, Margin = new Padding(8, 7, 4, 0) }, textSize
             });
             Controls.Add(textStyleBar);
             family.SelectedIndexChanged += delegate { ApplyLiveFont(family.Text, (float)textSize.Value); InputML.Focus(); };
@@ -231,17 +227,6 @@ namespace gInk
                 InputML.Focus();
             };
             textSize.PreviewKeyDown += (sender, args) => { if (args.KeyCode == Keys.Enter) args.IsInputKey = true; };
-            color.Click += delegate
-            {
-                Color? next = DrawingColorPicker.Choose(this, color, stroke.DrawingAttributes.Color);
-                if (next.HasValue)
-                {
-                    stroke.DrawingAttributes.Color = next.Value;
-                    ShowColor(next.Value);
-                    UpdateTextPreview();
-                }
-                InputML.Focus();
-            };
             SetEditorFont((Font)Saved_Font.Clone());
             Shown += delegate
             {

@@ -233,6 +233,12 @@ namespace gInk
             DrawButtons(gCanvus, redrawbuttons, exiting);
         }
 
+        internal void RefreshScreenTextToolbar()
+        {
+            DrawButtons();
+            UpdateFormDisplay(true);
+        }
+
         public void DrawButtons(Graphics g, bool redrawbuttons=true, bool exiting = false)
 		{
 			if (Root.AlwaysHideToolbar || (Root.DrawingSession != null && Root.DrawingSession.ToolbarHidden))

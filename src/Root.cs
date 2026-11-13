@@ -692,6 +692,7 @@ namespace gInk
 					CurrentPen = -2;
 			}
 			SelectPen(CurrentPen);
+            FormCollection.RestoreBrushColor();
 			SetInkVisible(true);
 			FormCollection.ButtonsEntering = 1;
             // The almost-transparent input window stays click-through until ready.

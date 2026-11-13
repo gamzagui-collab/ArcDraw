@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.40-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.41-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.40 노트 글자색
+## v0.41 펜·텍스트 공용 색상
 
-노트에 글을 쓰는 동안 노트 목록 위쪽의 글자색 버튼으로 색을 고릅니다. 편집 중인 노트에 즉시 적용되고 자동저장됩니다.
+메인 툴바의 색상 버튼 하나로 펜, 화면 텍스트, 편집 중인 노트의 색을 고릅니다. 펜과 화면 텍스트는 각각 마지막으로 고른 색을 기억하며, 노트는 노트별로 글자색을 자동저장합니다.
 
-Windows Release|x86 빌드와 실제 클릭으로 한글 입력과 커서 유지, 노트별 색상 분리 및 자동저장을 확인했습니다.
+Windows Release|x86 빌드와 실제 클릭으로 도구 전환 후 색상 복원, 편집 중 색상 적용, 한글 입력 및 저장을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

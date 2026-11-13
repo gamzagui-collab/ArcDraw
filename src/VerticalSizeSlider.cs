@@ -131,25 +131,15 @@ namespace gInk
         }
     }
 
-    internal sealed class DrawingSizeSidebar : Form
+    internal class NonActivatingToolbarWindow : Form
     {
-        private Rectangle lastToolbar, lastNoteToolbar;
-
-        internal VerticalSizeSlider Slider { get; } = new VerticalSizeSlider
+        protected NonActivatingToolbarWindow()
         {
-            Name = "DrawingSizeSlider", AccessibleName = "브러시 크기 (픽셀)", Dock = DockStyle.Fill
-        };
-
-        internal DrawingSizeSidebar()
-        {
-            Name = "DrawingSizeSidebar";
             AutoScaleMode = AutoScaleMode.None;
-            ClientSize = Slider.Size;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
-            Controls.Add(Slider);
         }
 
         protected override bool ShowWithoutActivation { get { return true; } }
@@ -172,6 +162,45 @@ namespace gInk
                 return;
             }
             base.WndProc(ref message);
+        }
+
+        internal void EnableForTextEditor()
+        {
+            // ShowDialog disables other windows on this thread.
+            if (!IsWindowEnabled(Handle))
+            {
+                EnableWindow(Handle, true);
+                RaiseWithoutActivation();
+            }
+        }
+
+        internal void RaiseWithoutActivation()
+        {
+            if (Visible) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0013);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowEnabled(IntPtr window);
+        [DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr window, bool enabled);
+    }
+
+    internal sealed class DrawingSizeSidebar : NonActivatingToolbarWindow
+    {
+        private Rectangle lastToolbar, lastNoteToolbar;
+
+        internal VerticalSizeSlider Slider { get; } = new VerticalSizeSlider
+        {
+            Name = "DrawingSizeSlider", AccessibleName = "브러시 크기 (픽셀)", Dock = DockStyle.Fill
+        };
+
+        internal DrawingSizeSidebar()
+        {
+            Name = "DrawingSizeSidebar";
+            ClientSize = Slider.Size;
+            Controls.Add(Slider);
         }
 
         internal void PlaceBesideToolbar(Rectangle toolbar, Rectangle noteToolbar)
@@ -207,27 +236,5 @@ namespace gInk
             Location = new Point(Math.Max(work.Left, Math.Min(nearest.X, work.Right - Width)), y);
         }
 
-        internal void EnableForTextEditor()
-        {
-            // ShowDialog disables other windows on this thread, including this
-            // non-activating tool. Re-enable just this window for live sizing.
-            if (!IsWindowEnabled(Handle))
-            {
-                EnableWindow(Handle, true);
-                RaiseWithoutActivation();
-            }
-        }
-
-        internal void RaiseWithoutActivation()
-        {
-            if (Visible) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0013);
-        }
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
-        [DllImport("user32.dll")]
-        private static extern bool IsWindowEnabled(IntPtr window);
-        [DllImport("user32.dll")]
-        private static extern bool EnableWindow(IntPtr window, bool enabled);
     }
 }

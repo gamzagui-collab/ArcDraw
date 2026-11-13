@@ -13,6 +13,12 @@ namespace gInk
     {
         private Button mainColorButton, penSettingsButton, presetsButton;
         private DrawingAttributes workingPen;
+        private ToolbarColorPalette colorPalette;
+        private ToolbarColorHitTarget colorHitTarget;
+        private FormInput colorEditor;
+        private WhiteboardLayerForm colorNote;
+        private bool textColorMode;
+        private int? toolbarColor;
 
         internal int WorkingPenPixels
         {
@@ -40,7 +46,7 @@ namespace gInk
         private void EnsurePenToolbar()
         {
             if (mainColorButton != null) return;
-            mainColorButton = AddPenToolbarButton("penMainColor", "색상", ChooseMainColor);
+            mainColorButton = AddPenToolbarButton("penMainColor", "색상", ToggleColorPalette);
             penSettingsButton = AddPenToolbarButton("penSettings", "펜 설정", EditWorkingPen);
             presetsButton = AddPenToolbarButton("DrawingPresets", "프리셋", ShowPenPresets);
             RefreshPenToolbar();
@@ -97,24 +103,139 @@ namespace gInk
             Root.Whiteboards?.RefreshInkTools();
         }
 
+        internal void RestoreBrushColor()
+        {
+            if (Root.CurrentPen < 0 || !Root.Settings.BrushColor.HasValue) return;
+            DrawingAttributes pen = IC.DefaultDrawingAttributes.Clone();
+            pen.Color = Root.Settings.BrushColor.Value;
+            ApplyWorkingPen(pen);
+        }
+
         private void RefreshPenToolbar()
         {
             if (mainColorButton == null) return;
             DrawingAttributes pen = IC.DefaultDrawingAttributes;
-            ReplaceButtonImage(mainColorButton, PenSample.Swatch(pen.Color));
+            RefreshColorSwatch();
             ReplaceButtonImage(penSettingsButton, PenSample.Line(Root, pen));
             Root.UponButtonsUpdate |= 2;
             Root.DrawingSession?.RefreshSizeSlider();
         }
 
-        private void ChooseMainColor(Button anchor)
+        private Color SelectedToolColor()
         {
-            DrawingAttributes pen = IC.DefaultDrawingAttributes.Clone();
-            Color? chosen = DrawingColorPicker.Choose(this, anchor, pen.Color);
-            if (!chosen.HasValue) return;
-            pen.Color = chosen.Value;
-            ApplyWorkingPen(pen);
+            return colorEditor?.LiveTextColor ?? colorNote?.LiveMemoColor ??
+                (textColorMode ? Root.Settings.ScreenTextColor ?? Color.Black : WorkingPenColor);
         }
+
+        private void RefreshColorSwatch()
+        {
+            Color color = SelectedToolColor();
+            if (toolbarColor == color.ToArgb()) return;
+            toolbarColor = color.ToArgb();
+            ReplaceButtonImage(mainColorButton, PenSample.Swatch(color));
+            Root.UponButtonsUpdate |= 2;
+            if (colorEditor != null && Root.FormDisplay?.ScreenTextEditor == colorEditor)
+                Root.FormDisplay.RefreshScreenTextToolbar();
+        }
+
+        internal void UpdateColorToolbar(FormInput editor, WhiteboardLayerForm note, bool text, bool active)
+        {
+            if (mainColorButton == null) return;
+            if (colorEditor != editor || colorNote != note || textColorMode != text)
+            {
+                colorPalette?.Hide();
+                colorEditor = editor;
+                colorNote = note;
+                textColorMode = text;
+                mainColorButton.Text = text ? "글자색" : "펜 색상";
+                mainColorButton.AccessibleName = mainColorButton.Text;
+                Root.UponButtonsUpdate |= 2;
+                RefreshColorSwatch();
+            }
+            if (!active || !mainColorButton.Visible)
+            {
+                HideColorToolbar();
+                return;
+            }
+            if (note != null || editor != null)
+            {
+                if (colorHitTarget == null)
+                {
+                    colorHitTarget = new ToolbarColorHitTarget { Owner = this };
+                    colorHitTarget.Click += delegate { ToggleColorPalette(mainColorButton); };
+                }
+                Rectangle bounds = mainColorButton.RectangleToScreen(mainColorButton.ClientRectangle);
+                if (colorHitTarget.Bounds != bounds) colorHitTarget.Bounds = bounds;
+                if (!colorHitTarget.Visible) colorHitTarget.Show();
+                if (editor != null) colorHitTarget.EnableForTextEditor();
+            }
+            else colorHitTarget?.Hide();
+            if (colorPalette != null && colorPalette.Visible)
+            {
+                Rectangle anchor = mainColorButton.RectangleToScreen(mainColorButton.ClientRectangle);
+                Point mouse = System.Windows.Forms.Cursor.Position;
+                if ((GetAsyncKeyState(1) & 0x8000) != 0 && !anchor.Contains(mouse) &&
+                    !colorPalette.Bounds.Contains(mouse))
+                    colorPalette.Hide();
+                else
+                {
+                    colorPalette.PlaceAt(mainColorButton);
+                    if (editor != null) colorPalette.EnableForTextEditor();
+                }
+            }
+            if (note != null) RefreshColorSwatch();
+        }
+
+        internal void HideColorToolbar()
+        {
+            colorHitTarget?.Hide();
+            colorPalette?.Hide();
+        }
+
+        private void ToggleColorPalette(Button anchor)
+        {
+            if (colorPalette != null && colorPalette.Visible)
+            {
+                colorPalette.Hide();
+                return;
+            }
+            if (colorPalette == null)
+            {
+                colorPalette = new ToolbarColorPalette(ApplyToolbarColor) { Owner = this };
+            }
+            colorPalette.SetCurrentColor(SelectedToolColor());
+            colorPalette.PlaceAt(anchor);
+            colorPalette.Show();
+            if (colorEditor != null) colorPalette.EnableForTextEditor();
+            colorPalette.RaiseWithoutActivation();
+        }
+
+        private void ApplyToolbarColor(Color color)
+        {
+            colorPalette.Hide();
+            if (colorEditor != null)
+            {
+                if (Root.FormDisplay.ScreenTextEditor == colorEditor) colorEditor.SetLiveTextColor(color);
+            }
+            else if (colorNote != null)
+            {
+                if (Root.Whiteboards.ActiveNote == colorNote) colorNote.SetLiveMemoColor(color);
+            }
+            else if (textColorMode)
+            {
+                Root.Settings.SetToolColor(color, true);
+            }
+            else
+            {
+                if (ScreenContentBusy || IC.CollectingInk || (Root.Whiteboards?.HasBusyInk ?? false)) return;
+                DrawingAttributes pen = IC.DefaultDrawingAttributes.Clone();
+                pen.Color = color;
+                ApplyWorkingPen(pen);
+                Root.Settings.SetToolColor(color, false);
+            }
+            RefreshColorSwatch();
+        }
+
 
         private void EditWorkingPen(Button anchor)
         {
@@ -209,56 +330,126 @@ namespace gInk
 
         private DialogResult ShowPenDialog(Form dialog, Button anchor)
         {
-            DrawingColorPicker.Place(dialog, anchor);
+            ToolbarColorPalette.Place(dialog, anchor);
             return dialog.ShowDialog(this);
         }
     }
 
-    internal static class DrawingColorPicker
+    internal sealed class ToolbarColorHitTarget : NonActivatingToolbarWindow
     {
-        internal static readonly IReadOnlyList<Color> Swatches = Array.AsReadOnly(new[]
+        internal ToolbarColorHitTarget()
         {
-            Color.Black, Color.White, Color.DimGray, Color.Firebrick, Color.OrangeRed, Color.Gold,
-            Color.ForestGreen, Color.Teal, Color.DeepSkyBlue, Color.RoyalBlue, Color.BlueViolet, Color.DeepPink
-        });
+            Name = "ToolbarColorHitTarget";
+            Opacity = 0.01;
+            Cursor = System.Windows.Forms.Cursors.Hand;
+        }
+    }
 
-        internal static Color? Choose(Form owner, Control anchor, Color current)
+    internal sealed class ToolbarColorPalette : NonActivatingToolbarWindow
+    {
+        private readonly List<Button> swatches = new List<Button>();
+        private readonly TrackBar[] channels = new TrackBar[3];
+        private readonly Panel customColors;
+        private readonly Button customPreview;
+        private Color currentColor;
+        private Rectangle lastAnchor;
+
+        internal ToolbarColorPalette(Action<Color> select)
         {
-            Color? chosen = null;
-            using (var dialog = new Form
+            Name = "DrawingColorPicker";
+            BackColor = Color.FromArgb(31, 34, 40);
+            ClientSize = new Size(216, 112);
+            Color[] colors =
             {
-                Name = "DrawingColorPicker", Text = "색상", ShowInTaskbar = false, TopMost = true,
-                FormBorderStyle = FormBorderStyle.FixedToolWindow, ClientSize = new Size(218, 122), AutoScaleMode = AutoScaleMode.None
-            })
+                Color.Black, Color.White, Color.DimGray, Color.Firebrick, Color.OrangeRed, Color.Gold,
+                Color.ForestGreen, Color.Teal, Color.DeepSkyBlue, Color.RoyalBlue, Color.BlueViolet, Color.DeepPink
+            };
+            for (int index = 0; index < colors.Length; index++)
             {
-                for (int i = 0; i < Swatches.Count; i++)
+                Color color = colors[index];
+                var button = new PaletteButton
                 {
-                    Color color = Swatches[i];
-                    var button = new Button
-                    {
-                        Name = "Color" + color.Name, AccessibleName = "#" + (color.ToArgb() & 0xffffff).ToString("X6"),
-                        Bounds = new Rectangle(8 + (i % 6) * 34, 8 + (i / 6) * 36, 30, 30),
-                        UseVisualStyleBackColor = false, BackColor = color, FlatStyle = FlatStyle.Flat
-                    };
-                    button.FlatAppearance.BorderColor = Color.Gray;
-                    button.FlatAppearance.BorderSize = color.ToArgb() == current.ToArgb() ? 3 : 1;
-                    button.Click += delegate { chosen = color; dialog.DialogResult = DialogResult.OK; };
-                    dialog.Controls.Add(button);
-                }
-                var more = new Button { Text = "다른 색…", Bounds = new Rectangle(8, 82, 104, 30) };
-                more.Click += delegate
-                {
-                    using (var picker = new ColorDialog { Color = current, FullOpen = true })
-                        if (picker.ShowDialog(dialog) == DialogResult.OK)
-                        { chosen = picker.Color; dialog.DialogResult = DialogResult.OK; }
+                    Name = "Color" + color.Name,
+                    AccessibleName = "#" + (color.ToArgb() & 0xffffff).ToString("X6"),
+                    Bounds = new Rectangle(8 + index % 6 * 34, 8 + index / 6 * 34, 30, 30),
+                    BackColor = color
                 };
-                var cancel = new Button { Text = "취소", DialogResult = DialogResult.Cancel, Bounds = new Rectangle(125, 82, 83, 30) };
-                dialog.Controls.AddRange(new Control[] { more, cancel });
-                dialog.CancelButton = cancel;
-                Place(dialog, anchor);
-                dialog.ShowDialog(owner);
+                button.Click += delegate { select(color); };
+                swatches.Add(button);
+                Controls.Add(button);
             }
-            return chosen;
+            var more = new PaletteButton
+            {
+                Name = "CustomToolbarColor", Text = "다른 색…", Bounds = new Rectangle(8, 78, 96, 26),
+                BackColor = Color.WhiteSmoke
+            };
+            more.Click += delegate { ShowCustomColors(!customColors.Visible); };
+            var close = new PaletteButton
+            {
+                Text = "닫기", Bounds = new Rectangle(110, 78, 98, 26), BackColor = Color.WhiteSmoke
+            };
+            close.Click += delegate { Hide(); };
+            Controls.AddRange(new Control[] { more, close });
+            customColors = new Panel { Location = new Point(8, 112), Size = new Size(200, 108), Visible = false };
+            customPreview = new PaletteButton
+            {
+                Name = "ApplyCustomToolbarColor", Text = "적용", Bounds = new Rectangle(0, 76, 200, 26)
+            };
+            customPreview.Click += delegate { select(customPreview.BackColor); };
+            for (int index = 0; index < channels.Length; index++)
+            {
+                string label = "RGB"[index].ToString();
+                customColors.Controls.Add(new Label
+                {
+                    Text = label, ForeColor = Color.White, Bounds = new Rectangle(0, index * 25, 16, 24),
+                    TextAlign = ContentAlignment.MiddleCenter
+                });
+                var channel = new PaletteTrackBar
+                {
+                    AccessibleName = label, Bounds = new Rectangle(16, index * 25, 184, 24),
+                    Maximum = 255, TickStyle = TickStyle.None, AutoSize = false
+                };
+                channels[index] = channel;
+                customColors.Controls.Add(channel);
+            }
+            foreach (TrackBar channel in channels) channel.ValueChanged += delegate { RefreshCustomColor(); };
+            customColors.Controls.Add(customPreview);
+            Controls.Add(customColors);
+            SizeChanged += delegate { lastAnchor = Rectangle.Empty; };
+        }
+
+        internal void SetCurrentColor(Color current)
+        {
+            currentColor = current;
+            ShowCustomColors(false);
+            foreach (Button swatch in swatches)
+                swatch.FlatAppearance.BorderSize = swatch.BackColor.ToArgb() == current.ToArgb() ? 3 : 1;
+        }
+
+        private void ShowCustomColors(bool visible)
+        {
+            customColors.Visible = visible;
+            ClientSize = new Size(216, visible ? 220 : 112);
+            if (!visible) return;
+            channels[0].Value = currentColor.R;
+            channels[1].Value = currentColor.G;
+            channels[2].Value = currentColor.B;
+            RefreshCustomColor();
+        }
+
+        private void RefreshCustomColor()
+        {
+            Color color = Color.FromArgb(channels[0].Value, channels[1].Value, channels[2].Value);
+            customPreview.BackColor = color;
+            customPreview.ForeColor = color.GetBrightness() > 0.55f ? Color.Black : Color.White;
+        }
+
+        internal void PlaceAt(Control anchor)
+        {
+            Rectangle bounds = anchor.RectangleToScreen(anchor.ClientRectangle);
+            if (Visible && bounds == lastAnchor) return;
+            lastAnchor = bounds;
+            Place(this, anchor);
         }
 
         internal static void Place(Form dialog, Control anchor)
@@ -266,11 +457,42 @@ namespace gInk
             Rectangle button = anchor.RectangleToScreen(anchor.ClientRectangle);
             Rectangle work = Screen.FromRectangle(button).WorkingArea;
             dialog.StartPosition = FormStartPosition.Manual;
-            int y = button.Bottom + 4;
-            if (y + dialog.Height > work.Bottom) y = button.Top - dialog.Height - 4;
-            dialog.Location = new Point(
-                Math.Max(work.Left, Math.Min(button.Left, work.Right - dialog.Width)),
-                Math.Max(work.Top, Math.Min(y, work.Bottom - dialog.Height)));
+            int x = Math.Max(work.Left, Math.Min(button.Left, work.Right - dialog.Width));
+            int y = Math.Max(work.Top, Math.Min(button.Top, work.Bottom - dialog.Height));
+            var candidates = new[]
+            {
+                new Point(x, button.Bottom + 4), new Point(x, button.Top - dialog.Height - 4),
+                new Point(button.Left - dialog.Width - 4, y), new Point(button.Right + 4, y)
+            };
+            foreach (Point candidate in candidates)
+                if (work.Contains(new Rectangle(candidate, dialog.Size)))
+                {
+                    dialog.Location = candidate;
+                    return;
+                }
+            dialog.Location = new Point(x, y);
+        }
+
+        private sealed class PaletteButton : Button
+        {
+            internal PaletteButton()
+            {
+                SetStyle(ControlStyles.Selectable, false);
+                TabStop = false;
+                Cursor = System.Windows.Forms.Cursors.Hand;
+                FlatStyle = FlatStyle.Flat;
+                FlatAppearance.BorderColor = Color.Gray;
+                UseVisualStyleBackColor = false;
+            }
+        }
+
+        private sealed class PaletteTrackBar : TrackBar
+        {
+            internal PaletteTrackBar()
+            {
+                SetStyle(ControlStyles.Selectable, false);
+                TabStop = false;
+            }
         }
     }
 
