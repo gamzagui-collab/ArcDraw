@@ -43,6 +43,11 @@ namespace gInk
         [STAThread]
 		static void Main(string [] args)
 		{
+            if (args.Length == 2 && args[0] == ScreenFrameAppBars.WorkerArgument)
+            {
+                ScreenFrameAppBars.RunWorker(args[1]);
+                return;
+            }
             // force loading of local DLL 
             Console.WriteLine("version " + Assembly.GetExecutingAssembly().GetName().Version.ToString() + " built on " + Build.Timestamp);
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");  // This ensure proper String processing whatever Operating Language

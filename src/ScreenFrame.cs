@@ -12,17 +12,32 @@ namespace gInk
     {
         private readonly DrawingSettings settings;
         private readonly NoteVisualWindow[] edges = new NoteVisualWindow[4];
+        private readonly ScreenFrameAppBars reservations;
+        private readonly Timer layoutTimer;
         private Form options;
+        private Label workAreaStatus, widthAmount;
+        private Panel workAreaPreview;
         private ScreenFrameThemePicker gallery;
         private bool previewingFrame;
+        private bool fullscreen, disposed, reservationFailed;
         private Rectangle lastBounds;
-        private int lastWidth, lastTheme = -1;
+        private int lastWidth, lastTheme = -1, lastOpacity = -1;
+        private Rectangle targetBounds, frameBounds;
+        private int frameWidth;
 
         internal ScreenFrame(DrawingSettings settings)
         {
             this.settings = settings;
+            layoutTimer = new Timer { Interval = 75 };
+            layoutTimer.Tick += delegate { layoutTimer.Stop(); Refresh(); };
+            reservations = new ScreenFrameAppBars(QueueLayout, active => { fullscreen = active; QueueLayout(); });
             SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
             SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
+        }
+
+        private void QueueLayout()
+        {
+            if (!disposed && !layoutTimer.Enabled) layoutTimer.Start();
         }
 
         private void OnPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
@@ -35,26 +50,48 @@ namespace gInk
         {
             NoteVisualWindow window = edges[0];
             if (window == null || !window.IsHandleCreated) return;
-            try { window.BeginInvoke(new Action(Refresh)); }
+            try { window.BeginInvoke(new Action(QueueLayout)); }
             catch (InvalidOperationException) { }
         }
 
         internal void Refresh()
         {
-            if (!settings.ScreenFrameEnabled && !previewingFrame)
+            if (disposed) return;
+            bool reserve = settings.ScreenFrameEnabled && settings.ScreenFrameReserveWorkArea;
+            bool expandTaskbar = settings.ScreenFrameExpandTaskbar && !reserve;
+            if (!reserve)
+            {
+                reservations.Release();
+                fullscreen = false;
+            }
+            Screen screen = Screen.AllScreens.FirstOrDefault(item => item.DeviceName == settings.ScreenFrameMonitor) ?? Screen.PrimaryScreen;
+            targetBounds = screen.Bounds;
+            int width = Math.Max(3, Math.Min(targetBounds.Width, targetBounds.Height) * settings.ScreenFrameWidth / 100);
+            reservationFailed = false;
+            Rectangle bounds;
+            if (reserve && reservations.Reserve(targetBounds, width, out Rectangle reservedBounds))
+                bounds = reservedBounds;
+            else
+            {
+                reservationFailed = reserve;
+                bounds = expandTaskbar ? targetBounds : screen.WorkingArea;
+            }
+            frameBounds = bounds;
+            frameWidth = width;
+            UpdateWorkAreaPreview();
+            if ((!settings.ScreenFrameEnabled && !previewingFrame) ||
+                (reserve && fullscreen && settings.ScreenFrameHideFullscreen && !previewingFrame))
             {
                 foreach (var edge in edges) edge?.Hide();
                 return;
             }
-            Screen screen = Screen.AllScreens.FirstOrDefault(item => item.DeviceName == settings.ScreenFrameMonitor) ?? Screen.PrimaryScreen;
-            Rectangle bounds = settings.ScreenFrameExpandTaskbar ? screen.Bounds : screen.WorkingArea;
-            int width = Math.Max(3, Math.Min(bounds.Width, bounds.Height) * settings.ScreenFrameWidth / 100);
-            if (bounds == lastBounds && width == lastWidth && settings.ScreenFrameTheme == lastTheme && edges[0] != null)
+            int opacity = settings.ScreenFrameOpacity;
+            if (bounds == lastBounds && width == lastWidth && settings.ScreenFrameTheme == lastTheme && opacity == lastOpacity && edges[0] != null)
             {
                 foreach (var edge in edges)
                 {
                     if (!edge.Visible) edge.Show();
-                    if (settings.ScreenFrameExpandTaskbar) edge.RaiseWithoutActivation();
+                    if (expandTaskbar) edge.RaiseWithoutActivation();
                 }
                 return;
             }
@@ -78,14 +115,39 @@ namespace gInk
                         g.TranslateTransform(-strip.X, -strip.Y);
                         ScreenFrameStyle.Paint(g, bounds.Size, width, settings.ScreenFrameTheme);
                     }
-                    edges[i].Present(bitmap, location);
+                    edges[i].Present(bitmap, location, (byte)Math.Round(255 * opacity / 100.0));
                 }
                 if (!edges[i].Visible) edges[i].Show();
-                if (settings.ScreenFrameExpandTaskbar) edges[i].RaiseWithoutActivation();
+                if (expandTaskbar) edges[i].RaiseWithoutActivation();
             }
             lastBounds = bounds;
             lastWidth = width;
             lastTheme = settings.ScreenFrameTheme;
+            lastOpacity = opacity;
+        }
+
+        private void UpdateWorkAreaPreview()
+        {
+            if (options == null) return;
+            widthAmount.Text = frameWidth + " px";
+            workAreaStatus.Text = reservationFailed ? "Windows에서 공간을 확보하지 못했습니다." :
+                settings.ScreenFrameEnabled && settings.ScreenFrameReserveWorkArea ? "일반 창 최대화 영역" : "액자 안쪽 영역";
+            workAreaPreview.Invalidate();
+        }
+
+        private void PaintWorkAreaPreview(object sender, PaintEventArgs e)
+        {
+            if (targetBounds.IsEmpty) return;
+            var panel = (Control)sender;
+            float scale = Math.Min((panel.Width - 4f) / targetBounds.Width, (panel.Height - 4f) / targetBounds.Height);
+            float x = (panel.Width - targetBounds.Width * scale) / 2, y = (panel.Height - targetBounds.Height * scale) / 2;
+            var monitor = new RectangleF(x, y, targetBounds.Width * scale, targetBounds.Height * scale);
+            var frame = new RectangleF(x + (frameBounds.Left - targetBounds.Left) * scale,
+                y + (frameBounds.Top - targetBounds.Top) * scale, frameBounds.Width * scale, frameBounds.Height * scale);
+            e.Graphics.FillRectangle(Brushes.DimGray, monitor);
+            e.Graphics.FillRectangle(Brushes.SteelBlue, frame);
+            frame.Inflate(-frameWidth * scale, -frameWidth * scale);
+            if (frame.Width > 0 && frame.Height > 0) e.Graphics.FillRectangle(Brushes.AliceBlue, frame);
         }
 
         internal void ShowOptions()
@@ -97,7 +159,7 @@ namespace gInk
             }
             options = new Form
             {
-                Name = "ScreenFrameOptions", Text = "화면 액자", ClientSize = new Size(390, 237),
+                Name = "ScreenFrameOptions", Text = "화면 액자", ClientSize = new Size(390, 407),
                 StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog,
                 ShowInTaskbar = false, TopMost = true, MaximizeBox = false, MinimizeBox = false
             };
@@ -106,6 +168,10 @@ namespace gInk
                 AccessibleName = "액자 테마 미리보기", Bounds = new Rectangle(96, 44, 280, 26) };
             var expandTaskbar = new CheckBox { Name = "ScreenFrameExpandTaskbar", Text = "작업표시줄 확장",
                 Checked = settings.ScreenFrameExpandTaskbar, Bounds = new Rectangle(14, 151, 345, 24) };
+            var reserveArea = new CheckBox { Name = "ScreenFrameReserveWorkArea", Text = "작업 영역 자동 확보",
+                Checked = settings.ScreenFrameReserveWorkArea, Bounds = new Rectangle(14, 179, 345, 24) };
+            var hideFullscreen = new CheckBox { Name = "ScreenFrameHideFullscreen", Text = "전체화면 앱에서 액자 숨기기",
+                Checked = settings.ScreenFrameHideFullscreen, Bounds = new Rectangle(14, 207, 345, 24) };
             var monitor = new ComboBox { Name = "ScreenFrameMonitor", DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(96, 79, 280, 24) };
             Screen[] screens = Screen.AllScreens;
             int selectedMonitor = Array.FindIndex(screens, item => item.DeviceName == settings.ScreenFrameMonitor);
@@ -117,14 +183,40 @@ namespace gInk
                 Name = "ScreenFrameWidth", AccessibleName = "화면 안쪽을 덮는 폭", Minimum = 1, Maximum = 12, Value = settings.ScreenFrameWidth,
                 TickStyle = TickStyle.None, AutoSize = false, Bounds = new Rectangle(90, 113, 238, 26)
             };
-            var amount = new Label { Text = width.Value + "%", Bounds = new Rectangle(336, 117, 40, 24) };
-            var done = new Button { Name = "CloseScreenFrameOptions", Text = "닫기", Bounds = new Rectangle(294, 192, 82, 28) };
+            widthAmount = new Label { Bounds = new Rectangle(325, 117, 55, 24) };
+            var opacity = new TrackBar { Name = "ScreenFrameOpacity", AccessibleName = "액자 불투명도",
+                Minimum = 10, Maximum = 100, Value = settings.ScreenFrameOpacity, TickStyle = TickStyle.None,
+                AutoSize = false, Bounds = new Rectangle(90, 239, 238, 26) };
+            var opacityAmount = new Label { Text = opacity.Value + "%", Bounds = new Rectangle(336, 243, 40, 24) };
+            workAreaStatus = new Label { Bounds = new Rectangle(14, 275, 345, 22) };
+            workAreaPreview = new Panel { Name = "ScreenFrameWorkAreaPreview", Bounds = new Rectangle(14, 298, 264, 96) };
+            workAreaPreview.Paint += PaintWorkAreaPreview;
+            var done = new Button { Name = "CloseScreenFrameOptions", Text = "닫기", Bounds = new Rectangle(294, 366, 82, 28) };
+            void UpdateAvailability()
+            {
+                expandTaskbar.Enabled = !reserveArea.Checked;
+                hideFullscreen.Enabled = reserveArea.Checked;
+            }
+            UpdateAvailability();
             var update = new Timer { Interval = 30 };
             update.Tick += delegate { update.Stop(); Refresh(); };
             enabled.CheckedChanged += delegate { settings.ScreenFrameEnabled = enabled.Checked; Refresh(); settings.SaveToolSettings(); };
             expandTaskbar.CheckedChanged += delegate
             {
                 settings.ScreenFrameExpandTaskbar = expandTaskbar.Checked;
+                Refresh();
+                settings.SaveToolSettings();
+            };
+            reserveArea.CheckedChanged += delegate
+            {
+                settings.ScreenFrameReserveWorkArea = reserveArea.Checked;
+                UpdateAvailability();
+                Refresh();
+                settings.SaveToolSettings();
+            };
+            hideFullscreen.CheckedChanged += delegate
+            {
+                settings.ScreenFrameHideFullscreen = hideFullscreen.Checked;
                 Refresh();
                 settings.SaveToolSettings();
             };
@@ -162,8 +254,13 @@ namespace gInk
             width.ValueChanged += delegate
             {
                 settings.ScreenFrameWidth = width.Value;
-                amount.Text = width.Value + "%";
                 gallery?.RefreshPreviews();
+                update.Start();
+            };
+            opacity.ValueChanged += delegate
+            {
+                settings.ScreenFrameOpacity = opacity.Value;
+                opacityAmount.Text = opacity.Value + "%";
                 update.Start();
             };
             done.Click += delegate { options.Close(); };
@@ -175,17 +272,24 @@ namespace gInk
                 Refresh();
                 settings.SaveToolSettings();
             };
-            options.Controls.AddRange(new Control[] { enabled, theme, monitor, width, amount, expandTaskbar, done,
+            options.Controls.AddRange(new Control[] { enabled, theme, monitor, width, widthAmount, expandTaskbar,
+                reserveArea, hideFullscreen, opacity, opacityAmount, workAreaStatus, workAreaPreview, done,
                 new Label { Text = "테마", Location = new Point(14, 47), AutoSize = true },
                 new Label { Text = "대상 화면", Location = new Point(14, 79), AutoSize = true },
-                new Label { Text = "안쪽 폭", Location = new Point(14, 117), AutoSize = true } });
+                new Label { Text = "안쪽 폭", Location = new Point(14, 117), AutoSize = true },
+                new Label { Text = "불투명도", Location = new Point(14, 243), AutoSize = true } });
+            Refresh();
             options.Show();
         }
 
         public void Dispose()
         {
+            if (disposed) return;
+            disposed = true;
             SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
             SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
+            layoutTimer.Dispose();
+            reservations.Dispose();
             options?.Close();
             for (int i = 0; i < edges.Length; i++)
             {

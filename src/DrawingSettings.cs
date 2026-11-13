@@ -32,6 +32,9 @@ namespace gInk
         internal int ScreenFrameWidth { get; set; } = 2;
         internal string ScreenFrameMonitor { get; set; }
         internal bool ScreenFrameExpandTaskbar { get; set; }
+        internal bool ScreenFrameReserveWorkArea { get; set; }
+        internal int ScreenFrameOpacity { get; set; } = 100;
+        internal bool ScreenFrameHideFullscreen { get; set; } = true;
         private readonly List<int> favoriteScreenFrames = new List<int>();
         internal IReadOnlyList<int> FavoriteScreenFrames => favoriteScreenFrames;
         private const int RecentFontLimit = 5;
@@ -73,6 +76,9 @@ namespace gInk
             ScreenFrameWidth = 2;
             ScreenFrameMonitor = null;
             ScreenFrameExpandTaskbar = false;
+            ScreenFrameReserveWorkArea = false;
+            ScreenFrameOpacity = 100;
+            ScreenFrameHideFullscreen = true;
             favoriteScreenFrames.Clear();
             recentFonts.Clear();
             HasFont = false;
@@ -244,6 +250,11 @@ namespace gInk
                     ScreenFrameWidth = Math.Max(1, Math.Min(12, width));
                 ScreenFrameMonitor = Attr(frame, "monitor");
                 ScreenFrameExpandTaskbar = bool.TryParse(Attr(frame, "expandTaskbar"), out bool expand) && expand;
+                ScreenFrameReserveWorkArea = bool.TryParse(Attr(frame, "reserveWorkArea"), out bool reserve) && reserve;
+                if (int.TryParse(Attr(frame, "opacity"), NumberStyles.Integer, Invariant, out int opacity))
+                    ScreenFrameOpacity = Math.Max(10, Math.Min(100, opacity));
+                if (bool.TryParse(Attr(frame, "hideFullscreen"), out bool hideFullscreen))
+                    ScreenFrameHideFullscreen = hideFullscreen;
                 var seen = new HashSet<int>();
                 foreach (XElement entry in frame.Elements("Favorite"))
                     if (int.TryParse(entry.Value, NumberStyles.Integer, Invariant, out int index) &&
@@ -320,11 +331,14 @@ namespace gInk
             SaveHeadlineList(document, "FavoriteHeadlines", favoriteHeadlines);
             SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
             if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar ||
+                ScreenFrameReserveWorkArea || ScreenFrameOpacity != 100 || !ScreenFrameHideFullscreen ||
                 favoriteScreenFrames.Count > 0 || !String.IsNullOrEmpty(ScreenFrameMonitor))
             {
                 var frame = new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
                     new XAttribute("theme", ScreenFrameTheme), new XAttribute("width", ScreenFrameWidth),
-                    new XAttribute("monitor", ScreenFrameMonitor ?? ""), new XAttribute("expandTaskbar", ScreenFrameExpandTaskbar));
+                    new XAttribute("monitor", ScreenFrameMonitor ?? ""), new XAttribute("expandTaskbar", ScreenFrameExpandTaskbar),
+                    new XAttribute("reserveWorkArea", ScreenFrameReserveWorkArea), new XAttribute("opacity", ScreenFrameOpacity),
+                    new XAttribute("hideFullscreen", ScreenFrameHideFullscreen));
                 foreach (int index in favoriteScreenFrames) frame.Add(new XElement("Favorite", index));
                 document.Add(frame);
             }

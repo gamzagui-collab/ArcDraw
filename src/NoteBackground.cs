@@ -506,7 +506,7 @@ namespace gInk
             base.WndProc(ref message);
         }
 
-        internal void Present(Bitmap pixels, Point location)
+        internal void Present(Bitmap pixels, Point location, byte opacity = 255)
         {
             IntPtr screen = GetDC(IntPtr.Zero);
             IntPtr memory = CreateCompatibleDC(screen);
@@ -532,7 +532,7 @@ namespace gInk
                 previous = SelectObject(memory, bitmap);
                 Point source = Point.Empty;
                 Size size = pixels.Size;
-                var blend = new Blend { Alpha = 255, Format = 1 };
+                var blend = new Blend { Alpha = opacity, Format = 1 };
                 if (!UpdateLayeredWindow(Handle, screen, ref location, ref size, memory, ref source, 0, ref blend, 2))
                     throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
             }

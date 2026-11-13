@@ -218,6 +218,7 @@
     <Compile Include="HeadlineTemplates.cs" />
     <Compile Include="HeadlineCatalog.cs" />
     <Compile Include="ScreenFrame.cs" />
+    <Compile Include="ScreenFrameAppBars.cs" />
     <Compile Include="ScreenFrameCatalog.cs" />
     <Compile Include="NoteIdentity.cs" />
     <Compile Include="NoteMemo.cs" />
