@@ -269,7 +269,7 @@ namespace gInk
                 if (!textColorMode || colorEditor != editor || colorNote != note || !anchor.Visible || FontSearchOpen) return;
                 if (fontPalette == null)
                 {
-                    fontPalette = new ToolbarFontPalette(ApplyToolbarFont, CloseFontSearch) { Owner = this };
+                    fontPalette = new ToolbarFontPalette(Root.Settings, ApplyToolbarFont, CloseFontSearch) { Owner = this };
                     fontPalette.Deactivate += delegate
                     {
                         fontPalette.BeginInvoke(new Action(delegate
@@ -609,8 +609,10 @@ namespace gInk
     internal sealed class ToolbarFontPalette : NonActivatingToolbarWindow
     {
         private const int PageSize = 6;
+        private readonly DrawingSettings settings;
         private readonly string[] families;
         private readonly FontPreviewButton[] rows = new FontPreviewButton[PageSize];
+        private readonly Button[] stars = new Button[PageSize];
         private readonly Button previous, next;
         private readonly Label page, empty;
         private readonly TextBox search;
@@ -620,8 +622,9 @@ namespace gInk
 
         protected override bool TakesFocus => true;
 
-        internal ToolbarFontPalette(Action<string> select, Action close)
+        internal ToolbarFontPalette(DrawingSettings settings, Action<string> select, Action close)
         {
+            this.settings = settings;
             Name = "ToolbarFontPalette";
             BackColor = Color.FromArgb(31, 34, 40);
             ClientSize = new Size(278, 348);
@@ -647,10 +650,22 @@ namespace gInk
             Controls.Add(empty);
             for (int index = 0; index < PageSize; index++)
             {
-                var row = new FontPreviewButton { Bounds = new Rectangle(8, 54 + index * 44, 262, 42) };
+                int top = 54 + index * 44;
+                var row = new FontPreviewButton { Bounds = new Rectangle(8, top, 224, 42) };
                 row.Click += delegate { select((string)row.Tag); };
+                var star = new ToolbarColorPalette.PaletteButton
+                {
+                    Name = "ToolbarFontFavorite" + index, Bounds = new Rectangle(234, top, 36, 42),
+                    BackColor = Color.WhiteSmoke
+                };
+                star.Click += delegate
+                {
+                    settings.ToggleFavoriteFont((string)row.Tag);
+                    RefreshResults();
+                };
                 rows[index] = row;
-                Controls.Add(row);
+                stars[index] = star;
+                Controls.AddRange(new Control[] { row, star });
             }
             previous = new ToolbarColorPalette.PaletteButton
             {
@@ -666,14 +681,7 @@ namespace gInk
             previous.Click += delegate { offset -= PageSize; RefreshPage(); };
             next.Click += delegate { offset += PageSize; RefreshPage(); };
             Controls.AddRange(new Control[] { previous, page, next });
-            search.TextChanged += delegate
-            {
-                string query = search.Text.Trim();
-                results = query.Length == 0 ? families : families.Where(name =>
-                    name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray();
-                offset = 0;
-                RefreshPage();
-            };
+            search.TextChanged += delegate { RefreshResults(); };
             search.KeyDown += (_, args) =>
             {
                 if (args.KeyCode == Keys.Enter)
@@ -697,10 +705,18 @@ namespace gInk
 
         internal void SetCurrentFamily(string family)
         {
-            search.Clear();
             current = family;
-            int index = Array.FindIndex(families, name => String.Equals(name, family, StringComparison.CurrentCultureIgnoreCase));
-            offset = Math.Max(0, index) / PageSize * PageSize;
+            if (search.TextLength == 0) RefreshResults();
+            else search.Clear();
+        }
+
+        private void RefreshResults()
+        {
+            string query = search.Text.Trim();
+            results = families.Where(name => query.Length == 0 ||
+                name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0)
+                .OrderByDescending(settings.IsFavoriteFont).ToArray();
+            offset = 0;
             RefreshPage();
         }
 
@@ -709,12 +725,17 @@ namespace gInk
             for (int index = 0; index < rows.Length; index++)
             {
                 FontPreviewButton row = rows[index];
+                Button star = stars[index];
                 int position = offset + index;
-                row.Visible = position < results.Length;
+                row.Visible = star.Visible = position < results.Length;
                 if (position >= results.Length) continue;
                 string family = results[position];
                 bool selected = String.Equals(current, family, StringComparison.CurrentCultureIgnoreCase);
                 row.SetFamily(family, selected);
+                bool favorite = settings.IsFavoriteFont(family);
+                star.Text = favorite ? "★" : "☆";
+                star.ForeColor = favorite ? Color.FromArgb(135, 78, 0) : Color.FromArgb(63, 72, 85);
+                star.AccessibleName = family + (favorite ? " 즐겨찾기 해제" : " 즐겨찾기 추가");
             }
             empty.Visible = results.Length == 0;
             previous.Enabled = offset > 0;

@@ -21,6 +21,7 @@ namespace gInk
     {
         private readonly Root root;
         private readonly Dictionary<int,DrawingPreset> presets=new Dictionary<int,DrawingPreset>();
+        private readonly HashSet<string> favoriteFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly CultureInfo Invariant=CultureInfo.InvariantCulture;
         public static readonly int[] PresetTools={Tools.Hand,Tools.Line,Tools.Rect,Tools.Oval,Tools.StartArrow,Tools.EndArrow,Tools.Poly};
         public bool HasFont {get;private set;}
@@ -49,6 +50,7 @@ namespace gInk
         private void ResetLoadedSettings()
         {
             presets.Clear();
+            favoriteFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
             BrushColor = null;
@@ -68,6 +70,17 @@ namespace gInk
         {
             if (ScreenTextFamily == family) return;
             ScreenTextFamily = family;
+            SaveToolSettings();
+        }
+
+        internal bool IsFavoriteFont(string family)
+        {
+            return favoriteFonts.Contains(family);
+        }
+
+        internal void ToggleFavoriteFont(string family)
+        {
+            if (!favoriteFonts.Remove(family)) favoriteFonts.Add(family);
             SaveToolSettings();
         }
 
@@ -154,6 +167,15 @@ namespace gInk
             {FontFamily=Attr(font,"family","Malgun Gothic");FontPoints=Math.Max(6,Math.Min(144,Number(font,"points",17)));FontStyle=(FontStyle)(Int(font,"style")&3);HasFont=true;}
             XElement colors = document.Element("ToolColors");
             ScreenTextFamily = (string)document.Element("ScreenTextFamily");
+            XElement favorites = document.Element("FavoriteFonts");
+            if (favorites != null)
+            {
+                foreach (XElement entry in favorites.Elements("Font"))
+                {
+                    string family = entry.Value.Trim();
+                    if (family.Length > 0) favoriteFonts.Add(family);
+                }
+            }
             if (int.TryParse((string)colors?.Attribute("text"), NumberStyles.Integer, Invariant, out int text))
                 ScreenTextColor = Color.FromArgb(text);
             if (int.TryParse((string)colors?.Attribute("brush"), NumberStyles.Integer, Invariant, out int brush))
@@ -176,6 +198,12 @@ namespace gInk
         {
             var document=new XElement("ArcDrawSettings",new XAttribute("version",1));
             if (ScreenTextFamily != null) document.Add(new XElement("ScreenTextFamily", ScreenTextFamily));
+            if (favoriteFonts.Count > 0)
+            {
+                var favorites = new XElement("FavoriteFonts");
+                foreach (string family in favoriteFonts) favorites.Add(new XElement("Font", family));
+                document.Add(favorites);
+            }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",
                     ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,
