@@ -1,3 +1,3 @@
-﻿ArcDraw v0.48 — Caps Lock 입력 전환 안정화
-2026-11-13 22:45:54 KST
-EXE SHA256: c66d4dc71dedb031d51ddea4a611f11b3eb9b272d7fbc6fe1a5fa4ef9850c1df
+﻿ArcDraw v0.49 — 헤드라인 디자인 30종
+2026-11-13 23:03:35 KST
+EXE SHA256: dbe61a6de34868ce2e1767e7bfe1de376d557634da6db8e699a60d3d3ed8ae95

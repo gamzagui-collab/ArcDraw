@@ -2,14 +2,13 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Ink;
 
 namespace gInk
 {
-    internal enum NoteBackgroundShape { Rectangle, Rounded, Oval, Underline }
-
     public sealed partial class WhiteboardLayerForm
     {
         private static readonly Color PaperKey = Color.FromArgb(254, 253, 252);
@@ -17,13 +16,17 @@ namespace gInk
         private NoteBackgroundShape backgroundShape;
         private NoteBackgroundSlider backgroundSlider;
         private Button backgroundShapeButton;
-        private ContextMenuStrip backgroundMenu;
+        private HeadlineTemplatePicker backgroundMenu;
         private NoteVisualWindow backgroundVisual;
         private Timer backgroundTimer;
+        private Timer headlineHoverTimer;
+        private bool headlineChromeVisible;
         private Bitmap noteSnapshot, notePixels, inkPixels;
         private bool renderingNote, noteVisualDirty;
         private Stroke previewInkStroke;
         private bool useBackgroundVisual => IsHeadline || backgroundPercent != 100;
+        internal bool ShowDrawingFrame => !IsHeadline || headlineChromeVisible;
+        private Rectangle HeadlineCaptionBounds => HeadlineTemplate.Get(backgroundShape).CaptionBounds(paper.ClientRectangle);
 
         private static NoteBackgroundShape DefaultBackgroundShape(bool headline) =>
             headline ? NoteBackgroundShape.Rounded : NoteBackgroundShape.Rectangle;
@@ -36,25 +39,20 @@ namespace gInk
             titleBar.Controls.Add(backgroundSlider);
             if (IsHeadline)
             {
-                backgroundMenu = new ContextMenuStrip { Name = "HeadlineBackgroundShapes" };
-                AddBackgroundShape("사각형", NoteBackgroundShape.Rectangle);
-                AddBackgroundShape("둥근 사각형", NoteBackgroundShape.Rounded);
-                AddBackgroundShape("타원형", NoteBackgroundShape.Oval);
-                AddBackgroundShape("밑줄형", NoteBackgroundShape.Underline);
+                backgroundMenu = new HeadlineTemplatePicker();
+                backgroundMenu.Selected += shape => ChangeNoteBackground(backgroundPercent, shape);
+                backgroundMenu.Closed += delegate { RefreshHeadlineChrome(); };
                 backgroundShapeButton = new Button
                 {
-                    Name = "HeadlineShape", Text = "모양", AccessibleName = "헤드라인 배경 모양",
+                    Name = "HeadlineShape", Text = "모양", AccessibleName = "헤드라인 디자인 선택",
                     Size = new Size(44, 26), Top = 4, TabStop = false,
                     FlatStyle = FlatStyle.Flat, BackColor = titleBar.BackColor, ForeColor = title.ForeColor
                 };
                 backgroundShapeButton.FlatAppearance.BorderSize = 0;
-                backgroundShapeButton.Click += delegate
-                {
-                    foreach (ToolStripMenuItem item in backgroundMenu.Items)
-                        item.Checked = (NoteBackgroundShape)item.Tag == backgroundShape;
-                    backgroundMenu.Show(backgroundShapeButton, new Point(0, backgroundShapeButton.Height));
-                };
+                backgroundShapeButton.Click += delegate { backgroundMenu.ShowFor(backgroundShapeButton, backgroundShape); };
                 titleBar.Controls.Add(backgroundShapeButton);
+                headlineHoverTimer = new Timer { Interval = 45 };
+                headlineHoverTimer.Tick += delegate { RefreshHeadlineChrome(); };
             }
             PlaceNoteTitle(titleBar.ClientSize.Width - 71);
             backgroundTimer = new Timer { Interval = 25 };
@@ -80,11 +78,27 @@ namespace gInk
             RestoreNoteBackground(backgroundPercent, backgroundShape);
         }
 
-        private void AddBackgroundShape(string label, NoteBackgroundShape shape)
+        private void RefreshHeadlineChrome()
         {
-            var item = new ToolStripMenuItem(label) { Tag = shape };
-            item.Click += delegate { ChangeNoteBackground(backgroundPercent, shape); };
-            backgroundMenu.Items.Add(item);
+            if (!IsHeadline || closing || IsDisposed) return;
+            bool hover = false;
+            if (Visible)
+            {
+                Point pointer = System.Windows.Forms.Cursor.Position;
+                bool interacting = backgroundSlider.Capture || grips.Values.Any(grip => grip.Capture) ||
+                    (dragging && (titleBar.Capture || title.Capture));
+                hover = backgroundMenu.Visible || interacting || Bounds.Contains(pointer) && PointerHitsHeadline(pointer);
+            }
+            if (headlineChromeVisible == hover) return;
+            headlineChromeVisible = hover;
+            QueueNoteVisual();
+            manager.CurrentRoot.DrawingSession?.RefreshDrawingTarget();
+        }
+
+        private bool PointerHitsHeadline(Point point)
+        {
+            IntPtr hit = WindowFromPoint(point);
+            return hit == Handle || IsChild(Handle, hit);
         }
 
         private void PlaceNoteTitle(int renameLeft)
@@ -115,6 +129,7 @@ namespace gInk
             backgroundPercent = percent;
             backgroundShape = shape;
             backgroundSlider.Value = percent;
+            ResizeMemoEditor();
             UpdateNoteBackground();
         }
 
@@ -127,11 +142,22 @@ namespace gInk
             if (IsMemoEditor) textEditor.BackColor = paperColor;
             if (!composite || !Visible)
             {
+                if (headlineHoverTimer != null)
+                {
+                    headlineHoverTimer.Stop();
+                    if (backgroundMenu.Visible) backgroundMenu.Close();
+                    headlineChromeVisible = false;
+                }
                 backgroundTimer.Stop();
                 backgroundVisual?.Hide();
                 if (!composite) Opacity = 1;
                 if (!renderingNote) DisposeNoteBitmaps();
                 return;
+            }
+            if (headlineHoverTimer != null && !headlineHoverTimer.Enabled)
+            {
+                RefreshHeadlineChrome();
+                headlineHoverTimer.Start();
             }
             if (backgroundVisual == null) backgroundVisual = new NoteVisualWindow { Owner = this };
             // The input window keeps native EDIT and InkOverlay hit testing.
@@ -150,7 +176,8 @@ namespace gInk
         private void WatchNoteEditor(NoteTextEditor editor)
         {
             editor.Invalidated += delegate { QueueNoteVisual(); };
-            editor.TextChanged += delegate { QueueNoteVisual(); };
+            editor.TextChanged += delegate { if (IsHeadline) ResizeMemoEditor(); QueueNoteVisual(); };
+            editor.FontChanged += delegate { if (IsHeadline) ResizeMemoEditor(); QueueNoteVisual(); };
             editor.KeyUp += delegate { QueueNoteVisual(); };
             editor.MouseUp += delegate { QueueNoteVisual(); };
             editor.MouseWheel += delegate { QueueNoteVisual(); };
@@ -171,7 +198,8 @@ namespace gInk
                     notePixels = new Bitmap(ClientSize.Width, ClientSize.Height, PixelFormat.Format32bppPArgb);
                 }
                 Rectangle frame = ClientRectangle;
-                DrawToBitmap(noteSnapshot, frame);
+                bool showChrome = !IsHeadline || headlineChromeVisible;
+                if (showChrome) DrawToBitmap(noteSnapshot, frame);
                 Rectangle body = paper.Bounds;
                 if (inkPixels == null || inkPixels.Size != body.Size)
                 {
@@ -182,6 +210,8 @@ namespace gInk
                 {
                     inkGraphics.Clear(Color.Transparent);
                     PaintNoteContents(inkGraphics, true);
+                    if (IsHeadline && IsMemoEditor && !showChrome)
+                        DrawHeadlineCaption(inkGraphics, textEditor.Text, textEditor.Font, textEditor.ForeColor);
                 }
                 if (closing || !Visible || !useBackgroundVisual) return;
                 using (Graphics graphics = Graphics.FromImage(notePixels))
@@ -190,16 +220,30 @@ namespace gInk
                     graphics.Clear(Color.Transparent);
                     DrawNoteBackground(graphics, body);
                     graphics.DrawImageUnscaled(inkPixels, body.Location);
-                    key.SetColorKey(PaperKey, PaperKey);
-                    graphics.DrawImage(noteSnapshot, frame, 0, 0, frame.Width, frame.Height, GraphicsUnit.Pixel, key);
-                    if (IsEditingText && textEditor.Focused && GetCaretPos(out Point caret))
+                    if (showChrome)
                     {
-                        Point origin = PointToClient(textEditor.PointToScreen(Point.Empty));
-                        Rectangle limit = new Rectangle(origin, textEditor.ClientSize);
-                        caret.Offset(origin);
-                        graphics.SetClip(limit);
-                        using (var pen = new Pen(textEditor.ForeColor, 1))
-                            graphics.DrawLine(pen, caret.X, caret.Y, caret.X, caret.Y + textEditor.Font.Height);
+                        key.SetColorKey(PaperKey, PaperKey);
+                        if (!IsHeadline) graphics.DrawImage(noteSnapshot, frame, 0, 0, frame.Width, frame.Height, GraphicsUnit.Pixel, key);
+                        else
+                        {
+                            CopyNoteChrome(graphics, key, titleBar.Bounds);
+                            foreach (Panel grip in grips.Values) CopyNoteChrome(graphics, key, grip.Bounds);
+                            if (IsEditingText)
+                            {
+                                Rectangle editor = textEditor.Bounds;
+                                editor.Offset(body.Location);
+                                CopyNoteChrome(graphics, key, editor);
+                            }
+                        }
+                        if (IsEditingText && textEditor.Focused && GetCaretPos(out Point caret))
+                        {
+                            Point origin = PointToClient(textEditor.PointToScreen(Point.Empty));
+                            Rectangle limit = new Rectangle(origin, textEditor.ClientSize);
+                            caret.Offset(origin);
+                            graphics.SetClip(limit);
+                            using (var pen = new Pen(textEditor.ForeColor, 1))
+                                graphics.DrawLine(pen, caret.X, caret.Y, caret.X, caret.Y + textEditor.Font.Height);
+                        }
                     }
                 }
                 backgroundVisual.Present(notePixels, Location);
@@ -213,43 +257,36 @@ namespace gInk
             }
         }
 
+        private void CopyNoteChrome(Graphics graphics, ImageAttributes key, Rectangle region)
+        {
+            graphics.DrawImage(noteSnapshot, region, region.X, region.Y, region.Width, region.Height, GraphicsUnit.Pixel, key);
+        }
+
+        private void DrawHeadlineCaption(Graphics graphics, string content, Font font, Color color)
+        {
+            if (String.IsNullOrEmpty(content)) return;
+            Rectangle bounds = HeadlineCaptionBounds;
+            if (bounds.Width < 1 || bounds.Height < 1) return;
+            GraphicsState saved = graphics.Save();
+            try
+            {
+                graphics.SetClip(bounds, CombineMode.Intersect);
+                using (var brush = new SolidBrush(color))
+                using (var format = new StringFormat(StringFormat.GenericDefault)
+                {
+                    Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center,
+                    Trimming = StringTrimming.EllipsisCharacter
+                }) graphics.DrawString(content, font, brush, bounds, format);
+            }
+            finally { graphics.Restore(saved); }
+        }
+
         private void DrawNoteBackground(Graphics graphics, Rectangle body)
         {
             if (backgroundPercent == 0 || body.Width < 2 || body.Height < 2) return;
             int alpha = (int)Math.Round(255 * backgroundPercent / 100.0);
-            if (backgroundShape == NoteBackgroundShape.Rectangle)
-            {
-                using (var brush = new SolidBrush(Color.FromArgb(alpha, Color.White)))
-                    graphics.FillRectangle(brush, body);
-                return;
-            }
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Color accent = Color.FromArgb(alpha, 37, 124, 157);
-            if (backgroundShape == NoteBackgroundShape.Underline)
-            {
-                using (var pen = new Pen(accent, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-                    graphics.DrawLine(pen, body.Left + 12, body.Bottom - 7, body.Right - 12, body.Bottom - 7);
-                return;
-            }
-            body.Inflate(-2, -2);
-            using (var path = new GraphicsPath())
-            using (var brush = new SolidBrush(Color.FromArgb(alpha, 247, 252, 255)))
-            using (var outline = new Pen(accent, 2))
-            {
-                if (backgroundShape == NoteBackgroundShape.Oval) path.AddEllipse(body);
-                else
-                {
-                    int diameter = Math.Min(28, Math.Min(body.Width, body.Height));
-                    if (diameter < 2) return;
-                    path.AddArc(body.Left, body.Top, diameter, diameter, 180, 90);
-                    path.AddArc(body.Right - diameter, body.Top, diameter, diameter, 270, 90);
-                    path.AddArc(body.Right - diameter, body.Bottom - diameter, diameter, diameter, 0, 90);
-                    path.AddArc(body.Left, body.Bottom - diameter, diameter, diameter, 90, 90);
-                    path.CloseFigure();
-                }
-                graphics.FillPath(brush, path);
-                graphics.DrawPath(outline, path);
-            }
+            if (IsHeadline) HeadlineTemplate.Draw(graphics, body, backgroundShape, alpha);
+            else using (var brush = new SolidBrush(Color.FromArgb(alpha, Color.White))) graphics.FillRectangle(brush, body);
         }
 
         private void DisposeNoteBitmaps()
@@ -263,12 +300,15 @@ namespace gInk
         private void DisposeNoteBackground()
         {
             backgroundTimer?.Dispose();
+            headlineHoverTimer?.Dispose();
             backgroundVisual?.Dispose();
             backgroundMenu?.Dispose();
             DisposeNoteBitmaps();
         }
 
         [DllImport("user32.dll")] private static extern bool GetCaretPos(out Point point);
+        [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
+        [DllImport("user32.dll")] private static extern bool IsChild(IntPtr parent, IntPtr child);
     }
 
     internal sealed class NoteBackgroundSlider : Control

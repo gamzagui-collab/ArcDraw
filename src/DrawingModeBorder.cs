@@ -29,6 +29,12 @@ namespace gInk
                 WhiteboardLayerForm note=root.Whiteboards==null?null:root.Whiteboards.ActiveNote;
                 if(note!=null&&(note.IsDisposed||!note.Visible))note=null;
                 bool targetChanged=trackedNote!=note;Watch(note);
+                if (note != null && !note.ShowDrawingFrame)
+                {
+                    if (visible) foreach (EdgeWindow edge in edges) edge.Hide();
+                    visible = false;
+                    return;
+                }
                 var next=new List<Rectangle>();
                 if(note!=null)next.Add(note.Bounds);else foreach(Screen screen in Screen.AllScreens)next.Add(screen.Bounds);
                 bool changed=!visible||targetChanged||frames.Count!=next.Count;

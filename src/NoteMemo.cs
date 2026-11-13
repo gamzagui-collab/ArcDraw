@@ -195,7 +195,22 @@ namespace gInk
         }
         private void ResizeMemoEditor()
         {
-            if(IsMemoEditor)textEditor.Bounds=new Rectangle(8,8,Math.Max(20,paper.ClientSize.Width-16),Math.Max(20,paper.ClientSize.Height-16));
+            if (!IsMemoEditor) return;
+            if (!IsHeadline)
+            {
+                textEditor.Bounds = new Rectangle(8, 8, Math.Max(20, paper.ClientSize.Width - 16),
+                    Math.Max(20, paper.ClientSize.Height - 16));
+                return;
+            }
+            Rectangle region = HeadlineCaptionBounds;
+            // Center the native multiline EDIT vertically without moving its caret or
+            // changing its wrapping width as a line is entered.
+            int measured = TextRenderer.MeasureText(textEditor.Text + "\u200b", textEditor.Font,
+                new Size(Math.Max(1, region.Width), int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Height;
+            int height = Math.Max(1, Math.Min(region.Height, Math.Max(textEditor.Font.Height, measured) + 3));
+            textEditor.Bounds = new Rectangle(region.X, region.Y + (region.Height - height) / 2,
+                Math.Max(1, region.Width), height);
         }
         internal void FillLegacyTextActions(ContextMenuStrip menu)
         {

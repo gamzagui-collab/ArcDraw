@@ -106,6 +106,11 @@ namespace gInk
                 foreach (NoteTextItem item in textItems.ToArray())
                 {
                     if (item == editingText) continue;
+                    if (IsHeadline && item.IsMemo && composite)
+                    {
+                        using (Font font = item.CreateFont()) DrawHeadlineCaption(graphics, item.Content, font, item.Color);
+                        continue;
+                    }
                     if(item.IsMemo)item.LayoutWidth=Math.Max(1,paper.ClientSize.Width-16-SystemInformation.VerticalScrollBarWidth);
                     using (Font font = item.CreateFont())
                     {
@@ -186,6 +191,11 @@ namespace gInk
             editor.AcceptsReturn = true;
             editor.WordWrap = true;
             editor.ScrollBars = ScrollBars.Vertical;
+            if (memo && IsHeadline)
+            {
+                editor.TextAlign = HorizontalAlignment.Center;
+                editor.ScrollBars = ScrollBars.None;
+            }
             editor.ImeMode = ImeMode.NoControl;
             editor.MaxLength = 0;
             editor.Font = editorFont;
@@ -210,6 +220,7 @@ namespace gInk
             textEditor = editor;
             WatchNoteEditor(editor);
             paper.Controls.Add(editor);
+            if (memo && IsHeadline) ResizeMemoEditor();
             editor.BringToFront();
             editor.Focus();
             FocusDrawingSurface();
