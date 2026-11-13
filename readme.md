@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.56-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.57-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,13 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.56 화면 액자 작업 영역 자동 확보
+## v0.57 화면 액자 장식 복원
 
-화면 액자 표시와 작업 영역 자동 확보를 함께 켜면 선택한 모니터의 일반 창이 액자 안쪽까지만 최대화됩니다. 안쪽 폭과 불투명도를 조절할 수 있습니다. 작업 영역을 확보하는 동안은 작업표시줄을 위한 공간을 남깁니다. 액자나 작업 영역 자동 확보를 끄거나 ArcDraw를 종료하면 예약이 해제됩니다.
+첨부 시안 100종의 테두리를 다시 그려 모서리 소품, 곡선, 빛 효과가 더 온전히 보이도록 했습니다. 가운데는 투명하고 안쪽 경계는 부드럽게 이어집니다. 안쪽 폭은 장식 전체의 크기를 조절하며, 작업 영역 자동 확보를 켜면 테마에 맞춰 네 방향의 여백이 조정됩니다.
 
-전체화면 앱에서 액자 숨기기는 Windows가 전체화면을 알릴 때 동작합니다. F11이나 게임 전체화면의 크기는 앱이 정합니다.
-
-Windows 10 LTSC에서 일반 창 최대화, 여백 변경, 표시 끄기와 정상 종료, 테스트 프로세스 강제 종료 후 작업 영역 복구를 확인했습니다.
+Windows Release|x86 빌드와 110종 렌더링, 대표 시안의 장식과 안쪽 경계, 실제 Windows 작업 영역 정렬 및 복구를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

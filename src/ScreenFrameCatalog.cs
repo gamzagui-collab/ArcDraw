@@ -1,9 +1,11 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace gInk
@@ -44,6 +46,32 @@ namespace gInk
         private static int cachedArtworkNumber;
         private static Bitmap cachedArtwork;
 
+        // Insets up to the solid artwork, as percentages of source width and height.
+        // The opening starts farther in so the soft edge has its own space.
+        private static readonly byte[] ArtworkOpenings =
+        {
+            18,16,23,22, 20,13,23,26, 23,16,24,24, 16,11,15,20, 12,11,13,19,
+            23,15,22,22, 24,18,22,21, 16,14,23,17, 18,15,24,23, 10,12,22,21,
+            23,13,27,26, 21,24,24,22, 17,12,32,23, 22,22,23,22, 24,14,31,21,
+            15,15,20,28, 21,15,23,23, 18,19,26,22, 23,15,25,20, 21,19,35,24,
+            25,20,30,27, 24,17,31,26, 24,19,24,28, 24,14,22,29, 19,15,22,27,
+            22,20,24,28, 25,18,21,29, 24,22,26,26, 23,20,22,33, 23,20,21,37,
+            29,17,18,22, 31,13,21,32, 20,16,21,28, 24,13,22,23, 19,13,22,24,
+            30,15,32,23, 23,14,26,21, 21,18,32,27, 24,22,23,25, 23,15,22,20,
+            27,12,17,24, 24,16,23,22, 19,16,24,19, 19,14,14,26, 18,12,20,28,
+            21,13,24,22, 21,17,24,25, 15,16,21,21, 18,16,17,22, 19,14,23,21,
+            24,17,25,23, 27,14,24,20, 23,17,25,21, 28,14,22,21, 18,14,24,18,
+            22,15,24,21, 23,16,20,25, 15,14,28,24, 26,13,20,26, 20,17,25,24,
+            18,18,19,22, 16,14,23,22, 17,15,15,20, 18,15,18,23, 15,17,17,22,
+            19,17,19,19, 21,22,24,24, 20,19,20,22, 22,20,23,23, 20,18,22,21,
+            19,19,17,22, 24,18,21,32, 22,19,16,22, 21,14,30,20, 25,17,20,19,
+            20,20,24,27, 20,15,23,17, 22,14,27,23, 27,14,24,23, 23,19,20,27,
+            24,13,22,23, 24,13,27,22, 19,13,23,20, 24,14,24,19, 23,13,22,20,
+            22,13,24,20, 23,13,23,24, 22,14,20,23, 22,15,18,23, 23,17,26,20,
+            22,18,17,19, 20,16,24,20, 23,16,18,22, 20,17,21,25, 21,19,20,24,
+            24,14,23,28, 25,18,25,24, 24,15,25,23, 19,18,25,26, 25,18,22,34
+        };
+
         // Keep only the most recently drawn source so browsing doesn't retain all 100 bitmaps.
         private static Bitmap GetArtwork(int number)
         {
@@ -53,12 +81,55 @@ namespace gInk
             using (Stream entry = archive.GetEntry(number.ToString("D3") + ".jpg").Open())
             using (var decoded = new Bitmap(entry))
             {
-                Bitmap copy = new Bitmap(decoded);
+                Bitmap copy = decoded.Clone(new Rectangle(Point.Empty, decoded.Size), PixelFormat.Format32bppArgb);
+                try { FeatherOpening(copy, SourceInsets(copy.Size, number)); }
+                catch { copy.Dispose(); throw; }
                 cachedArtwork?.Dispose();
                 cachedArtwork = copy;
                 cachedArtworkNumber = number;
                 return copy;
             }
+        }
+
+        private static Padding SourceInsets(Size size, int number)
+        {
+            int index = (number - 1) * 4;
+            int transition = Math.Max(4, size.Height / 9);
+            return new Padding(size.Width * ArtworkOpenings[index] / 100 + transition,
+                size.Height * ArtworkOpenings[index + 1] / 100 + transition,
+                size.Width * ArtworkOpenings[index + 2] / 100 + transition,
+                size.Height * ArtworkOpenings[index + 3] / 100 + transition);
+        }
+
+        private static void FeatherOpening(Bitmap artwork, Padding inset)
+        {
+            // Fade toward the open rectangle. The corner art stays opaque and each
+            // inner side reaches zero alpha before the desktop opening starts.
+            const int samplingGuard = 3;
+            int feather = Math.Max(4, artwork.Height / 9) - samplingGuard;
+            int right = artwork.Width - inset.Right, bottom = artwork.Height - inset.Bottom;
+            Rectangle bounds = new Rectangle(Point.Empty, artwork.Size);
+            BitmapData data = artwork.LockBits(bounds, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            try
+            {
+                var row = new byte[artwork.Width * 4];
+                for (int y = 0; y < artwork.Height; y++)
+                {
+                    IntPtr address = IntPtr.Add(data.Scan0, y * data.Stride);
+                    Marshal.Copy(address, row, 0, row.Length);
+                    int dy = Math.Max(0, Math.Max(inset.Top - y, y - bottom + 1) - samplingGuard);
+                    for (int x = 0; x < artwork.Width; x++)
+                    {
+                        int dx = Math.Max(0, Math.Max(inset.Left - x, x - right + 1) - samplingGuard);
+                        if (dx >= feather || dy >= feather) continue;
+                        float distance = (float)Math.Sqrt(dx * dx + dy * dy) / feather;
+                        if (distance < 1)
+                            row[x * 4 + 3] = (byte)Math.Round(row[x * 4 + 3] * distance * distance * (3 - 2 * distance));
+                    }
+                    Marshal.Copy(row, 0, address, row.Length);
+                }
+            }
+            finally { artwork.UnlockBits(data); }
         }
 
         internal static void ReleaseArtwork()
@@ -78,34 +149,40 @@ namespace gInk
             return originals.Concat(ArtworkNames.Select((name, index) => (index + 1).ToString("D2") + "  " + name)).ToArray();
         }
 
-        private static void PaintArtwork(Graphics g, Size size, int width, int number)
+        internal static Padding GetInsets(Size size, int width, int theme)
+        {
+            if (theme < CategorySize) return new Padding(width);
+            int number = theme - CategorySize + 1;
+            Bitmap source = GetArtwork(number);
+            Padding inset = SourceInsets(source.Size, number);
+            float scale = Math.Min(width / (source.Height * .21f),
+                Math.Min(size.Width * .58f / inset.Horizontal, size.Height * .58f / inset.Vertical));
+            return new Padding(Math.Max(1, (int)Math.Round(inset.Left * scale)),
+                Math.Max(1, (int)Math.Round(inset.Top * scale)),
+                Math.Max(1, (int)Math.Round(inset.Right * scale)),
+                Math.Max(1, (int)Math.Round(inset.Bottom * scale)));
+        }
+
+        private static void PaintArtwork(Graphics g, Size size, Padding inset, int number)
         {
             Bitmap source = GetArtwork(number);
-            int sourceBand = Math.Min(source.Height / 3, Math.Max(18, source.Height / 5));
-            int sourceCorner = Math.Min(source.Width / 3, sourceBand * 3);
-            int corner = Math.Min(size.Width / 3, width * 3);
+            Padding original = SourceInsets(source.Size, number);
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            int[] srcX = { 0, sourceCorner, source.Width - sourceCorner, source.Width };
-            int[] srcY = { 0, sourceBand, source.Height - sourceBand, source.Height };
-            int[] dstX = { 0, corner, size.Width - corner, size.Width };
-            int[] dstY = { 0, width, size.Height - width, size.Height };
-            // The four sides and corners scale independently; the center remains clear.
-            for (int row = 0; row < 3; row++)
-            for (int col = 0; col < 3; col++)
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            int[] srcX = { 0, original.Left, source.Width - original.Right, source.Width };
+            int[] srcY = { 0, original.Top, source.Height - original.Bottom, source.Height };
+            int[] dstX = { 0, inset.Left, size.Width - inset.Right, size.Width };
+            int[] dstY = { 0, inset.Top, size.Height - inset.Bottom, size.Height };
+            using (var sampling = new ImageAttributes())
             {
-                if (row == 1 && col == 1) continue;
-                if (row == 1)
+                sampling.SetWrapMode(WrapMode.TileFlipXY);
+                for (int row = 0; row < 3; row++)
+                for (int col = 0; col < 3; col++)
                 {
-                    int sx = col == 0 ? 0 : source.Width - sourceBand;
-                    int dx = col == 0 ? 0 : size.Width - width;
-                    g.DrawImage(source, new Rectangle(dx, width, width, size.Height - width * 2),
-                        sx, sourceBand, sourceBand, source.Height - sourceBand * 2, GraphicsUnit.Pixel);
-                }
-                else
-                {
+                    if (row == 1 && col == 1) continue;
                     Rectangle destination = Rectangle.FromLTRB(dstX[col], dstY[row], dstX[col + 1], dstY[row + 1]);
                     g.DrawImage(source, destination, srcX[col], srcY[row], srcX[col + 1] - srcX[col],
-                        srcY[row + 1] - srcY[row], GraphicsUnit.Pixel);
+                        srcY[row + 1] - srcY[row], GraphicsUnit.Pixel, sampling);
                 }
             }
         }
@@ -241,7 +318,8 @@ namespace gInk
             GraphicsState saved = g.Save();
             g.TranslateTransform(preview.X, preview.Y);
             g.SetClip(new Rectangle(Point.Empty, preview.Size));
-            ScreenFrameStyle.Paint(g, preview.Size, Math.Max(3, preview.Height * settings.ScreenFrameWidth / 100), theme);
+            int width = Math.Max(1, (int)Math.Round(preview.Height * settings.ScreenFrameWidth / 100.0));
+            ScreenFrameStyle.Paint(g, preview.Size, width, theme, ScreenFrameStyle.GetInsets(preview.Size, width, theme));
             g.Restore(saved);
             TextRenderer.DrawText(g, tile.AccessibleName, SystemFonts.MessageBoxFont,
                 new Rectangle(4, 77, tile.Width - 8, 14), Color.FromArgb(28, 46, 65),

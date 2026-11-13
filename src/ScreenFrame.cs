@@ -23,7 +23,7 @@ namespace gInk
         private Rectangle lastBounds;
         private int lastWidth, lastTheme = -1, lastOpacity = -1;
         private Rectangle targetBounds, frameBounds;
-        private int frameWidth;
+        private Padding frameInsets;
 
         internal ScreenFrame(DrawingSettings settings)
         {
@@ -67,17 +67,22 @@ namespace gInk
             Screen screen = Screen.AllScreens.FirstOrDefault(item => item.DeviceName == settings.ScreenFrameMonitor) ?? Screen.PrimaryScreen;
             targetBounds = screen.Bounds;
             int width = Math.Max(3, Math.Min(targetBounds.Width, targetBounds.Height) * settings.ScreenFrameWidth / 100);
+            int theme = settings.ScreenFrameTheme;
             reservationFailed = false;
-            Rectangle bounds;
-            if (reserve && reservations.Reserve(targetBounds, width, out Rectangle reservedBounds))
-                bounds = reservedBounds;
-            else
+            Rectangle bounds = expandTaskbar ? targetBounds : screen.WorkingArea;
+            Padding inset = ScreenFrameStyle.GetInsets(targetBounds.Size, width, theme);
+            if (reserve)
             {
-                reservationFailed = reserve;
-                bounds = expandTaskbar ? targetBounds : screen.WorkingArea;
+                if (reservations.Reserve(targetBounds, inset, out Rectangle reservedBounds))
+                    bounds = reservedBounds;
+                else
+                {
+                    reservationFailed = true;
+                    bounds = screen.WorkingArea;
+                }
             }
             frameBounds = bounds;
-            frameWidth = width;
+            frameInsets = inset;
             UpdateWorkAreaPreview();
             if ((!settings.ScreenFrameEnabled && !previewingFrame) ||
                 (reserve && fullscreen && settings.ScreenFrameHideFullscreen && !previewingFrame))
@@ -97,10 +102,10 @@ namespace gInk
             }
             Rectangle[] strips =
             {
-                new Rectangle(0, 0, bounds.Width, width),
-                new Rectangle(0, bounds.Height - width, bounds.Width, width),
-                new Rectangle(0, width, width, bounds.Height - 2 * width),
-                new Rectangle(bounds.Width - width, width, width, bounds.Height - 2 * width)
+                new Rectangle(0, 0, bounds.Width, inset.Top),
+                new Rectangle(0, bounds.Height - inset.Bottom, bounds.Width, inset.Bottom),
+                new Rectangle(0, inset.Top, inset.Left, bounds.Height - inset.Vertical),
+                new Rectangle(bounds.Width - inset.Right, inset.Top, inset.Right, bounds.Height - inset.Vertical)
             };
             for (int i = 0; i < strips.Length; i++)
             {
@@ -113,7 +118,7 @@ namespace gInk
                     using (Graphics g = Graphics.FromImage(bitmap))
                     {
                         g.TranslateTransform(-strip.X, -strip.Y);
-                        ScreenFrameStyle.Paint(g, bounds.Size, width, settings.ScreenFrameTheme);
+                        ScreenFrameStyle.Paint(g, bounds.Size, width, theme, inset);
                     }
                     edges[i].Present(bitmap, location, (byte)Math.Round(255 * opacity / 100.0));
                 }
@@ -129,7 +134,7 @@ namespace gInk
         private void UpdateWorkAreaPreview()
         {
             if (options == null) return;
-            widthAmount.Text = frameWidth + " px";
+            widthAmount.Text = settings.ScreenFrameWidth + "%";
             workAreaStatus.Text = reservationFailed ? "Windows에서 공간을 확보하지 못했습니다." :
                 settings.ScreenFrameEnabled && settings.ScreenFrameReserveWorkArea ? "일반 창 최대화 영역" : "액자 안쪽 영역";
             workAreaPreview.Invalidate();
@@ -146,7 +151,8 @@ namespace gInk
                 y + (frameBounds.Top - targetBounds.Top) * scale, frameBounds.Width * scale, frameBounds.Height * scale);
             e.Graphics.FillRectangle(Brushes.DimGray, monitor);
             e.Graphics.FillRectangle(Brushes.SteelBlue, frame);
-            frame.Inflate(-frameWidth * scale, -frameWidth * scale);
+            frame = RectangleF.FromLTRB(frame.Left + frameInsets.Left * scale, frame.Top + frameInsets.Top * scale,
+                frame.Right - frameInsets.Right * scale, frame.Bottom - frameInsets.Bottom * scale);
             if (frame.Width > 0 && frame.Height > 0) e.Graphics.FillRectangle(Brushes.AliceBlue, frame);
         }
 
@@ -309,11 +315,11 @@ namespace gInk
             Color.Gold, Color.FromArgb(246, 149, 187), Color.FromArgb(175, 216, 107), Color.MediumPurple
         };
 
-        internal static void Paint(Graphics g, Size screen, int width, int theme)
+        internal static void Paint(Graphics g, Size screen, int width, int theme, Padding artworkInsets)
         {
             if (theme >= CategorySize)
             {
-                PaintArtwork(g, screen, width, theme - CategorySize + 1);
+                PaintArtwork(g, screen, artworkInsets, theme - CategorySize + 1);
                 return;
             }
             g.SmoothingMode = SmoothingMode.AntiAlias;

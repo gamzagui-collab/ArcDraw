@@ -26,7 +26,7 @@ namespace gInk
             this.fullscreenChanged = fullscreenChanged;
         }
 
-        internal bool Reserve(Rectangle target, int width, out Rectangle outer)
+        internal bool Reserve(Rectangle target, Padding inset, out Rectangle outer)
         {
             outer = Rectangle.Empty;
             try
@@ -45,7 +45,7 @@ namespace gInk
                     worker.StandardInput.AutoFlush = true;
                 }
                 worker.StandardInput.WriteLine(FormattableString.Invariant(
-                    $"{target.X} {target.Y} {target.Width} {target.Height} {width}"));
+                    $"{target.X} {target.Y} {target.Width} {target.Height} {inset.Left} {inset.Top} {inset.Right} {inset.Bottom}"));
                 Task<string> read = worker.StandardOutput.ReadLineAsync();
                 if (read.Wait(1500) && read.Result != null)
                 {
@@ -105,10 +105,11 @@ namespace gInk
                             {
                                 string[] values = command.Split(' ');
                                 string result = "failed";
-                                if (values.Length == 5 && values.All(value => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
+                                if (values.Length == 8 && values.All(value => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
                                 {
                                     int[] data = values.Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray();
-                                    if (bars.Reserve(new Rectangle(data[0], data[1], data[2], data[3]), data[4], out Rectangle outer))
+                                    var inset = new Padding(data[4], data[5], data[6], data[7]);
+                                    if (bars.Reserve(new Rectangle(data[0], data[1], data[2], data[3]), inset, out Rectangle outer))
                                         result = FormattableString.Invariant($"{outer.X} {outer.Y} {outer.Width} {outer.Height}");
                                 }
                                 Console.Out.WriteLine(result);
@@ -169,24 +170,25 @@ namespace gInk
             this.fullscreenChanged = fullscreenChanged;
         }
 
-        internal bool Reserve(Rectangle target, int width, out Rectangle outer)
+        internal bool Reserve(Rectangle target, Padding inset, out Rectangle outer)
         {
             outer = Rectangle.Empty;
             if (monitor != target) Release();
             monitor = target;
             ready = false;
             // Process top and bottom before the sides so the bars meet at the corners.
+            int[] widths = { inset.Left, inset.Top, inset.Right, inset.Bottom };
             foreach (int side in new[] { 1, 3, 0, 2 })
             {
                 if (edges[side] == null) edges[side] = new Edge(side, target.Location, Notify, fullscreenChanged);
-                if (!edges[side].Reserve(target, width))
+                if (!edges[side].Reserve(target, widths[side]))
                 {
                     Release();
                     return false;
                 }
             }
             outer = Rectangle.FromLTRB(edges[0].Bounds.Left, edges[1].Bounds.Top, edges[2].Bounds.Right, edges[3].Bounds.Bottom);
-            if (outer.Width <= 2 * width || outer.Height <= 2 * width)
+            if (outer.Width <= inset.Horizontal || outer.Height <= inset.Vertical)
             {
                 Release();
                 return false;
