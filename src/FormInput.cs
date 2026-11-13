@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Microsoft.Ink;
@@ -40,6 +41,12 @@ namespace gInk
             if (ML)
             {
                 InputML.CommitOnEnter = stk != null;
+                if (InputML.CommitOnEnter)
+                {
+                    btOK.DialogResult = DialogResult.None;
+                    btOK.Click += (_, __) => InputML.RequestEnter(false);
+                    InputML.ConfirmRequested += (_, __) => ConfirmScreenText();
+                }
                 InputML.Visible = true;
                 txt = txt.Replace("\r\n", "\n").Replace("\n", "\r\n"); //in order to get multiline text to be correctly editable after restore
                 InputML.Text = txt;
@@ -151,6 +158,14 @@ namespace gInk
             Root.FormDisplay.UpdateFormDisplay(true);
         }
 
+        private void ConfirmScreenText()
+        {
+            string text = InputML.Text.Length == 0 ? " " : InputML.Text;
+            if (!Equals(stroke.ExtendedProperties[Root.TEXT_GUID].Data, text))
+                InputML_TextChanged(InputML, EventArgs.Empty);
+            DialogResult = DialogResult.OK;
+        }
+
         private void TB_CtrlAPressed(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == Convert.ToChar(1))
@@ -231,8 +246,11 @@ namespace gInk
 
     public sealed class ScreenTextBox : TextBox
     {
+        private const int CompleteIme = 0x8001; // WM_APP + 1, private to this EDIT window.
+        private const int ApplyEnter = 0x8002;
         internal bool CommitOnEnter { get; set; }
-        private bool composing;
+        internal event EventHandler ConfirmRequested;
+        private bool enterPending;
 
         protected override bool ProcessCmdKey(ref Message message, Keys keyData)
         {
@@ -241,12 +259,29 @@ namespace gInk
 
         protected override void WndProc(ref Message message)
         {
-            const int StartComposition = 0x010D;
-            const int EndComposition = 0x010E;
             const int KeyDown = 0x0100;
             const int ImeKeyDown = 0x0290;
 
-            if (message.Msg == StartComposition) composing = true;
+            if (message.Msg == CompleteIme || message.Msg == ApplyEnter)
+            {
+                message.Result = IntPtr.Zero;
+                if (!enterPending || !Visible) return;
+                bool lineBreak = message.WParam != IntPtr.Zero;
+                if (message.Msg == CompleteIme)
+                {
+                    CompleteComposition();
+                    // END can precede RESULTSTR/WM_IME_CHAR. Let the native
+                    // EDIT control receive those messages before using Text.
+                    if (!PostMessage(Handle, ApplyEnter, message.WParam, IntPtr.Zero))
+                        enterPending = false;
+                    return;
+                }
+                enterPending = false;
+                if (HasComposition()) return;
+                if (lineBreak) SelectedText = Environment.NewLine;
+                else ConfirmRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
             // Native EDIT and IME messages can bypass WinForms key preprocessing.
             if ((message.Msg == KeyDown || message.Msg == ImeKeyDown) &&
                 (Keys)message.WParam.ToInt32() == Keys.Enter && HandleEnter(Keys.Enter | ModifierKeys))
@@ -254,24 +289,58 @@ namespace gInk
                 message.Result = IntPtr.Zero;
                 return;
             }
+            if (enterPending && message.Msg == 0x0102 && message.WParam.ToInt32() == '\r')
+            {
+                message.Result = IntPtr.Zero;
+                return;
+            }
             base.WndProc(ref message);
-            if (message.Msg == EndComposition) composing = false;
         }
 
         private bool HandleEnter(Keys key)
         {
-            if (!CommitOnEnter || composing) return false;
-            if (key == (Keys.Shift | Keys.Enter))
-            {
-                SelectedText = Environment.NewLine;
-                return true;
-            }
-            if (key != Keys.Enter && key != (Keys.Control | Keys.Enter)) return false;
-
-            Form dialog = FindForm();
-            if (dialog == null) return false;
-            dialog.DialogResult = DialogResult.OK;
+            if (!CommitOnEnter) return false;
+            bool lineBreak = key == (Keys.Shift | Keys.Enter);
+            if (!lineBreak && key != Keys.Enter && key != (Keys.Control | Keys.Enter)) return false;
+            RequestEnter(lineBreak);
             return true;
         }
+
+        internal void RequestEnter(bool lineBreak)
+        {
+            if (enterPending || !IsHandleCreated) return;
+            enterPending = PostMessage(Handle, CompleteIme, lineBreak ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
+        }
+
+        private void CompleteComposition()
+        {
+            IntPtr window = Handle;
+            IntPtr context = ImmGetContext(window);
+            if (context == IntPtr.Zero) return;
+            try
+            {
+                if (ImmGetCompositionString(context, 0x0008, IntPtr.Zero, 0) > 0)
+                    ImmNotifyIME(context, 0x0015, 1, 0); // NI_COMPOSITIONSTR, CPS_COMPLETE.
+            }
+            finally { ImmReleaseContext(window, context); }
+        }
+
+        private bool HasComposition()
+        {
+            IntPtr window = Handle;
+            IntPtr context = ImmGetContext(window);
+            if (context == IntPtr.Zero) return false;
+            try { return ImmGetCompositionString(context, 0x0008, IntPtr.Zero, 0) > 0; }
+            finally { ImmReleaseContext(window, context); }
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+        [DllImport("imm32.dll")] private static extern IntPtr ImmGetContext(IntPtr window);
+        [DllImport("imm32.dll")] private static extern bool ImmReleaseContext(IntPtr window, IntPtr context);
+        [DllImport("imm32.dll", CharSet = CharSet.Unicode)]
+        private static extern int ImmGetCompositionString(IntPtr context, uint index, IntPtr buffer, uint size);
+        [DllImport("imm32.dll")]
+        private static extern bool ImmNotifyIME(IntPtr context, uint action, uint index, uint value);
     }
 }
