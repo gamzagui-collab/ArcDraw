@@ -5681,7 +5681,7 @@ namespace gInk
                 gpPenWidth.Visible = Root.gpPenWidthVisible;
 
             // Pause all polled keys, including Escape and Alt, during note editing.
-            if (Root.DrawingSession != null && Root.DrawingSession.Editing) return;
+            if (FontSearchOpen || (Root.DrawingSession != null && Root.DrawingSession.Editing)) return;
             if (Root.Whiteboards != null && Root.Whiteboards.SuppressKeyboardShortcuts) return;
 
             bool pressed;

@@ -184,7 +184,15 @@ namespace gInk
                 fontHitTarget?.Hide();
             }
             UpdateToolbarPopup(colorPalette, mainColorButton);
-            UpdateToolbarPopup(fontPalette, toolbarFontButton);
+            if (FontSearchOpen)
+            {
+                if (!toolbarFontButton.Visible) fontPalette.Hide();
+                else
+                {
+                    fontPalette.PlaceAt(toolbarFontButton);
+                    if (editor != null) fontPalette.EnableForTextEditor();
+                }
+            }
             if (note != null) RefreshColorSwatch();
         }
 
@@ -228,7 +236,7 @@ namespace gInk
 
         private void ToggleColorPalette(Button anchor)
         {
-            fontPalette?.Hide();
+            CloseFontSearch();
             if (colorPalette != null && colorPalette.Visible)
             {
                 colorPalette.Hide();
@@ -251,21 +259,58 @@ namespace gInk
             colorPalette?.Hide();
             if (fontPalette != null && fontPalette.Visible)
             {
-                fontPalette.Hide();
+                CloseFontSearch();
                 return;
             }
-            if (fontPalette == null) fontPalette = new ToolbarFontPalette(ApplyToolbarFont) { Owner = this };
-            fontPalette.SetCurrentFamily(colorEditor?.LiveTextFamily ?? colorNote?.LiveMemoFamily ??
-                Root.Settings.ScreenTextFamily ?? TextFont);
-            fontPalette.PlaceAt(anchor);
-            fontPalette.Show();
-            if (colorEditor != null) fontPalette.EnableForTextEditor();
-            fontPalette.RaiseWithoutActivation();
+            FormInput editor = colorEditor;
+            WhiteboardLayerForm note = colorNote;
+            void Open()
+            {
+                if (!textColorMode || colorEditor != editor || colorNote != note || !anchor.Visible || FontSearchOpen) return;
+                if (fontPalette == null)
+                {
+                    fontPalette = new ToolbarFontPalette(ApplyToolbarFont, CloseFontSearch) { Owner = this };
+                    fontPalette.Deactivate += delegate
+                    {
+                        fontPalette.BeginInvoke(new Action(delegate
+                        {
+                            if (!FontSearchOpen || fontPalette.ContainsFocus) return;
+                            fontPalette.Hide();
+                            colorNote?.FinishMemoAfterFontSearch();
+                        }));
+                    };
+                }
+                fontPalette.SetCurrentFamily(editor?.LiveTextFamily ?? note?.LiveMemoFamily ??
+                    Root.Settings.ScreenTextFamily ?? TextFont);
+                fontPalette.PlaceAt(anchor);
+                fontPalette.Show();
+                if (editor != null) fontPalette.EnableForTextEditor();
+                fontPalette.FocusSearch();
+            }
+            if (editor != null) editor.BeforeFontSearch(Open);
+            else if (note != null) note.BeforeFontSearch(Open);
+            else Open();
+        }
+
+        internal bool FontSearchOpen => fontPalette?.Visible == true;
+
+        internal bool HoldsMemoForFontSearch(WhiteboardLayerForm note)
+        {
+            return FontSearchOpen && colorNote == note;
+        }
+
+        internal void CloseFontSearch()
+        {
+            if (!FontSearchOpen) return;
+            fontPalette.Hide();
+            if (colorEditor?.Visible == true) colorEditor.FocusAfterFontSearch();
+            else if (colorNote?.Visible == true) colorNote.FocusAfterFontSearch();
+            else Focus();
         }
 
         private void ApplyToolbarFont(string family)
         {
-            fontPalette.Hide();
+            CloseFontSearch();
             if (colorEditor != null)
             {
                 if (Root.FormDisplay.ScreenTextEditor == colorEditor) colorEditor.SetLiveTextFamily(family);
@@ -563,44 +608,96 @@ namespace gInk
 
     internal sealed class ToolbarFontPalette : NonActivatingToolbarWindow
     {
-        private const int PageSize = 8;
+        private const int PageSize = 6;
         private readonly string[] families;
-        private readonly Button[] rows = new Button[PageSize];
+        private readonly FontPreviewButton[] rows = new FontPreviewButton[PageSize];
         private readonly Button previous, next;
-        private readonly Label page;
+        private readonly Label page, empty;
+        private readonly TextBox search;
+        private string[] results;
         private string current;
         private int offset;
 
-        internal ToolbarFontPalette(Action<string> select)
+        protected override bool TakesFocus => true;
+
+        internal ToolbarFontPalette(Action<string> select, Action close)
         {
             Name = "ToolbarFontPalette";
             BackColor = Color.FromArgb(31, 34, 40);
-            ClientSize = new Size(236, 250);
+            ClientSize = new Size(278, 348);
             families = FontFamily.Families.Select(family =>
             {
                 using (family) return family.Name;
             }).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            results = families;
+            Controls.Add(new Label
+            {
+                Text = "글꼴 이름 검색", ForeColor = Color.White, Bounds = new Rectangle(8, 6, 260, 18)
+            });
+            search = new TextBox
+            {
+                Name = "ToolbarFontSearch", AccessibleName = "글꼴 이름 검색", Bounds = new Rectangle(8, 25, 262, 24)
+            };
+            Controls.Add(search);
+            empty = new Label
+            {
+                Text = "검색 결과가 없습니다", ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleCenter, Bounds = new Rectangle(8, 60, 262, 38), Visible = false
+            };
+            Controls.Add(empty);
             for (int index = 0; index < PageSize; index++)
             {
-                var row = new ToolbarColorPalette.PaletteButton
-                {
-                    Bounds = new Rectangle(6, 6 + index * 27, 224, 25),
-                    TextAlign = ContentAlignment.MiddleLeft, UseMnemonic = false
-                };
+                var row = new FontPreviewButton { Bounds = new Rectangle(8, 54 + index * 44, 262, 42) };
                 row.Click += delegate { select((string)row.Tag); };
                 rows[index] = row;
                 Controls.Add(row);
             }
-            previous = new ToolbarColorPalette.PaletteButton { Text = "‹", AccessibleName = "이전 글꼴 목록", Bounds = new Rectangle(6, 222, 42, 22) };
-            next = new ToolbarColorPalette.PaletteButton { Text = "›", AccessibleName = "다음 글꼴 목록", Bounds = new Rectangle(188, 222, 42, 22) };
-            page = new Label { Bounds = new Rectangle(50, 222, 136, 22), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
+            previous = new ToolbarColorPalette.PaletteButton
+            {
+                Text = "‹", AccessibleName = "이전 글꼴 목록", Bounds = new Rectangle(8, 320, 42, 22),
+                BackColor = Color.WhiteSmoke
+            };
+            next = new ToolbarColorPalette.PaletteButton
+            {
+                Text = "›", AccessibleName = "다음 글꼴 목록", Bounds = new Rectangle(228, 320, 42, 22),
+                BackColor = Color.WhiteSmoke
+            };
+            page = new Label { Bounds = new Rectangle(52, 320, 174, 22), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
             previous.Click += delegate { offset -= PageSize; RefreshPage(); };
             next.Click += delegate { offset += PageSize; RefreshPage(); };
             Controls.AddRange(new Control[] { previous, page, next });
+            search.TextChanged += delegate
+            {
+                string query = search.Text.Trim();
+                results = query.Length == 0 ? families : families.Where(name =>
+                    name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray();
+                offset = 0;
+                RefreshPage();
+            };
+            search.KeyDown += (_, args) =>
+            {
+                if (args.KeyCode == Keys.Enter)
+                {
+                    args.SuppressKeyPress = true;
+                    if (offset < results.Length) select(results[offset]);
+                }
+                else if (args.KeyCode == Keys.Escape)
+                {
+                    args.SuppressKeyPress = true;
+                    close();
+                }
+            };
+        }
+
+        internal void FocusSearch()
+        {
+            Activate();
+            search.Focus();
         }
 
         internal void SetCurrentFamily(string family)
         {
+            search.Clear();
             current = family;
             int index = Array.FindIndex(families, name => String.Equals(name, family, StringComparison.CurrentCultureIgnoreCase));
             offset = Math.Max(0, index) / PageSize * PageSize;
@@ -611,20 +708,76 @@ namespace gInk
         {
             for (int index = 0; index < rows.Length; index++)
             {
-                Button row = rows[index];
+                FontPreviewButton row = rows[index];
                 int position = offset + index;
-                row.Visible = position < families.Length;
-                if (position >= families.Length) continue;
-                string family = families[position];
+                row.Visible = position < results.Length;
+                if (position >= results.Length) continue;
+                string family = results[position];
                 bool selected = String.Equals(current, family, StringComparison.CurrentCultureIgnoreCase);
-                row.Tag = family;
-                row.Text = selected ? "✓ " + family : family;
-                row.AccessibleName = family;
-                row.BackColor = selected ? Color.FromArgb(191, 230, 246) : Color.WhiteSmoke;
+                row.SetFamily(family, selected);
             }
+            empty.Visible = results.Length == 0;
             previous.Enabled = offset > 0;
-            next.Enabled = offset + PageSize < families.Length;
-            page.Text = (offset / PageSize + 1) + " / " + Math.Max(1, (families.Length + PageSize - 1) / PageSize);
+            next.Enabled = offset + PageSize < results.Length;
+            page.Text = results.Length == 0 ? String.Empty :
+                (offset / PageSize + 1) + " / " + ((results.Length + PageSize - 1) / PageSize);
+        }
+
+        private sealed class FontPreviewButton : Button
+        {
+            private readonly Font nameFont = new Font("Malgun Gothic", 12f, FontStyle.Regular, GraphicsUnit.Pixel);
+            private Font previewFont;
+
+            internal FontPreviewButton()
+            {
+                SetStyle(ControlStyles.Selectable, false);
+                TabStop = false;
+                FlatStyle = FlatStyle.Flat;
+                Cursor = System.Windows.Forms.Cursors.Hand;
+            }
+
+            internal void SetFamily(string family, bool selected)
+            {
+                if (!String.Equals(Tag as string, family, StringComparison.Ordinal))
+                {
+                    using (var available = new FontFamily(family))
+                    {
+                        FontStyle style = available.IsStyleAvailable(FontStyle.Regular) ? FontStyle.Regular :
+                            available.IsStyleAvailable(FontStyle.Bold) ? FontStyle.Bold :
+                            available.IsStyleAvailable(FontStyle.Italic) ? FontStyle.Italic : FontStyle.Bold | FontStyle.Italic;
+                        Font next = new Font(available, 17f, style, GraphicsUnit.Pixel);
+                        previewFont?.Dispose();
+                        previewFont = next;
+                    }
+                    Tag = family;
+                    AccessibleName = family;
+                }
+                Text = selected ? "✓ " + family : family;
+                BackColor = selected ? Color.FromArgb(191, 230, 246) : Color.WhiteSmoke;
+                Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.Clear(BackColor);
+                TextRenderer.DrawText(e.Graphics, Text, nameFont,
+                    new Rectangle(8, 2, Width - 16, 17), Color.FromArgb(42, 49, 60),
+                    TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                if (previewFont != null)
+                    TextRenderer.DrawText(e.Graphics, "한글 가나다  Aa 123", previewFont,
+                        new Rectangle(8, 18, Width - 16, Height - 19), Color.Black,
+                        TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    previewFont?.Dispose();
+                    nameFont.Dispose();
+                }
+                base.Dispose(disposing);
+            }
         }
     }
 

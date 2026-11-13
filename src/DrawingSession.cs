@@ -196,6 +196,12 @@ namespace gInk
                     int epoch=++targetSwitchEpoch;targetSwitching=false;consumed.Add(key);
                     Post(delegate {if(epoch==targetSwitchEpoch)CancelTargetSelection(true);});return new IntPtr(1);
                 }
+                if (down && firstPress && key == 0x1b && modifiers == 0 && root.FormCollection?.FontSearchOpen == true)
+                {
+                    consumed.Add(key);
+                    Post(delegate { root.FormCollection.CloseFontSearch(); });
+                    return new IntPtr(1);
+                }
                 // In pointer mode, Escape belongs to the foreground app.
                 if(down&&firstPress&&key==0x1b&&modifiers==0&&(CapsOn||OwnsWindow(GetForegroundWindow()))&&
                     !OptionsOpen&&!ModalWindowOpen()&&
@@ -203,7 +209,7 @@ namespace gInk
                 {
                     consumed.Add(key);Post(delegate {escapeRequested=true;ApplyMode();});return new IntPtr(1);
                 }
-                if (down && firstPress && DrawingEnabled && !Editing)
+                if (down && firstPress && DrawingEnabled && !Editing && root.FormCollection?.FontSearchOpen != true)
                 {
                     // Track modifier messages in order. Querying asynchronous
                     // key state inside a low-level hook can lag the event.

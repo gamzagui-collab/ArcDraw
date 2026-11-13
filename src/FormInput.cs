@@ -32,6 +32,19 @@ namespace gInk
         internal Color LiveTextColor => stroke.DrawingAttributes.Color;
         internal string LiveTextFamily => editorFont.Name;
 
+        internal void BeforeFontSearch(Action open)
+        {
+            if (!InputML.HasComposition()) { open(); return; }
+            InputML.CompleteComposition();
+            InputML.BeginInvoke(open);
+        }
+
+        internal void FocusAfterFontSearch()
+        {
+            Activate();
+            InputML.Focus();
+        }
+
         internal void SetLiveTextFamily(string family)
         {
             if (InputML.HasComposition())

@@ -48,6 +48,27 @@ namespace gInk
         internal int? LiveMemoSize => IsMemoEditor ? (int?)Math.Round(editorFont.SizeInPoints) : null;
         internal Color? LiveMemoColor => IsMemoEditor ? (Color?)textEditor.ForeColor : null;
         internal string LiveMemoFamily => IsMemoEditor ? editorFont.Name : null;
+
+        internal void BeforeFontSearch(Action open)
+        {
+            if (!IsMemoEditor) return;
+            NoteTextEditor editor = textEditor;
+            if (!editor.HasComposition()) { open(); return; }
+            editor.FinishComposition(true);
+            editor.BeginInvoke(new Action(delegate { if (textEditor == editor) open(); }));
+        }
+
+        internal void FocusAfterFontSearch()
+        {
+            if (!IsMemoEditor) return;
+            Activate();
+            textEditor.Focus();
+        }
+
+        internal void FinishMemoAfterFontSearch()
+        {
+            if (IsMemoEditor && !textEditor.Focused) FinishEditing(true);
+        }
         private int pendingMemoPoints;
         private string pendingMemoFamily;
         internal void SetLiveMemoColor(Color color)

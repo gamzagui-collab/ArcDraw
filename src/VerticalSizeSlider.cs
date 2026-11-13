@@ -145,21 +145,23 @@ namespace gInk
             TopMost = true;
         }
 
-        protected override bool ShowWithoutActivation { get { return true; } }
+        protected virtual bool TakesFocus => false;
+
+        protected override bool ShowWithoutActivation => !TakesFocus;
 
         protected override CreateParams CreateParams
         {
             get
             {
                 CreateParams parameters = base.CreateParams;
-                parameters.ExStyle |= 0x08000080; // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW.
+                parameters.ExStyle |= TakesFocus ? 0x00000080 : 0x08000080;
                 return parameters;
             }
         }
 
         protected override void WndProc(ref Message message)
         {
-            if (message.Msg == 0x0021) // WM_MOUSEACTIVATE
+            if (!TakesFocus && message.Msg == 0x0021) // WM_MOUSEACTIVATE
             {
                 message.Result = new IntPtr(3);
                 return;

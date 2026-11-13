@@ -187,7 +187,11 @@ namespace gInk
             editor.MouseDown+=delegate {manager.SetActive(this);};
             editor.CommitRequested += delegate { FinishEditing(true); };
             editor.CancelRequested += delegate { FinishEditing(false); };
-            editor.Leave += delegate { if (!closing) FinishEditing(true); };
+            editor.Leave += delegate
+            {
+                if (!closing && manager.CurrentRoot.FormCollection?.HoldsMemoForFontSearch(this) != true)
+                    FinishEditing(true);
+            };
             textEditor = editor;
             paper.Controls.Add(editor);
             editor.BringToFront();
