@@ -22,6 +22,9 @@ namespace gInk
         private readonly Root root;
         private readonly Dictionary<int,DrawingPreset> presets=new Dictionary<int,DrawingPreset>();
         private readonly HashSet<string> favoriteFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private const int RecentFontLimit = 5;
+        private readonly List<string> recentFonts = new List<string>();
+        internal IReadOnlyList<string> RecentFonts => recentFonts;
         private static readonly CultureInfo Invariant=CultureInfo.InvariantCulture;
         public static readonly int[] PresetTools={Tools.Hand,Tools.Line,Tools.Rect,Tools.Oval,Tools.StartArrow,Tools.EndArrow,Tools.Poly};
         public bool HasFont {get;private set;}
@@ -51,6 +54,7 @@ namespace gInk
         {
             presets.Clear();
             favoriteFonts.Clear();
+            recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
             BrushColor = null;
@@ -81,6 +85,16 @@ namespace gInk
         internal void ToggleFavoriteFont(string family)
         {
             if (!favoriteFonts.Remove(family)) favoriteFonts.Add(family);
+            SaveToolSettings();
+        }
+
+        internal void RememberToolbarFont(string family, bool asScreenDefault)
+        {
+            if (asScreenDefault) ScreenTextFamily = family;
+            int existing = recentFonts.FindIndex(name => String.Equals(name, family, StringComparison.OrdinalIgnoreCase));
+            if (existing >= 0) recentFonts.RemoveAt(existing);
+            recentFonts.Insert(0, family);
+            if (recentFonts.Count > RecentFontLimit) recentFonts.RemoveAt(RecentFontLimit);
             SaveToolSettings();
         }
 
@@ -176,6 +190,17 @@ namespace gInk
                     if (family.Length > 0) favoriteFonts.Add(family);
                 }
             }
+            XElement recent = document.Element("RecentFonts");
+            if (recent != null)
+            {
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (XElement entry in recent.Elements("Font"))
+                {
+                    string family = entry.Value.Trim();
+                    if (family.Length > 0 && seen.Add(family)) recentFonts.Add(family);
+                    if (recentFonts.Count == RecentFontLimit) break;
+                }
+            }
             if (int.TryParse((string)colors?.Attribute("text"), NumberStyles.Integer, Invariant, out int text))
                 ScreenTextColor = Color.FromArgb(text);
             if (int.TryParse((string)colors?.Attribute("brush"), NumberStyles.Integer, Invariant, out int brush))
@@ -203,6 +228,12 @@ namespace gInk
                 var favorites = new XElement("FavoriteFonts");
                 foreach (string family in favoriteFonts) favorites.Add(new XElement("Font", family));
                 document.Add(favorites);
+            }
+            if (recentFonts.Count > 0)
+            {
+                var recent = new XElement("RecentFonts");
+                foreach (string family in recentFonts) recent.Add(new XElement("Font", family));
+                document.Add(recent);
             }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",

@@ -310,16 +310,21 @@ namespace gInk
 
         private void ApplyToolbarFont(string family)
         {
+            FormInput editor = colorEditor;
+            WhiteboardLayerForm note = colorNote;
             CloseFontSearch();
-            if (colorEditor != null)
+            if (editor != null)
             {
-                if (Root.FormDisplay.ScreenTextEditor == colorEditor) colorEditor.SetLiveTextFamily(family);
+                if (Root.FormDisplay.ScreenTextEditor != editor) return;
+                editor.SetLiveTextFamily(family);
             }
-            else if (colorNote != null)
+            else if (note != null)
             {
-                if (Root.Whiteboards.ActiveNote == colorNote) colorNote.SetLiveMemoFamily(family);
+                if (Root.Whiteboards.ActiveNote != note || !note.IsMemoEditor) return;
+                note.SetLiveMemoFamily(family);
             }
-            else if (textColorMode) Root.Settings.SetScreenTextFamily(family);
+            else if (!textColorMode) return;
+            Root.Settings.RememberToolbarFont(family, editor == null && note == null);
         }
 
         private void ApplyToolbarColor(Color color)
@@ -609,14 +614,17 @@ namespace gInk
     internal sealed class ToolbarFontPalette : NonActivatingToolbarWindow
     {
         private const int PageSize = 6;
+        private const int FirstRowTop = 54, RowStride = 44, SectionHeight = 20;
         private readonly DrawingSettings settings;
         private readonly string[] families;
         private readonly FontPreviewButton[] rows = new FontPreviewButton[PageSize];
         private readonly Button[] stars = new Button[PageSize];
+        private readonly Label[] headings = new Label[PageSize];
         private readonly Button previous, next;
         private readonly Label page, empty;
         private readonly TextBox search;
         private string[] results;
+        private int favoriteCount, recentCount;
         private string current;
         private int offset;
 
@@ -627,7 +635,7 @@ namespace gInk
             this.settings = settings;
             Name = "ToolbarFontPalette";
             BackColor = Color.FromArgb(31, 34, 40);
-            ClientSize = new Size(278, 348);
+            ClientSize = new Size(278, 408);
             families = FontFamily.Families.Select(family =>
             {
                 using (family) return family.Name;
@@ -650,7 +658,7 @@ namespace gInk
             Controls.Add(empty);
             for (int index = 0; index < PageSize; index++)
             {
-                int top = 54 + index * 44;
+                int top = FirstRowTop + index * RowStride;
                 var row = new FontPreviewButton { Bounds = new Rectangle(8, top, 224, 42) };
                 row.Click += delegate { select((string)row.Tag); };
                 var star = new ToolbarColorPalette.PaletteButton
@@ -665,19 +673,20 @@ namespace gInk
                 };
                 rows[index] = row;
                 stars[index] = star;
-                Controls.AddRange(new Control[] { row, star });
+                headings[index] = new Label { Left = 8, Width = 262, Height = 18, ForeColor = Color.White };
+                Controls.AddRange(new Control[] { row, star, headings[index] });
             }
             previous = new ToolbarColorPalette.PaletteButton
             {
-                Text = "‹", AccessibleName = "이전 글꼴 목록", Bounds = new Rectangle(8, 320, 42, 22),
+                Text = "‹", AccessibleName = "이전 글꼴 목록", Bounds = new Rectangle(8, 380, 42, 22),
                 BackColor = Color.WhiteSmoke
             };
             next = new ToolbarColorPalette.PaletteButton
             {
-                Text = "›", AccessibleName = "다음 글꼴 목록", Bounds = new Rectangle(228, 320, 42, 22),
+                Text = "›", AccessibleName = "다음 글꼴 목록", Bounds = new Rectangle(228, 380, 42, 22),
                 BackColor = Color.WhiteSmoke
             };
-            page = new Label { Bounds = new Rectangle(52, 320, 174, 22), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
+            page = new Label { Bounds = new Rectangle(52, 380, 174, 22), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White };
             previous.Click += delegate { offset -= PageSize; RefreshPage(); };
             next.Click += delegate { offset += PageSize; RefreshPage(); };
             Controls.AddRange(new Control[] { previous, page, next });
@@ -713,22 +722,44 @@ namespace gInk
         private void RefreshResults()
         {
             string query = search.Text.Trim();
-            results = families.Where(name => query.Length == 0 ||
-                name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0)
-                .OrderByDescending(settings.IsFavoriteFont).ToArray();
+            string[] matches = families.Where(name => query.Length == 0 ||
+                name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray();
+            string[] favorites = matches.Where(settings.IsFavoriteFont).ToArray();
+            var recent = new List<string>();
+            foreach (string family in settings.RecentFonts)
+            {
+                string installed = Array.Find(matches, name => String.Equals(name, family, StringComparison.OrdinalIgnoreCase));
+                if (installed != null) recent.Add(installed);
+            }
+            favoriteCount = favorites.Length;
+            recentCount = recent.Count;
+            results = favorites.Concat(recent).Concat(matches.Except(favorites.Concat(recent), StringComparer.OrdinalIgnoreCase)).ToArray();
             offset = 0;
             RefreshPage();
         }
 
         private void RefreshPage()
         {
+            int top = FirstRowTop;
             for (int index = 0; index < rows.Length; index++)
             {
                 FontPreviewButton row = rows[index];
                 Button star = stars[index];
+                Label heading = headings[index];
                 int position = offset + index;
                 row.Visible = star.Visible = position < results.Length;
+                heading.Visible = false;
                 if (position >= results.Length) continue;
+                if (index == 0 || position == favoriteCount || position == favoriteCount + recentCount)
+                {
+                    heading.Text = position < favoriteCount ? "즐겨찾기" :
+                        position < favoriteCount + recentCount ? "최근 사용" : "전체 글꼴";
+                    heading.Top = top;
+                    heading.Show();
+                    top += SectionHeight;
+                }
+                row.Top = star.Top = top;
+                top += RowStride;
                 string family = results[position];
                 bool selected = String.Equals(current, family, StringComparison.CurrentCultureIgnoreCase);
                 row.SetFamily(family, selected);
