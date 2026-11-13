@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.52-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.53-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,13 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.52 헤드라인 즐겨찾기
+## v0.53 화면 액자와 헤드라인 최근 사용
 
-헤드라인 모양 메뉴에서 디자인 옆 ☆를 누르면 첫 번째 즐겨찾기 탭에 추가됩니다. ★를 다시 누르면 해제됩니다. 즐겨찾기가 있으면 모양 메뉴를 열 때 해당 탭이 먼저 표시되고, 앱을 다시 켜도 목록이 유지됩니다.
+헤드라인 모양 메뉴의 즐겨찾기 아래에 마지막으로 선택한 디자인을 최신순으로 최대 5개 표시합니다. 같은 디자인을 다시 선택하면 맨 앞으로 이동합니다. 목록과 순서는 자동 저장됩니다.
 
-Windows Release|x86 빌드와 실제 화면에서 별표 등록, 즐겨찾기에서 적용, 재실행 복원, 등록 해제를 확인했습니다.
+노트 툴바 또는 트레이 메뉴에서 화면 액자를 열어 표시 여부, 테마, 대상 화면을 선택할 수 있습니다. 안쪽 폭 슬라이더는 화면 바깥 위치를 유지하면서 화면 안쪽을 덮는 폭을 짧은 변의 1–12%로 조절합니다. 가운데는 투명해서 뒤에서 재생 중인 영상이나 화면이 보입니다. 첨부 시안을 참고한 10가지 가벼운 테두리 테마가 제공됩니다.
+
+Windows Release|x86 빌드와 최근 사용 정렬·재선택·복원, 화면 액자 표시·안쪽 폭 조절·복원을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

@@ -24,6 +24,13 @@ namespace gInk
         private readonly HashSet<string> favoriteFonts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly List<NoteBackgroundShape> favoriteHeadlines = new List<NoteBackgroundShape>();
         internal IReadOnlyList<NoteBackgroundShape> FavoriteHeadlines => favoriteHeadlines;
+        internal const int RecentHeadlineLimit = 5;
+        private readonly List<NoteBackgroundShape> recentHeadlines = new List<NoteBackgroundShape>();
+        internal IReadOnlyList<NoteBackgroundShape> RecentHeadlines => recentHeadlines;
+        internal bool ScreenFrameEnabled { get; set; }
+        internal int ScreenFrameTheme { get; set; }
+        internal int ScreenFrameWidth { get; set; } = 2;
+        internal string ScreenFrameMonitor { get; set; }
         private const int RecentFontLimit = 5;
         private readonly List<string> recentFonts = new List<string>();
         internal IReadOnlyList<string> RecentFonts => recentFonts;
@@ -57,6 +64,11 @@ namespace gInk
             presets.Clear();
             favoriteFonts.Clear();
             favoriteHeadlines.Clear();
+            recentHeadlines.Clear();
+            ScreenFrameEnabled = false;
+            ScreenFrameTheme = 0;
+            ScreenFrameWidth = 2;
+            ScreenFrameMonitor = null;
             recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
@@ -97,6 +109,15 @@ namespace gInk
             SaveToolSettings();
         }
 
+        internal void RememberHeadline(NoteBackgroundShape shape)
+        {
+            if (recentHeadlines.Count > 0 && recentHeadlines[0] == shape) return;
+            recentHeadlines.Remove(shape);
+            recentHeadlines.Insert(0, shape);
+            if (recentHeadlines.Count > RecentHeadlineLimit) recentHeadlines.RemoveAt(RecentHeadlineLimit);
+            SaveToolSettings();
+        }
+
         internal void RememberToolbarFont(string family, bool asScreenDefault)
         {
             if (asScreenDefault) ScreenTextFamily = family;
@@ -107,7 +128,7 @@ namespace gInk
             SaveToolSettings();
         }
 
-        private void SaveToolSettings()
+        internal void SaveToolSettings()
         {
             try { Save(); }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
@@ -200,16 +221,17 @@ namespace gInk
                 }
             }
             XElement recent = document.Element("RecentFonts");
-            XElement headlines = document.Element("FavoriteHeadlines");
-            if (headlines != null)
+            LoadHeadlineList(document.Element("FavoriteHeadlines"), favoriteHeadlines, HeadlineTemplate.Count);
+            LoadHeadlineList(document.Element("RecentHeadlines"), recentHeadlines, RecentHeadlineLimit);
+            XElement frame = document.Element("ScreenFrame");
+            if (frame != null)
             {
-                var seen = new HashSet<NoteBackgroundShape>();
-                foreach (XElement entry in headlines.Elements("Template"))
-                {
-                    if (Enum.TryParse(entry.Value, out NoteBackgroundShape shape) &&
-                        Enum.IsDefined(typeof(NoteBackgroundShape), shape) && seen.Add(shape))
-                        favoriteHeadlines.Add(shape);
-                }
+                ScreenFrameEnabled = bool.TryParse(Attr(frame, "enabled"), out bool enabled) && enabled;
+                if (int.TryParse(Attr(frame, "theme"), NumberStyles.Integer, Invariant, out int theme))
+                    ScreenFrameTheme = Math.Max(0, Math.Min(ScreenFrameStyle.Names.Length - 1, theme));
+                if (int.TryParse(Attr(frame, "width"), NumberStyles.Integer, Invariant, out int width))
+                    ScreenFrameWidth = Math.Max(1, Math.Min(12, width));
+                ScreenFrameMonitor = Attr(frame, "monitor");
             }
             if (recent != null)
             {
@@ -239,6 +261,29 @@ namespace gInk
                 Validate(value);presets[slot]=value;
             }
         }
+
+        private static void LoadHeadlineList(XElement element, List<NoteBackgroundShape> list, int limit)
+        {
+            if (element == null) return;
+            var seen = new HashSet<NoteBackgroundShape>();
+            foreach (XElement entry in element.Elements("Template"))
+            {
+                if (Enum.TryParse(entry.Value, out NoteBackgroundShape shape) &&
+                    Enum.IsDefined(typeof(NoteBackgroundShape), shape) && seen.Add(shape))
+                    list.Add(shape);
+                if (list.Count == limit) break;
+            }
+        }
+
+        private static void SaveHeadlineList(XElement document, string name, List<NoteBackgroundShape> list)
+        {
+            if (list.Count == 0) return;
+            var headlines = new XElement(name);
+            foreach (NoteBackgroundShape shape in list)
+                headlines.Add(new XElement("Template", shape.ToString()));
+            document.Add(headlines);
+        }
+
         private void Save()
         {
             var document=new XElement("ArcDrawSettings",new XAttribute("version",1));
@@ -255,13 +300,12 @@ namespace gInk
                 foreach (string family in recentFonts) recent.Add(new XElement("Font", family));
                 document.Add(recent);
             }
-            if (favoriteHeadlines.Count > 0)
-            {
-                var headlines = new XElement("FavoriteHeadlines");
-                foreach (NoteBackgroundShape shape in favoriteHeadlines)
-                    headlines.Add(new XElement("Template", shape.ToString()));
-                document.Add(headlines);
-            }
+            SaveHeadlineList(document, "FavoriteHeadlines", favoriteHeadlines);
+            SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
+            if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || !String.IsNullOrEmpty(ScreenFrameMonitor))
+                document.Add(new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
+                    new XAttribute("theme", ScreenFrameTheme), new XAttribute("width", ScreenFrameWidth),
+                    new XAttribute("monitor", ScreenFrameMonitor ?? "")));
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",
                     ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,

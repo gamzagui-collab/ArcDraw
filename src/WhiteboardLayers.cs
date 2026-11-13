@@ -692,10 +692,17 @@ namespace gInk
             }
             noteItems.AutoScroll=scroll;noteItems.Size=new Size(listWidth,listHeight);noteItems.Visible=rows>0;
             noteItems.ResumeLayout(true);items.Controls.Add(noteItems);
-            headlineButton = NewButton("＋ 헤드라인", listWidth);
+            int headlineWidth = listWidth * 3 / 5;
+            var headlineActions = new Panel { Size = new Size(listWidth, cell) };
+            headlineButton = NewButton("＋ 헤드라인", headlineWidth);
             headlineButton.Name = "ToggleHeadline";
             headlineButton.Click += delegate { manager.ToggleHeadline(); };
-            items.Controls.Add(headlineButton);
+            Button frameButton = NewButton("화면 액자", listWidth - headlineWidth);
+            frameButton.Name = "ScreenFrameSettings";
+            frameButton.Left = headlineWidth;
+            frameButton.Click += delegate { manager.CurrentRoot.ScreenFrame.ShowOptions(); };
+            headlineActions.Controls.AddRange(new Control[] { headlineButton, frameButton });
+            items.Controls.Add(headlineActions);
             Button info=NewButton(ArcDrawBranding.ToolbarCredit,listWidth);info.Name="ArcDrawAbout";
             info.Font=new Font("Malgun Gothic",7.5f);
             info.Click+=delegate {ArcDrawBranding.ShowInfo(manager.CurrentRoot.FormCollection);};

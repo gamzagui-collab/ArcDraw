@@ -347,14 +347,19 @@ namespace gInk
     {
         private const int Favorites = 0;
         private const int PageSize = 30;
+        private const int FavoritePageSize = 21;
+        private const int RowHeight = 43;
         private const int GridHeight = 434;
         private readonly DrawingSettings settings;
         private readonly Button[] choices = new Button[PageSize], stars = new Button[PageSize];
         private readonly Button[] categories = new Button[HeadlineTemplate.Count / PageSize + 1];
         private readonly TableLayoutPanel grid;
+        private readonly TableLayoutPanel recentGrid;
+        private readonly Button[] recentChoices = new Button[DrawingSettings.RecentHeadlineLimit];
+        private readonly Button[] recentStars = new Button[DrawingSettings.RecentHeadlineLimit];
         private readonly Panel pagination;
         private readonly Button previousPage, nextPage;
-        private readonly Label empty, pageNumber;
+        private readonly Label empty, pageNumber, recentHeading, recentEmpty;
         private int category, favoritePage;
         private NoteBackgroundShape current;
         private Color? previewColor, previewFill;
@@ -390,6 +395,34 @@ namespace gInk
             for (int row = 0; row < 10; row++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 10));
             for (int i = 0; i < choices.Length; i++)
             {
+                grid.Controls.Add(CreateTile(out choices[i], out stars[i]), i % 3, i / 3);
+            }
+            recentHeading = new Label { Text = "최근 사용", TextAlign = ContentAlignment.MiddleLeft, Width = 486, Height = 24 };
+            recentEmpty = new Label { Text = "선택한 디자인이 여기에 표시됩니다.", TextAlign = ContentAlignment.MiddleLeft, Width = 486, Height = 25 };
+            recentGrid = new TableLayoutPanel { Size = new Size(486, RowHeight * 2), ColumnCount = 3, RowCount = 2 };
+            for (int column = 0; column < 3; column++) recentGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
+            for (int row = 0; row < 2; row++) recentGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, RowHeight));
+            for (int i = 0; i < recentChoices.Length; i++)
+                recentGrid.Controls.Add(CreateTile(out recentChoices[i], out recentStars[i]), i % 3, i / 3);
+            empty = new Label
+            {
+                Text = "디자인 옆 ☆를 눌러 즐겨찾기에 추가하세요.",
+                Bounds = new Rectangle(0, 30, 486, RowHeight), TextAlign = ContentAlignment.MiddleCenter
+            };
+            pagination = new Panel { Bounds = new Rectangle(0, 434, 486, 24) };
+            previousPage = new Button { Name = "PreviousHeadlineFavorites", Text = "이전", Bounds = new Rectangle(142, 0, 65, 24) };
+            nextPage = new Button { Name = "NextHeadlineFavorites", Text = "다음", Bounds = new Rectangle(279, 0, 65, 24) };
+            pageNumber = new Label { Bounds = new Rectangle(209, 0, 68, 24), TextAlign = ContentAlignment.MiddleCenter };
+            previousPage.Click += delegate { favoritePage--; RefreshCategory(); };
+            nextPage.Click += delegate { favoritePage++; RefreshCategory(); };
+            pagination.Controls.AddRange(new Control[] { previousPage, pageNumber, nextPage });
+            surface.Controls.AddRange(new Control[] { grid, empty, pagination, recentHeading, recentGrid, recentEmpty });
+            ShowCategory(1);
+            Items.Add(new ToolStripControlHost(surface) { AutoSize = false, Size = surface.Size, Margin = Padding.Empty });
+        }
+
+        private Panel CreateTile(out Button choice, out Button favoriteStar)
+        {
                 var cell = new Panel { Dock = DockStyle.Fill, Margin = new Padding(1) };
                 var tile = new Button
                 {
@@ -417,6 +450,7 @@ namespace gInk
                     var shape = (NoteBackgroundShape)tile.Tag;
                     Close(ToolStripDropDownCloseReason.ItemClicked);
                     Selected?.Invoke(shape);
+                    settings.RememberHeadline(shape);
                 };
                 star.Click += delegate
                 {
@@ -424,31 +458,12 @@ namespace gInk
                     settings.ToggleFavoriteHeadline(shape);
                     RefreshCategory();
                 };
-                choices[i] = tile;
-                stars[i] = star;
+                choice = tile;
+                favoriteStar = star;
                 cell.Controls.Add(tile);
                 cell.Controls.Add(star);
                 star.BringToFront();
-                grid.Controls.Add(cell, i % 3, i / 3);
-            }
-            empty = new Label
-            {
-                Text = "다른 탭에서 디자인 옆 ☆를 눌러 추가하세요.",
-                Bounds = grid.Bounds, TextAlign = ContentAlignment.MiddleCenter
-            };
-            pagination = new Panel { Bounds = new Rectangle(0, 434, 486, 30) };
-            previousPage = new Button { Name = "PreviousHeadlineFavorites", Text = "이전", Bounds = new Rectangle(142, 3, 65, 24) };
-            nextPage = new Button { Name = "NextHeadlineFavorites", Text = "다음", Bounds = new Rectangle(279, 3, 65, 24) };
-            pageNumber = new Label { Bounds = new Rectangle(209, 3, 68, 24), TextAlign = ContentAlignment.MiddleCenter };
-            previousPage.Click += delegate { favoritePage--; RefreshCategory(); };
-            nextPage.Click += delegate { favoritePage++; RefreshCategory(); };
-            pagination.Controls.AddRange(new Control[] { previousPage, pageNumber, nextPage });
-            surface.Controls.Add(grid);
-            surface.Controls.Add(empty);
-            surface.Controls.Add(pagination);
-            pagination.BringToFront();
-            ShowCategory(1);
-            Items.Add(new ToolStripControlHost(surface) { AutoSize = false, Size = surface.Size, Margin = Padding.Empty });
+                return cell;
         }
 
         private void ShowCategory(int category)
@@ -463,40 +478,59 @@ namespace gInk
         private void RefreshCategory()
         {
             var favorites = settings.FavoriteHeadlines;
+            var recent = settings.RecentHeadlines;
             bool showingFavorites = category == Favorites;
-            int pages = Math.Max(1, (favorites.Count + PageSize - 1) / PageSize);
+            int pages = Math.Max(1, (favorites.Count + FavoritePageSize - 1) / FavoritePageSize);
             favoritePage = Math.Max(0, Math.Min(pages - 1, favoritePage));
             pagination.Visible = showingFavorites && pages > 1;
-            grid.Height = showingFavorites && pages > 1 ? GridHeight - pagination.Height : GridHeight;
+            int offset = showingFavorites ? favoritePage * FavoritePageSize : (category - 1) * PageSize;
+            int visibleCount = showingFavorites ? Math.Min(FavoritePageSize, favorites.Count - offset) : PageSize;
+            grid.Height = showingFavorites ? Math.Max(1, (visibleCount + 2) / 3) * RowHeight : GridHeight;
+            for (int row = 0; row < grid.RowCount; row++)
+            {
+                grid.RowStyles[row].SizeType = showingFavorites ? SizeType.Absolute : SizeType.Percent;
+                grid.RowStyles[row].Height = showingFavorites ? (row < (visibleCount + 2) / 3 ? RowHeight : 0) : 10;
+            }
+            pagination.Top = grid.Bottom;
             previousPage.Enabled = favoritePage > 0;
             nextPage.Enabled = favoritePage < pages - 1;
             pageNumber.Text = (favoritePage + 1) + " / " + pages;
             empty.Visible = showingFavorites && favorites.Count == 0;
-            grid.Visible = !showingFavorites || favorites.Count > 0;
-            int offset = (showingFavorites ? favoritePage : category - 1) * PageSize;
+            grid.Visible = visibleCount > 0;
+            recentHeading.Top = grid.Bottom + (showingFavorites && pages > 1 ? pagination.Height : 0);
+            recentHeading.Visible = showingFavorites;
+            recentGrid.Top = recentEmpty.Top = recentHeading.Bottom;
+            recentGrid.Visible = showingFavorites && recent.Count > 0;
+            recentEmpty.Visible = showingFavorites && recent.Count == 0;
             for (int i = 0; i < choices.Length; i++)
             {
-                Button tile = choices[i];
-                Button star = stars[i];
                 int index = offset + i;
-                bool available = !showingFavorites || index < favorites.Count;
-                tile.Parent.Visible = available;
-                if (!available) continue;
-                var shape = showingFavorites ? favorites[index] : (NoteBackgroundShape)index;
-                tile.Name = "Template" + shape;
+                NoteBackgroundShape? shape = i >= visibleCount ? (NoteBackgroundShape?)null :
+                    showingFavorites ? favorites[index] : (NoteBackgroundShape)index;
+                UpdateTile(choices[i], stars[i], shape, false);
+            }
+            for (int i = 0; i < recentChoices.Length; i++)
+                UpdateTile(recentChoices[i], recentStars[i], i < recent.Count ? (NoteBackgroundShape?)recent[i] : null, true);
+        }
+
+        private void UpdateTile(Button tile, Button star, NoteBackgroundShape? entry, bool recent)
+        {
+                tile.Parent.Visible = entry.HasValue;
+                if (!entry.HasValue) return;
+                NoteBackgroundShape shape = entry.Value;
+                tile.Name = (recent ? "RecentTemplate" : "Template") + shape;
                 tile.AccessibleName = ((int)shape + 1).ToString("D2") + "  " + HeadlineTemplate.Get(shape).Name;
                 tile.Tag = shape;
                 tile.BackColor = shape == current ? Color.FromArgb(216, 240, 255) : Color.White;
                 tile.FlatAppearance.BorderSize = shape == current ? 1 : 0;
                 tile.FlatAppearance.BorderColor = Color.FromArgb(50, 117, 169);
                 tile.Invalidate();
-                bool favorite = favorites.Contains(shape);
-                star.Name = "Favorite" + shape;
+                bool favorite = settings.FavoriteHeadlines.Contains(shape);
+                star.Name = (recent ? "RecentFavorite" : "Favorite") + shape;
                 star.Text = favorite ? "★" : "☆";
                 star.AccessibleName = tile.AccessibleName + (favorite ? " 즐겨찾기 해제" : " 즐겨찾기 추가");
                 star.ForeColor = favorite ? Color.FromArgb(151, 91, 0) : Color.FromArgb(68, 86, 108);
                 star.BackColor = tile.BackColor;
-            }
         }
 
         internal void ShowFor(Button source, NoteBackgroundShape selected, Color? color, Color? fill)
@@ -504,7 +538,7 @@ namespace gInk
             current = selected;
             previewColor = color;
             previewFill = fill;
-            ShowCategory(settings.FavoriteHeadlines.Count > 0 ? Favorites : 1 + (int)selected / PageSize);
+            ShowCategory(settings.FavoriteHeadlines.Count > 0 || settings.RecentHeadlines.Count > 0 ? Favorites : 1 + (int)selected / PageSize);
             Show(source, new Point(source.Width, source.Height), ToolStripDropDownDirection.BelowLeft);
         }
     }

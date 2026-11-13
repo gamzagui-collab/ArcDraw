@@ -217,6 +217,7 @@
     <Compile Include="NoteBackground.cs" />
     <Compile Include="HeadlineTemplates.cs" />
     <Compile Include="HeadlineCatalog.cs" />
+    <Compile Include="ScreenFrame.cs" />
     <Compile Include="NoteIdentity.cs" />
     <Compile Include="NoteMemo.cs" />
     <Compile Include="NotePersistence.cs" />

@@ -382,6 +382,7 @@ namespace gInk
         public List<string> ArrowTail = new List<string>();
 
         public NotifyIcon trayIcon;
+        internal ScreenFrame ScreenFrame { get; private set; }
 		public ContextMenu trayMenu;
 		public FormCollection FormCollection;
 		public FormDisplay FormDisplay;
@@ -548,6 +549,7 @@ namespace gInk
 			trayMenu = new ContextMenu();
 			trayMenu.MenuItems.Add(Local.MenuEntryAbout + "...", OnAbout);
 			trayMenu.MenuItems.Add(Local.MenuEntryOptions + "...", OnOptions);
+            trayMenu.MenuItems.Add("화면 액자…", OnScreenFrame);
 			trayMenu.MenuItems.Add("-");
 			trayMenu.MenuItems.Add(Local.MenuEntryExit, OnExit);
 
@@ -569,6 +571,7 @@ namespace gInk
             }
             
             Settings=new DrawingSettings(this);
+            ScreenFrame = new ScreenFrame(Settings);
 			//FormCollection = null;
 			//FormDisplay = null;
             FormCollection = new FormCollection(this);
@@ -589,6 +592,7 @@ namespace gInk
 			trayIcon.BalloonTipText = Local.NotificationSnapshot;
 			trayIcon.BalloonTipClicked += TrayIcon_BalloonTipClicked;
 			SetTrayIconColor();
+            ScreenFrame.Refresh();
 
 			SetHotkey();
 
@@ -2810,13 +2814,17 @@ namespace gInk
 			trayMenu.MenuItems.Clear();
 			trayMenu.MenuItems.Add(Local.MenuEntryAbout + "...", OnAbout);
 			trayMenu.MenuItems.Add(Local.MenuEntryOptions + "...", OnOptions);
+            trayMenu.MenuItems.Add("화면 액자…", OnScreenFrame);
 			trayMenu.MenuItems.Add("-");
 			trayMenu.MenuItems.Add(Local.MenuEntryExit, OnExit);
 		}
 
-		private void OnExit(object sender, EventArgs e)
+        private void OnScreenFrame(object sender, EventArgs e) => ScreenFrame.ShowOptions();
+
+        private void OnExit(object sender, EventArgs e)
 		{
 			if (DrawingSession != null) DrawingSession.Dispose();
+            ScreenFrame?.Dispose();
 			UnsetHotkey();
 
 			            if (Whiteboards != null) Whiteboards.Dispose();

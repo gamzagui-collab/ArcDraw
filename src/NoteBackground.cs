@@ -488,7 +488,7 @@ namespace gInk
 
     internal sealed class NoteVisualWindow : NonActivatingToolbarWindow
     {
-        internal NoteVisualWindow() { Name = "NoteBackgroundVisual"; }
+        internal NoteVisualWindow(string name = "NoteBackgroundVisual") { Name = name; }
 
         protected override CreateParams CreateParams
         {
