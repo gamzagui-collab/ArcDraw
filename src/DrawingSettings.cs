@@ -32,6 +32,8 @@ namespace gInk
         internal int ScreenFrameWidth { get; set; } = 2;
         internal string ScreenFrameMonitor { get; set; }
         internal bool ScreenFrameExpandTaskbar { get; set; }
+        private readonly List<int> favoriteScreenFrames = new List<int>();
+        internal IReadOnlyList<int> FavoriteScreenFrames => favoriteScreenFrames;
         private const int RecentFontLimit = 5;
         private readonly List<string> recentFonts = new List<string>();
         internal IReadOnlyList<string> RecentFonts => recentFonts;
@@ -71,6 +73,7 @@ namespace gInk
             ScreenFrameWidth = 2;
             ScreenFrameMonitor = null;
             ScreenFrameExpandTaskbar = false;
+            favoriteScreenFrames.Clear();
             recentFonts.Clear();
             HasFont = false;
             ScreenTextColor = null;
@@ -117,6 +120,12 @@ namespace gInk
             recentHeadlines.Remove(shape);
             recentHeadlines.Insert(0, shape);
             if (recentHeadlines.Count > RecentHeadlineLimit) recentHeadlines.RemoveAt(RecentHeadlineLimit);
+            SaveToolSettings();
+        }
+
+        internal void ToggleFavoriteScreenFrame(int theme)
+        {
+            if (!favoriteScreenFrames.Remove(theme)) favoriteScreenFrames.Add(theme);
             SaveToolSettings();
         }
 
@@ -235,6 +244,11 @@ namespace gInk
                     ScreenFrameWidth = Math.Max(1, Math.Min(12, width));
                 ScreenFrameMonitor = Attr(frame, "monitor");
                 ScreenFrameExpandTaskbar = bool.TryParse(Attr(frame, "expandTaskbar"), out bool expand) && expand;
+                var seen = new HashSet<int>();
+                foreach (XElement entry in frame.Elements("Favorite"))
+                    if (int.TryParse(entry.Value, NumberStyles.Integer, Invariant, out int index) &&
+                        index >= 0 && index < ScreenFrameStyle.Names.Length && seen.Add(index))
+                        favoriteScreenFrames.Add(index);
             }
             if (recent != null)
             {
@@ -305,10 +319,15 @@ namespace gInk
             }
             SaveHeadlineList(document, "FavoriteHeadlines", favoriteHeadlines);
             SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
-            if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar || !String.IsNullOrEmpty(ScreenFrameMonitor))
-                document.Add(new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
+            if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar ||
+                favoriteScreenFrames.Count > 0 || !String.IsNullOrEmpty(ScreenFrameMonitor))
+            {
+                var frame = new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
                     new XAttribute("theme", ScreenFrameTheme), new XAttribute("width", ScreenFrameWidth),
-                    new XAttribute("monitor", ScreenFrameMonitor ?? ""), new XAttribute("expandTaskbar", ScreenFrameExpandTaskbar)));
+                    new XAttribute("monitor", ScreenFrameMonitor ?? ""), new XAttribute("expandTaskbar", ScreenFrameExpandTaskbar));
+                foreach (int index in favoriteScreenFrames) frame.Add(new XElement("Favorite", index));
+                document.Add(frame);
+            }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)
                 document.Add(new XElement("ToolColors",
                     ScreenTextColor.HasValue ? new XAttribute("text", ScreenTextColor.Value.ToArgb()) : null,

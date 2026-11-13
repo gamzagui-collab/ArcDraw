@@ -14,6 +14,7 @@ namespace gInk
         private readonly NoteVisualWindow[] edges = new NoteVisualWindow[4];
         private Form options;
         private ScreenFrameThemePicker gallery;
+        private bool previewingFrame;
         private Rectangle lastBounds;
         private int lastWidth, lastTheme = -1;
 
@@ -40,7 +41,7 @@ namespace gInk
 
         internal void Refresh()
         {
-            if (!settings.ScreenFrameEnabled)
+            if (!settings.ScreenFrameEnabled && !previewingFrame)
             {
                 foreach (var edge in edges) edge?.Hide();
                 return;
@@ -134,15 +135,21 @@ namespace gInk
                     gallery.Activate();
                     return;
                 }
-                gallery = new ScreenFrameThemePicker(settings.ScreenFrameTheme, settings.ScreenFrameWidth);
+                gallery = new ScreenFrameThemePicker(settings);
                 gallery.ThemeChosen += index =>
                 {
                     settings.ScreenFrameTheme = index;
+                    previewingFrame = true;
                     theme.Text = ScreenFrameStyle.Names[index] + "   ▾";
                     Refresh();
                     settings.SaveToolSettings();
                 };
-                gallery.FormClosed += delegate { gallery = null; };
+                gallery.FormClosed += delegate
+                {
+                    gallery = null;
+                    previewingFrame = false;
+                    Refresh();
+                };
                 gallery.Show(options);
             };
             monitor.SelectedIndexChanged += delegate
@@ -152,7 +159,13 @@ namespace gInk
                 Refresh();
                 settings.SaveToolSettings();
             };
-            width.ValueChanged += delegate { settings.ScreenFrameWidth = width.Value; amount.Text = width.Value + "%"; update.Start(); };
+            width.ValueChanged += delegate
+            {
+                settings.ScreenFrameWidth = width.Value;
+                amount.Text = width.Value + "%";
+                gallery?.RefreshPreviews();
+                update.Start();
+            };
             done.Click += delegate { options.Close(); };
             options.CancelButton = done;
             options.FormClosed += delegate
