@@ -38,6 +38,7 @@ namespace gInk
 
         internal readonly string Name;
         private readonly Color accent;
+        internal Color Accent => accent;
         private readonly RectangleF text;
 
         private HeadlineTemplate(string name, int rgb, float left = 15, float top = 12, float right = 20, float bottom = 12)
@@ -58,7 +59,7 @@ namespace gInk
 
         internal static HeadlineTemplate Get(NoteBackgroundShape shape) => All[(int)shape];
 
-        internal static void Draw(Graphics graphics, Rectangle bounds, NoteBackgroundShape shape, int alpha)
+        internal static void Draw(Graphics graphics, Rectangle bounds, NoteBackgroundShape shape, int alpha, Color? frameColor)
         {
             if (alpha <= 0 || bounds.Width < 2 || bounds.Height < 2) return;
             GraphicsState saved = graphics.Save();
@@ -67,26 +68,32 @@ namespace gInk
                 graphics.TranslateTransform(bounds.X, bounds.Y);
                 graphics.ScaleTransform(bounds.Width / W, bounds.Height / H);
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Get(shape).DrawDesign(graphics, shape, alpha);
+                Get(shape).DrawDesign(graphics, shape, alpha, frameColor);
             }
             finally { graphics.Restore(saved); }
         }
 
-        private void DrawDesign(Graphics g, NoteBackgroundShape shape, int alpha)
+        private void DrawDesign(Graphics g, NoteBackgroundShape shape, int alpha, Color? frameColor)
         {
-            Color color = Color.FromArgb(alpha, accent);
-            Color washColor = Color.FromArgb(alpha, (accent.R + 255 * 8) / 9, (accent.G + 255 * 8) / 9, (accent.B + 255 * 8) / 9);
+            Color selected = frameColor ?? accent;
+            Color color = Color.FromArgb(alpha, selected);
+            Color washColor = Color.FromArgb(alpha, Mix(selected, Color.White, 8, 9));
+            Color surfaceColor = frameColor.HasValue ? washColor : Color.FromArgb(alpha, 250, 252, 255);
+            // Keep the small decoration inside a colored badge readable even when its new fill is pale.
+            bool light = 299 * selected.R + 587 * selected.G + 114 * selected.B > 165000;
+            Color glyph = Color.FromArgb(alpha, frameColor.HasValue && light ? Color.FromArgb(28, 39, 55) : Color.White);
             using (var line = new Pen(color, 2.4f) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
             using (var tint = new SolidBrush(color))
             using (var pale = new SolidBrush(washColor))
-            using (var paper = new SolidBrush(Color.FromArgb(alpha, 250, 252, 255)))
-            using (var white = new SolidBrush(Color.FromArgb(alpha, 255, 255, 255)))
-            using (var glyphLine = new Pen(white, 2.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            using (var paper = new SolidBrush(surfaceColor))
+            using (var whitePaper = new SolidBrush(frameColor.HasValue ? washColor : Color.FromArgb(alpha, Color.White)))
+            using (var mark = new SolidBrush(glyph))
+            using (var glyphLine = new Pen(mark, 2.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
             {
                 switch (shape)
                 {
                     case NoteBackgroundShape.Rectangle:
-                        g.FillRectangle(white, 3, 4, 354, 76); g.DrawRectangle(line, 3, 4, 354, 76); break;
+                        g.FillRectangle(whitePaper, 3, 4, 354, 76); g.DrawRectangle(line, 3, 4, 354, 76); break;
                     case NoteBackgroundShape.Rounded: Box(g, paper, line, 3, 4, 354, 76, 15); break;
                     case NoteBackgroundShape.Oval:
                         g.FillEllipse(paper, 3, 4, 354, 76); g.DrawEllipse(line, 3, 4, 354, 76); break;
@@ -95,12 +102,12 @@ namespace gInk
                         Poly(g, paper, line, 32,6, 338,6, 314,78, 8,78);
                         Poly(g, tint, null, 28,3, 81,3, 59,80, 5,80);
                         Poly(g, tint, null, 344,6, 357,6, 333,78, 320,78);
-                        Poly(g, white, null, 32,24, 32,59, 58,41); break;
+                        Poly(g, mark, null, 32,24, 32,59, 58,41); break;
                     case NoteBackgroundShape.Star:
-                        Badge(g, paper, line, tint, 38); Star(g, white, 39, 42, 19, 8, 5); break;
+                        Badge(g, paper, line, tint, 38); Star(g, mark, 39, 42, 19, 8, 5); break;
                     case NoteBackgroundShape.Spotlight:
                         g.DrawLines(line, Points(7,42, 7,75, 352,75, 352,51));
-                        using (var ray = new Pen(Color.FromArgb(alpha, 246, 167, 37), 4))
+                        using (var ray = new Pen(Color.FromArgb(alpha, frameColor.HasValue ? Mix(selected, Color.White, 1, 4) : Color.FromArgb(246, 167, 37)), 4))
                         { g.DrawLine(ray, 15, 26, 8, 16); g.DrawLine(ray, 25, 23, 25, 9); g.DrawLine(ray, 34, 26, 43, 16); }
                         break;
                     case NoteBackgroundShape.Document:
@@ -129,12 +136,12 @@ namespace gInk
                         for (int x = 326; x <= 352; x += 12) g.FillEllipse(tint, x, 67, 6, 6);
                         break;
                     case NoteBackgroundShape.Offset:
-                        using (var shadow = new SolidBrush(Color.FromArgb(alpha, 34, 168, 191)))
+                        using (var shadow = new SolidBrush(Color.FromArgb(alpha, frameColor.HasValue ? Mix(selected, Color.White, 1, 3) : Color.FromArgb(34, 168, 191))))
                             Poly(g, shadow, null, 33,17, 356,17, 335,81, 12,81);
                         Poly(g, paper, line, 26,5, 347,5, 326,70, 5,70); break;
                     case NoteBackgroundShape.Technical:
                         Badge(g, paper, line, tint, 17);
-                        Star(g, white, 37, 42, 20, 15, 8); g.FillEllipse(tint, 27, 32, 20, 20);
+                        Star(g, mark, 37, 42, 20, 15, 8); g.FillEllipse(tint, 27, 32, 20, 20);
                         g.DrawEllipse(glyphLine, 31, 36, 12, 12); break;
                     case NoteBackgroundShape.SpeechBubble:
                         using (var bubble = new GraphicsPath())
@@ -171,7 +178,7 @@ namespace gInk
                         g.DrawLine(line, 50, 70, 338, 70); Poly(g, tint, null, 334,58, 354,58, 347,72, 327,72); break;
                     case NoteBackgroundShape.Royal:
                         Poly(g, paper, line, 27,7, 354,7, 333,77, 5,77); Poly(g, tint, null, 24,7, 75,7, 54,77, 3,77);
-                        Poly(g, white, null, 24,32, 33,41, 41,24, 48,40, 58,31, 52,55, 29,55);
+                        Poly(g, mark, null, 24,32, 33,41, 41,24, 48,40, 58,31, 52,55, 29,55);
                         g.DrawLine(glyphLine, 30, 60, 51, 60); break;
                     case NoteBackgroundShape.Classic:
                         Box(g, pale, line, 4, 6, 352, 72, 28); Box(g, null, line, 9, 11, 342, 62, 23);
@@ -183,11 +190,11 @@ namespace gInk
                             double a = i * Math.PI * 2 / 5;
                             g.FillEllipse(tint, 33 + (float)Math.Cos(a) * 12 - 7, 42 + (float)Math.Sin(a) * 12 - 7, 14, 14);
                         }
-                        g.FillEllipse(white, 29, 38, 8, 8); g.FillEllipse(tint, 323, 33, 10, 7); g.FillEllipse(tint, 312, 50, 9, 6); break;
+                        g.FillEllipse(mark, 29, 38, 8, 8); g.FillEllipse(tint, 323, 33, 10, 7); g.FillEllipse(tint, 312, 50, 9, 6); break;
                     case NoteBackgroundShape.Paper:
                         Poly(g, pale, line, 7,9, 353,9, 353,74, 330,78, 311,75, 292,79, 262,76, 232,79, 210,76,
                             182,79, 160,76, 130,79, 109,76, 79,79, 54,76, 30,79, 7,77);
-                        using (var tape = new SolidBrush(Color.FromArgb(alpha, 232, 195, 120)))
+                        using (var tape = new SolidBrush(Color.FromArgb(alpha, frameColor.HasValue ? Mix(selected, Color.White, 1, 2) : Color.FromArgb(232, 195, 120))))
                             Poly(g, tape, null, 9,10, 55,2, 58,15, 12,23);
                         for (int y = 30; y <= 64; y += 16) g.DrawEllipse(line, 15, y, 8, 8);
                         break;
@@ -200,15 +207,15 @@ namespace gInk
                     case NoteBackgroundShape.Alert:
                         Box(g, paper, line, 11, 7, 345, 70, 32);
                         Poly(g, tint, null, 27,6, 39,6, 65,68, 60,77, 5,77, 2,68);
-                        g.DrawLine(glyphLine, 33, 29, 33, 48); g.FillEllipse(white, 30, 54, 6, 7); break;
+                        g.DrawLine(glyphLine, 33, 29, 33, 48); g.FillEllipse(mark, 30, 54, 6, 7); break;
                     case NoteBackgroundShape.Night:
                         Badge(g, pale, line, tint, 32);
                         using (var moon = new GraphicsPath())
                         {
                             moon.AddBezier(42,22, 20,13, 11,58, 34,62); moon.AddBezier(34,62, 46,65, 53,53, 53,50);
-                            moon.AddBezier(53,50, 29,57, 26,32, 42,22); g.FillPath(white, moon);
+                            moon.AddBezier(53,50, 29,57, 26,32, 42,22); g.FillPath(mark, moon);
                         }
-                        Star(g, white, 53, 23, 7, 3, 4);
+                        Star(g, mark, 53, 23, 7, 3, 4);
                         using (var cloud = new GraphicsPath())
                         {
                             cloud.AddBezier(294,77, 295,62, 311,59, 318,66);
@@ -230,6 +237,13 @@ namespace gInk
                         g.FillEllipse(tint, 332, 30, 8, 8); g.FillEllipse(tint, 349, 19, 6, 6); break;
                 }
             }
+        }
+
+        private static Color Mix(Color from, Color to, int part, int total)
+        {
+            return Color.FromArgb((from.R * (total - part) + to.R * part) / total,
+                (from.G * (total - part) + to.G * part) / total,
+                (from.B * (total - part) + to.B * part) / total);
         }
 
         private static void Badge(Graphics g, Brush fill, Pen outline, Brush tint, float radius)
@@ -297,6 +311,7 @@ namespace gInk
     internal sealed class HeadlineTemplatePicker : ToolStripDropDown
     {
         private readonly Button[] choices = new Button[HeadlineTemplate.All.Length];
+        private Color? previewColor;
         internal event Action<NoteBackgroundShape> Selected;
 
         internal HeadlineTemplatePicker()
@@ -322,7 +337,7 @@ namespace gInk
                 tile.Paint += (_, e) =>
                 {
                     var bounds = new Rectangle(5, 3, tile.Width - 10, tile.Height - 19);
-                    HeadlineTemplate.Draw(e.Graphics, bounds, shape, 255);
+                    HeadlineTemplate.Draw(e.Graphics, bounds, shape, 255, previewColor);
                     TextRenderer.DrawText(e.Graphics, tile.AccessibleName, SystemFonts.MessageBoxFont,
                         new Rectangle(2, bounds.Bottom, tile.Width - 4, 15), Color.FromArgb(32, 52, 74),
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
@@ -334,13 +349,15 @@ namespace gInk
             Items.Add(new ToolStripControlHost(grid) { AutoSize = false, Size = grid.Size, Margin = Padding.Empty });
         }
 
-        internal void ShowFor(Button source, NoteBackgroundShape current)
+        internal void ShowFor(Button source, NoteBackgroundShape current, Color? color)
         {
+            previewColor = color;
             for (int i = 0; i < choices.Length; i++)
             {
                 choices[i].BackColor = i == (int)current ? Color.FromArgb(216, 240, 255) : Color.White;
                 choices[i].FlatAppearance.BorderSize = i == (int)current ? 1 : 0;
                 choices[i].FlatAppearance.BorderColor = Color.FromArgb(50, 117, 169);
+                choices[i].Invalidate();
             }
             Show(source, new Point(source.Width, source.Height), ToolStripDropDownDirection.BelowLeft);
         }

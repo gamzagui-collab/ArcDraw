@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.49-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.50-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.49 헤드라인 디자인 30종
+## v0.50 헤드라인 프레임 색상
 
-헤드라인에 마우스를 올리면 제목줄과 배경 투명도 슬라이더, 모양 버튼, 크기 조절 손잡이가 나타납니다. 마우스를 떼면 제목과 프레임만 남습니다. 모양 버튼을 누르면 30종을 미리 보고 선택할 수 있습니다. 글자는 프레임마다 배지, 리본, 밑줄을 피해 배치됩니다. 선택한 프레임과 투명도는 자동저장됩니다.
+헤드라인에 마우스를 올린 뒤 제목줄의 색상 버튼을 누르세요. 색을 고르면 프레임에 바로 적용되고 재실행 후에도 유지됩니다. 텍스트 색은 메인 툴바에서 따로 설정할 수 있습니다. 템플릿 기본색 버튼으로 원래 색을 되돌릴 수 있습니다.
 
-Windows Release|x86 빌드 및 실제 화면에서 마우스 올리기·벗어나기, 디자인 선택, 글자 배치, 투명도와 크기 조절, 재실행 후 복원을 확인했습니다.
+Windows Release|x86 빌드와 실제 색상 선택, 글자색 유지, 재실행 후 복원 및 기본색 복귀를 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

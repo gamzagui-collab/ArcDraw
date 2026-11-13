@@ -476,13 +476,15 @@ namespace gInk
         private readonly TrackBar[] channels = new TrackBar[3];
         private readonly Panel customColors;
         private readonly Button customPreview;
+        private readonly int collapsedHeight;
         private Color currentColor;
 
-        internal ToolbarColorPalette(Action<Color> select)
+        internal ToolbarColorPalette(Action<Color> select, Action reset = null)
         {
             Name = "DrawingColorPicker";
             BackColor = Color.FromArgb(31, 34, 40);
-            ClientSize = new Size(216, 112);
+            collapsedHeight = reset == null ? 112 : 146;
+            ClientSize = new Size(216, collapsedHeight);
             Color[] colors =
             {
                 Color.Black, Color.White, Color.DimGray, Color.Firebrick, Color.OrangeRed, Color.Gold,
@@ -514,7 +516,17 @@ namespace gInk
             };
             close.Click += delegate { Hide(); };
             Controls.AddRange(new Control[] { more, close });
-            customColors = new Panel { Location = new Point(8, 112), Size = new Size(200, 108), Visible = false };
+            if (reset != null)
+            {
+                var defaultColor = new PaletteButton
+                {
+                    Name = "ResetHeadlineFrameColor", Text = "템플릿 기본색", Bounds = new Rectangle(8, 112, 200, 26),
+                    BackColor = Color.WhiteSmoke
+                };
+                defaultColor.Click += delegate { reset(); };
+                Controls.Add(defaultColor);
+            }
+            customColors = new Panel { Location = new Point(8, collapsedHeight), Size = new Size(200, 108), Visible = false };
             customPreview = new PaletteButton
             {
                 Name = "ApplyCustomToolbarColor", Text = "적용", Bounds = new Rectangle(0, 76, 200, 26)
@@ -552,7 +564,7 @@ namespace gInk
         private void ShowCustomColors(bool visible)
         {
             customColors.Visible = visible;
-            ClientSize = new Size(216, visible ? 220 : 112);
+            ClientSize = new Size(216, collapsedHeight + (visible ? 108 : 0));
             if (!visible) return;
             channels[0].Value = currentColor.R;
             channels[1].Value = currentColor.G;
