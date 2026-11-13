@@ -26,6 +26,8 @@ namespace gInk
         private Rectangle targetBounds, frameBounds, reservedWorkArea;
         private Padding frameInsets;
 
+        internal bool OptionsOpen => options?.Visible == true;
+
         internal ScreenFrame(Root root)
         {
             this.root = root;
@@ -268,7 +270,7 @@ namespace gInk
                     gallery.Activate();
                     return;
                 }
-                gallery = new ScreenFrameThemePicker(settings);
+                gallery = new ScreenFrameThemePicker(settings, Screen.FromControl(options).WorkingArea.Size);
                 gallery.ThemeChosen += index =>
                 {
                     settings.ScreenFrameTheme = index;
@@ -276,6 +278,7 @@ namespace gInk
                     previewingFrame = true;
                     theme.Text = ScreenFrameStyle.Names[index] + "   ▾";
                     Refresh();
+                    gallery?.Activate();
                     settings.SaveToolSettings();
                 };
                 gallery.FormClosed += delegate
@@ -283,6 +286,7 @@ namespace gInk
                     gallery = null;
                     previewingFrame = false;
                     Refresh();
+                    if (options?.Visible == true) options.Activate();
                 };
                 gallery.Show(options);
             };

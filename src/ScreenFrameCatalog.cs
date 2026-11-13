@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -251,51 +253,75 @@ namespace gInk
 
     internal sealed class ScreenFrameThemePicker : Form
     {
-        private const int Columns = 3;
-        private const int RowHeight = 99;
-        private const int FavoritesPerPage = Columns * 2;
+        private const int FavoritesPerPage = 6;
+        private const int ThemesPerPage = ScreenFrameStyle.CategorySize;
         private const int RecentSlots = DrawingSettings.RecentScreenFrameLimit;
         private readonly Button[] tiles = new Button[FavoritesPerPage + RecentSlots];
         private readonly Button[] stars = new Button[FavoritesPerPage + RecentSlots];
+        private readonly Bitmap[] previews = new Bitmap[FavoritesPerPage + RecentSlots];
+        private readonly int columns, rowHeight;
+        private readonly Rectangle previewBounds;
         private readonly DrawingSettings settings;
         private readonly ListBox categories;
+        private readonly TextBox search;
+        private readonly Button clearSearch;
+        private readonly Panel grid;
         private readonly Button previous, next;
-        private readonly Label page, empty, recentHeading, recentEmpty;
-        private int favoritePage;
+        private readonly Label page, empty, recentHeading, recentEmpty, resultCount;
+        private int pageIndex;
         internal event Action<int> ThemeChosen;
 
-        internal ScreenFrameThemePicker(DrawingSettings settings)
+        internal ScreenFrameThemePicker(DrawingSettings settings, Size workArea)
         {
             this.settings = settings;
             Name = "ScreenFrameThemePicker";
             Text = "화면 액자 테마";
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            ClientSize = new Size(752, 484);
+            ClientSize = new Size(Math.Min(948, workArea.Width - 40), Math.Min(682, workArea.Height - 68));
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;
             BackColor = Color.FromArgb(238, 243, 249);
-            categories = new ListBox { Name = "ScreenFrameCategories", Bounds = new Rectangle(12, 12, 142, 390), IntegralHeight = false };
+            int footerY = ClientSize.Height - 38;
+            int gridLeft = 164, gridWidth = ClientSize.Width - gridLeft - 12;
+            categories = new ListBox { Name = "ScreenFrameCategories", Bounds = new Rectangle(12, 12, 142, footerY - 20), IntegralHeight = false };
             categories.Items.Add("★ 즐겨찾기");
             categories.Items.AddRange(ScreenFrameStyle.Categories);
-            categories.SelectedIndexChanged += delegate { favoritePage = 0; ShowCategory(); };
-            Controls.Add(categories);
+            var searchLabel = new Label { Text = "테마 검색", Bounds = new Rectangle(gridLeft, 14, 65, 22) };
+            search = new TextBox { Name = "ScreenFrameSearch", AccessibleName = "테마 이름 또는 번호",
+                Bounds = new Rectangle(gridLeft + 68, 12, gridWidth - 142, 24) };
+            clearSearch = new Button { Name = "ClearScreenFrameSearch", Text = "지우기",
+                Bounds = new Rectangle(ClientSize.Width - 80, 10, 68, 26) };
+            clearSearch.Click += delegate { search.Clear(); search.Focus(); };
+            resultCount = new Label { Name = "ScreenFrameSearchCount", Bounds = new Rectangle(gridLeft, 44, gridWidth, 18) };
+            grid = new Panel { Name = "ScreenFramePreviewGrid", AutoScroll = true,
+                Bounds = new Rectangle(gridLeft, 66, gridWidth, footerY - 74) };
+            Controls.AddRange(new Control[] { searchLabel, search, clearSearch, categories, resultCount, grid });
+
+            int available = gridWidth - SystemInformation.VerticalScrollBarWidth - 4;
+            columns = available < 390 ? 1 : 2;
+            int cardWidth = (available - (columns - 1) * 8) / columns;
+            int imageWidth = cardWidth - 42;
+            previewBounds = new Rectangle(8, 7, imageWidth, imageWidth * 9 / 16);
+            int cardHeight = previewBounds.Bottom + 26;
+            rowHeight = cardHeight + 8;
             for (int index = 0; index < tiles.Length; index++)
             {
+                int slot = index;
                 var tile = new Button
                 {
-                    Size = new Size(187, 93),
+                    Size = new Size(cardWidth, cardHeight),
                     FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand
                 };
-                tile.Paint += (_, args) => PaintPreview(tile, args.Graphics);
+                tile.Paint += (_, args) => PaintPreview(slot, args.Graphics);
                 tile.Click += delegate
                 {
                     ThemeChosen?.Invoke((int)tile.Tag);
                     ShowCategory();
                 };
-                Controls.Add(tile);
+                grid.Controls.Add(tile);
                 tiles[index] = tile;
                 var star = new Button
                 {
@@ -308,78 +334,139 @@ namespace gInk
                     settings.ToggleFavoriteScreenFrame((int)tile.Tag);
                     ShowCategory();
                 };
-                Controls.Add(star);
+                grid.Controls.Add(star);
                 star.BringToFront();
                 stars[index] = star;
             }
-            empty = new Label { Text = "다른 테마 목록에서 ☆를 눌러 추가하세요.",
-                Bounds = new Rectangle(164, 12, 573, 93), TextAlign = ContentAlignment.MiddleCenter };
-            recentHeading = new Label { Name = "ScreenFrameRecentHeading", Text = "최근 사용", Size = new Size(573, 19) };
+            empty = new Label { Size = new Size(available, 56), TextAlign = ContentAlignment.MiddleCenter };
+            recentHeading = new Label { Name = "ScreenFrameRecentHeading", Text = "최근 사용", Size = new Size(available, 22) };
             recentEmpty = new Label { Text = "테마를 선택하면 여기에 표시됩니다.",
-                Size = new Size(573, 40), TextAlign = ContentAlignment.MiddleCenter };
-            previous = new Button { Name = "PreviousScreenFrameFavorites", Text = "이전", Size = new Size(65, 24) };
-            next = new Button { Name = "NextScreenFrameFavorites", Text = "다음", Size = new Size(65, 24) };
-            page = new Label { Size = new Size(67, 24), TextAlign = ContentAlignment.MiddleCenter };
-            previous.Click += delegate { favoritePage--; ShowCategory(); };
-            next.Click += delegate { favoritePage++; ShowCategory(); };
-            Controls.AddRange(new Control[] { empty, recentHeading, recentEmpty, previous, page, next });
-            var cancel = new Button { Text = "닫기", Bounds = new Rectangle(654, 449, 82, 26) };
+                Size = new Size(available, 40), TextAlign = ContentAlignment.MiddleCenter };
+            grid.Controls.AddRange(new Control[] { empty, recentHeading, recentEmpty });
+            previous = new Button { Name = "PreviousScreenFramePage", Text = "이전", Bounds = new Rectangle(gridLeft, footerY, 65, 26) };
+            page = new Label { Bounds = new Rectangle(gridLeft + 67, footerY, 67, 26), TextAlign = ContentAlignment.MiddleCenter };
+            next = new Button { Name = "NextScreenFramePage", Text = "다음", Bounds = new Rectangle(gridLeft + 136, footerY, 65, 26) };
+            previous.Click += delegate { SetPage(pageIndex - 1); };
+            next.Click += delegate { SetPage(pageIndex + 1); };
+            Controls.AddRange(new Control[] { previous, page, next });
+            var cancel = new Button { Text = "닫기", Bounds = new Rectangle(ClientSize.Width - 94, footerY, 82, 26) };
             cancel.Click += delegate { Close(); };
             Controls.Add(cancel);
             CancelButton = cancel;
+            search.TextChanged += delegate { SetPage(0); };
+            categories.SelectedIndexChanged += delegate
+            {
+                if (search.TextLength == 0) SetPage(0);
+                else search.Clear();
+            };
             categories.SelectedIndex = settings.FavoriteScreenFrames.Count > 0 || settings.RecentScreenFrames.Count > 0
                 ? 0 : settings.ScreenFrameTheme / ScreenFrameStyle.CategorySize + 1;
+            ActiveControl = search;
         }
+
+        private static int ThemeNumber(int theme)
+        {
+            int firstArtwork = ScreenFrameStyle.CategorySize;
+            return theme < firstArtwork ? ScreenFrameStyle.Names.Length - firstArtwork + theme + 1 : theme - firstArtwork + 1;
+        }
+
+        private static bool MatchesTheme(string[] words, int theme)
+        {
+            string name = ScreenFrameStyle.Names[theme];
+            foreach (string word in words)
+            {
+                string number = word.TrimStart('#');
+                if (number.EndsWith("번", StringComparison.Ordinal)) number = number.Substring(0, number.Length - 1);
+                if (int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out int value))
+                {
+                    if (ThemeNumber(theme) != value) return false;
+                }
+                else if (name.IndexOf(word, StringComparison.OrdinalIgnoreCase) < 0) return false;
+            }
+            return true;
+        }
+
+        private void SetPage(int index)
+        {
+            pageIndex = index;
+            grid.AutoScrollPosition = Point.Empty;
+            ShowCategory();
+        }
+
+        private int Rows(int count) => (count + columns - 1) / columns;
 
         private void ShowCategory()
         {
-            if (categories.SelectedIndex < 0) return;
-            bool showingFavorites = categories.SelectedIndex == 0;
-            var favorites = settings.FavoriteScreenFrames;
-            var recent = settings.RecentScreenFrames;
-            int pages = Math.Max(1, (favorites.Count + FavoritesPerPage - 1) / FavoritesPerPage);
-            favoritePage = Math.Max(0, Math.Min(pages - 1, favoritePage));
-            int offset = favoritePage * FavoritesPerPage;
-            int favoriteCount = Math.Min(FavoritesPerPage, favorites.Count - offset);
-            int favoriteRows = Math.Max(1, (favoriteCount + Columns - 1) / Columns);
-            int navY = 12 + favoriteRows * RowHeight;
-            int recentY = navY + (pages > 1 ? 24 : 0) + 18;
-            empty.Visible = showingFavorites && favorites.Count == 0;
-            recentHeading.Visible = showingFavorites;
-            recentEmpty.Visible = showingFavorites && recent.Count == 0;
-            recentHeading.Location = new Point(164, recentY - 19);
-            recentEmpty.Location = new Point(164, recentY);
-            previous.Visible = page.Visible = next.Visible = showingFavorites && pages > 1;
-            previous.Location = new Point(330, navY);
-            next.Location = new Point(466, navY);
-            page.Location = new Point(397, navY);
-            previous.Enabled = favoritePage > 0;
-            next.Enabled = favoritePage + 1 < pages;
-            page.Text = (favoritePage + 1) + " / " + pages;
-            for (int i = 0; i < tiles.Length; i++)
+            string query = search.Text.Trim();
+            bool searching = query.Length != 0;
+            bool showingFavorites = !searching && categories.SelectedIndex == 0;
+            int pageSize = showingFavorites ? FavoritesPerPage : ThemesPerPage;
+            IReadOnlyList<int> list;
+            if (searching)
             {
-                Button tile = tiles[i];
-                Button star = stars[i];
-                bool recentSlot = showingFavorites && i >= FavoritesPerPage;
-                int slot = recentSlot ? i - FavoritesPerPage : i;
-                int count = showingFavorites ? (recentSlot ? recent.Count : favoriteCount) : ScreenFrameStyle.CategorySize;
+                string[] words = query.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                list = Enumerable.Range(0, ScreenFrameStyle.Names.Length).Where(theme => MatchesTheme(words, theme))
+                    .OrderBy(ThemeNumber).ToArray();
+            }
+            else if (showingFavorites) list = settings.FavoriteScreenFrames;
+            else list = Enumerable.Range((categories.SelectedIndex - 1) * ThemesPerPage, ThemesPerPage).ToArray();
+
+            int pages = Math.Max(1, (list.Count + pageSize - 1) / pageSize);
+            pageIndex = Math.Max(0, Math.Min(pages - 1, pageIndex));
+            int offset = pageIndex * pageSize;
+            int count = Math.Min(pageSize, list.Count - offset);
+            int recentCount = showingFavorites ? settings.RecentScreenFrames.Count : 0;
+            int recentY = Math.Max(64, Rows(count) * rowHeight) + 26;
+            Point scroll = grid.AutoScrollPosition;
+            grid.SuspendLayout();
+            empty.Location = scroll;
+            empty.Text = searching ? "검색 결과가 없습니다." : "다른 테마 목록에서 ☆를 눌러 추가하세요.";
+            empty.Visible = count == 0;
+            recentHeading.Location = new Point(scroll.X, scroll.Y + recentY - 24);
+            recentHeading.Visible = showingFavorites;
+            recentEmpty.Location = new Point(scroll.X, scroll.Y + recentY);
+            recentEmpty.Visible = showingFavorites && recentCount == 0;
+            SetTiles(0, showingFavorites ? FavoritesPerPage : tiles.Length, list, offset, count, scroll, "");
+            if (showingFavorites)
+                SetTiles(FavoritesPerPage, RecentSlots, settings.RecentScreenFrames, 0, recentCount,
+                    new Point(scroll.X, scroll.Y + recentY), "Recent");
+            grid.AutoScrollMinSize = new Size(0, showingFavorites ? recentY + Math.Max(40, Rows(recentCount) * rowHeight)
+                : Math.Max(56, Rows(count) * rowHeight));
+            grid.ResumeLayout();
+            clearSearch.Enabled = search.TextLength != 0;
+            resultCount.Text = searching ? "검색 결과 " + list.Count + "개" : "";
+            previous.Visible = page.Visible = next.Visible = pages > 1;
+            previous.Enabled = pageIndex > 0;
+            next.Enabled = pageIndex + 1 < pages;
+            page.Text = (pageIndex + 1) + " / " + pages;
+        }
+
+        private void SetTiles(int first, int slots, IReadOnlyList<int> themes, int offset, int count, Point origin, string prefix)
+        {
+            for (int slot = 0; slot < slots; slot++)
+            {
+                int index = first + slot;
+                Button tile = tiles[index];
+                Button star = stars[index];
                 if (slot >= count)
                 {
                     tile.Visible = star.Visible = false;
+                    ClearPreview(index);
+                    tile.Tag = null;
                     continue;
                 }
-                int theme = showingFavorites ? (recentSlot ? recent[slot] : favorites[offset + slot])
-                    : (categories.SelectedIndex - 1) * ScreenFrameStyle.CategorySize + slot;
-                tile.Location = new Point(164 + slot % Columns * 193, (recentSlot ? recentY : 12) + slot / Columns * RowHeight);
+                int theme = themes[offset + slot];
+                if (!Equals(tile.Tag, theme)) ClearPreview(index);
+                tile.Location = new Point(origin.X + slot % columns * (tile.Width + 8), origin.Y + slot / columns * rowHeight);
                 star.Location = new Point(tile.Right - 27, tile.Top + 4);
                 tile.Tag = theme;
-                string prefix = recentSlot ? "Recent" : "";
                 tile.Name = prefix + "ScreenFrameTheme" + theme;
-                tile.AccessibleName = ScreenFrameStyle.Names[theme];
+                string name = ScreenFrameStyle.Names[theme];
+                tile.AccessibleName = theme < ScreenFrameStyle.CategorySize ? ThemeNumber(theme) + "  " + name : name;
                 bool selected = theme == settings.ScreenFrameTheme;
                 tile.FlatAppearance.BorderColor = selected ? Color.RoyalBlue : Color.LightSlateGray;
                 tile.FlatAppearance.BorderSize = selected ? 2 : 1;
-                bool favorite = favorites.Contains(theme);
+                bool favorite = settings.FavoriteScreenFrames.Contains(theme);
                 star.Name = prefix + "FavoriteScreenFrame" + theme;
                 star.AccessibleName = tile.AccessibleName + (favorite ? " 즐겨찾기 해제" : " 즐겨찾기 추가");
                 star.Text = favorite ? "★" : "☆";
@@ -391,30 +478,57 @@ namespace gInk
 
         internal void RefreshPreviews()
         {
-            foreach (Button tile in tiles) tile.Invalidate();
+            for (int i = 0; i < previews.Length; i++)
+            {
+                ClearPreview(i);
+                tiles[i].Invalidate();
+            }
         }
 
-        private void PaintPreview(Button tile, Graphics g)
+        protected override void Dispose(bool disposing)
         {
+            if (disposing)
+                for (int i = 0; i < previews.Length; i++) ClearPreview(i);
+            base.Dispose(disposing);
+        }
+
+        private void ClearPreview(int index)
+        {
+            previews[index]?.Dispose();
+            previews[index] = null;
+        }
+
+        private void PaintPreview(int index, Graphics g)
+        {
+            Button tile = tiles[index];
             if (!(tile.Tag is int theme)) return;
-            var preview = new Rectangle(19, 5, 133, 74);
-            using (var background = new SolidBrush(Color.FromArgb(19, 29, 43)))
-            using (var checker = new SolidBrush(Color.FromArgb(34, 46, 64)))
+            if (previews[index] == null)
             {
-                g.FillRectangle(background, preview);
-                for (int y = 0; y < preview.Height; y += 8)
-                for (int x = y % 16; x < preview.Width; x += 16)
-                    g.FillRectangle(checker, preview.X + x, preview.Y + y,
-                        Math.Min(8, preview.Width - x), Math.Min(8, preview.Height - y));
+                var image = new Bitmap(previewBounds.Width, previewBounds.Height, PixelFormat.Format32bppPArgb);
+                try
+                {
+                    using (Graphics canvas = Graphics.FromImage(image))
+                    using (var checker = new SolidBrush(Color.FromArgb(34, 46, 64)))
+                    {
+                        canvas.Clear(Color.FromArgb(19, 29, 43));
+                        for (int y = 0; y < image.Height; y += 8)
+                        for (int x = y % 16; x < image.Width; x += 16)
+                            canvas.FillRectangle(checker, x, y, Math.Min(8, image.Width - x), Math.Min(8, image.Height - y));
+                        // Keep decorations legible even when the actual desktop border is very thin.
+                        int width = Math.Max(1, (int)Math.Round(image.Height * Math.Max(8, settings.ScreenFrameWidth) / 100.0));
+                        ScreenFrameStyle.Paint(canvas, image.Size, width, theme, ScreenFrameStyle.GetInsets(image.Size, width, theme));
+                    }
+                    previews[index] = image;
+                }
+                catch
+                {
+                    image.Dispose();
+                    throw;
+                }
             }
-            GraphicsState saved = g.Save();
-            g.TranslateTransform(preview.X, preview.Y);
-            g.SetClip(new Rectangle(Point.Empty, preview.Size));
-            int width = Math.Max(1, (int)Math.Round(preview.Height * settings.ScreenFrameWidth / 100.0));
-            ScreenFrameStyle.Paint(g, preview.Size, width, theme, ScreenFrameStyle.GetInsets(preview.Size, width, theme));
-            g.Restore(saved);
+            g.DrawImageUnscaled(previews[index], previewBounds.Location);
             TextRenderer.DrawText(g, tile.AccessibleName, SystemFonts.MessageBoxFont,
-                new Rectangle(4, 77, tile.Width - 8, 14), Color.FromArgb(28, 46, 65),
+                new Rectangle(8, previewBounds.Bottom + 4, tile.Width - 16, 18), Color.FromArgb(28, 46, 65),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
     }

@@ -46,7 +46,7 @@ namespace gInk
         public bool Editing
         {
             get { return SelectingTarget || (root.Whiteboards != null && root.Whiteboards.IsEditingText) ||
-                ModalWindowOpen() || OptionsOpen ||
+                ModalWindowOpen() || OptionsOpen || root.ScreenFrame?.OptionsOpen == true ||
                 (root.FormOptions != null && root.FormOptions.Visible); }
         }
 
@@ -134,7 +134,7 @@ namespace gInk
             if (!DrawingEnabled || window.IsDisposed || !window.Visible ||
                 OptionsOpen || SelectingTarget || ModalWindowOpen() ||
                 (root.FormOptions != null && root.FormOptions.Visible) ||
-                root.FormCollection.FontSearchOpen) return;
+                root.FormCollection.FontSearchOpen || root.ScreenFrame?.OptionsOpen == true) return;
 
             if (GetForegroundWindow() != window.Handle)
             {

@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.59-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.60-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.59 화면 액자 최근 사용 테마
+## v0.60 화면 액자 테마 검색과 확대 미리보기
 
-화면 액자 → 테마 → 즐겨찾기 아래에 마지막으로 선택한 테마가 최신순으로 최대 5개 표시됩니다. 같은 테마를 다시 선택하면 맨 앞으로 올라오고 앱을 다시 켜도 순서가 유지됩니다. 테마를 누르면 선택 창에서 바로 화면을 확인할 수 있습니다.
+화면 액자 → 테마에서 110종을 이름이나 번호로 검색할 수 있습니다. 예를 들어 `캠핑`, `FPS`, `10번`을 입력하면 일치하는 테마가 표시됩니다. 사진 테마 번호는 01~100, 기본 테마 번호는 101~110입니다. 더 큰 미리보기 카드를 누르면 창을 열어 둔 채 실제 화면에 즉시 적용됩니다.
 
-Windows Release|x86 빌드, 최근 목록 순서와 실시간 미리보기, 재실행 후 복원을 확인했습니다.
+Windows Release|x86 빌드와 한글·영문·번호 검색, 확대 카드 렌더링, 검색 결과의 실시간 적용을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 
