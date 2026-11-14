@@ -139,6 +139,7 @@ namespace gInk
 
     internal struct AreaDragAxis
     {
+        private const int GuidePadding = 7;
         private bool choosing;
         private Point? end;
 
@@ -150,5 +151,41 @@ namespace gInk
         }
 
         internal Point? EndAt(Point pointer) => choosing ? pointer : end;
+
+        internal static Rectangle GuideBounds(Point start, Point end) =>
+            Rectangle.FromLTRB(Math.Min(start.X, end.X) - GuidePadding, Math.Min(start.Y, end.Y) - GuidePadding,
+                Math.Max(start.X, end.X) + GuidePadding + 1, Math.Max(start.Y, end.Y) + GuidePadding + 1);
+
+        internal static void DrawGuide(Graphics graphics, Point start, Point end)
+        {
+            GraphicsState state = graphics.Save();
+            try
+            {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Color outline = Color.FromArgb(21, 47, 64);
+                Color accent = Color.FromArgb(81, 225, 255);
+                using (var border = new Pen(outline, 3))
+                using (var line = new Pen(accent, 2))
+                using (var marker = new SolidBrush(accent))
+                {
+                    if (start != end)
+                    {
+                        graphics.DrawLine(border, start, end);
+                        graphics.DrawLine(line, start, end);
+                    }
+                    DrawMarker(start);
+                    if (end != start) DrawMarker(end);
+
+                    void DrawMarker(Point point)
+                    {
+                        const int radius = 4;
+                        var bounds = new Rectangle(point.X - radius, point.Y - radius, 2 * radius, 2 * radius);
+                        graphics.FillEllipse(marker, bounds);
+                        graphics.DrawEllipse(border, bounds);
+                    }
+                }
+            }
+            finally { graphics.Restore(state); }
+        }
     }
 }

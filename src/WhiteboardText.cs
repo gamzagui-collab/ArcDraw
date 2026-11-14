@@ -124,6 +124,8 @@ namespace gInk
                         else TextRenderer.DrawText(graphics, item.Content, font, bounds, item.Color, TextFlags);
                     }
                 }
+                Point? guideEnd = GetNoteAreaGuideEnd();
+                if (guideEnd.HasValue) AreaDragAxis.DrawGuide(graphics, noteStart, guideEnd.Value);
             }
             finally { EndInkUse(); }
         }

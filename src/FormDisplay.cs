@@ -854,9 +854,11 @@ namespace gInk
         }
 
         public void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY) =>
-            DrawCustomOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, Root.FormCollection.GetConstrainedAreaOutline());
+            DrawCustomOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, Root.FormCollection.GetConstrainedAreaOutline(),
+                Root.FormCollection.GetAreaGuideEnd());
 
-        private void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY, Point[] areaOutline)
+        private void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY, Point[] areaOutline,
+            Point? guideEnd)
         {
             if ((CursorX0 != int.MinValue) || (CursorY0 != int.MinValue))
             {
@@ -878,6 +880,7 @@ namespace gInk
                 {
                     if (areaOutline.Length > 1)
                         using (Pen pen = PenForDrawOn(da, ds)) g.DrawLines(pen, areaOutline);
+                    if (guideEnd.HasValue) AreaDragAxis.DrawGuide(g, new Point(CursorX0, CursorY0), guideEnd.Value);
                 }
                 //DrawRectOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY,Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count-1].DrawingAttributes);
                 else if ((Root.ToolSelected == Tools.Line) || (Root.ToolSelected == Tools.Poly) || Root.FormCollection.DrawingLockedBrush)

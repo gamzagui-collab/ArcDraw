@@ -285,13 +285,18 @@ namespace gInk
         }
         private Rectangle PreviewBounds()
         {
-            Point[] points=NoteGeometry();if(points.Length==0)return Rectangle.Empty;
+            Point? guideEnd = GetNoteAreaGuideEnd();
+            Rectangle guideBounds = guideEnd.HasValue ? AreaDragAxis.GuideBounds(noteStart, guideEnd.Value) : Rectangle.Empty;
+            Point[] points=NoteGeometry();if(points.Length==0)return guideBounds;
             int l=points[0].X,r=l,t=points[0].Y,b=t;foreach(Point p in points){l=Math.Min(l,p.X);r=Math.Max(r,p.X);t=Math.Min(t,p.Y);b=Math.Max(b,p.Y);}
             Rectangle bounds=Rectangle.FromLTRB(l,t,r+1,b+1);int margin=notePreviewWidth+4;
             bounds.Inflate(margin,margin);
             if(noteGestureFill==Filling.Outside)return paper.ClientRectangle;
-            return bounds;
+            return guideEnd.HasValue ? Rectangle.Union(bounds, guideBounds) : bounds;
         }
+
+        private Point? GetNoteAreaGuideEnd() => noteGesture && DrawingDirectionLock.IsAreaTool(noteGestureTool)
+            ? noteAreaAxis.EndAt(noteEnd) : null;
         private void CommitPendingNotePath()
         {
             if(closing||pendingNotePath==null)return;

@@ -3148,6 +3148,12 @@ namespace gInk
         }
         private bool CenteredAreaDrag => CurrentMouseButton == MouseButtons.Right || (int)CurrentMouseButton == 2;
         internal bool DrawingLockedBrush => screenDirection != DrawingDirection.Free && Root.ToolSelected == Tools.Hand;
+        internal Point? GetAreaGuideEnd()
+        {
+            if (!screenAreaDrag || Root.CursorX0 == int.MinValue || Root.CursorY0 == int.MinValue) return null;
+            return screenAreaAxis.EndAt(new Point(Root.CursorX, Root.CursorY));
+        }
+
         internal Point[] GetConstrainedAreaOutline()
         {
             if (!screenAreaDrag ||
