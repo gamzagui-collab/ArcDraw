@@ -20,6 +20,7 @@ namespace gInk
         private Point[] notePolyline;
         private Point noteStart,noteEnd;
         private DrawingDirection noteGestureDirection, noteBrushDirection;
+        private double? noteAreaAngle;
         private bool noteBrushActive;
         private DrawingDirection pressedNoteDirection;
         private Stroke noteBrushStroke;
@@ -70,6 +71,7 @@ namespace gInk
             // A fast mouse-up must not be lost inside an Ink COM attribute getter.
             noteGesturePen=noteCurrentPen;noteGestureArrowLength=noteArrowLength;
             noteGestureDirection = DrawingDirectionLock.ReadForTool(noteGestureTool);
+            noteAreaAngle = null;
             noteStart=noteGestureTool==Tools.Poly&&notePolyline!=null?notePolyline[notePolyline.Length-1]:OnPaper(e.Location);
             noteEnd=OnPaper(e.Location);noteInputPoints.Clear();noteInputPoints.Add(noteStart);
             noteGesture=true;paper.Capture=true;
@@ -81,6 +83,7 @@ namespace gInk
             if(!noteGesture)return;
             Point next=NoteGesturePoint(e.Location);if(next==noteEnd)return;
             Rectangle old=PreviewBounds();noteEnd=next;
+            CaptureNoteAreaAngle();
             if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free)noteInputPoints.Add(next);
             paper.Invalidate(Rectangle.Union(old,PreviewBounds()));
         }
@@ -89,6 +92,7 @@ namespace gInk
             if(!noteGesture||e.Button!=noteGestureButton)return;
             Rectangle old = PreviewBounds();
             noteEnd=NoteGesturePoint(e.Location);
+            CaptureNoteAreaAngle(finishing: true);
             if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free && noteInputPoints[noteInputPoints.Count-1]!=noteEnd)noteInputPoints.Add(noteEnd);
             Point[] points=NoteGeometry();Rectangle dirty=PreviewBounds();bool moved=false;
             foreach(Point point in points)if(point!=points[0]){moved=true;break;}
@@ -108,7 +112,8 @@ namespace gInk
             if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free)return noteInputPoints.ToArray();
             Point a=noteStart,b=noteEnd;
             if (noteGestureDirection != DrawingDirection.Free && DrawingDirectionLock.IsAreaTool(noteGestureTool))
-                return DrawingDirectionLock.AreaOutline(noteGestureTool, a, b, noteGestureDirection, noteGestureButton == MouseButtons.Right);
+                return DrawingDirectionLock.AreaOutline(noteGestureTool, a, b, noteGestureDirection, noteGestureButton == MouseButtons.Right,
+                    noteAreaAngle);
             if(noteGestureTool==Tools.Poly)
             {
                 var points=notePolyline==null?new List<Point>{a}:new List<Point>(notePolyline);points.Add(b);return points.ToArray();
@@ -137,6 +142,13 @@ namespace gInk
         private Point NoteGesturePoint(Point point) =>
             DrawingDirectionLock.IsAreaTool(noteGestureTool) ? OnPaper(point) :
                 DrawingDirectionLock.SnapWithin(noteStart, OnPaper(point), noteGestureDirection, paper.ClientRectangle);
+
+        private void CaptureNoteAreaAngle(bool finishing = false)
+        {
+            if (noteGestureDirection == DrawingDirection.Diagonal && !noteAreaAngle.HasValue &&
+                DrawingDirectionLock.IsAreaTool(noteGestureTool))
+                noteAreaAngle = DrawingDirectionLock.AreaDragAngle(noteStart, noteEnd, finishing);
+        }
 
         private void BeginLockedNoteBrush(InkCollectorCursorDownEventArgs args)
         {

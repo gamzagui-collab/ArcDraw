@@ -2606,7 +2606,9 @@ namespace gInk
         private void IC_Stroke(object sender, InkCollectorStrokeEventArgs e)
         {
             DrawingDirection direction = screenDirection;
+            double? areaAngle = screenAreaAngle;
             screenDirection = DrawingDirection.Free;
+            screenAreaAngle = null;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("del");
@@ -2771,8 +2773,10 @@ namespace gInk
                 if (!HitTouch && direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue &&
                     DrawingDirectionLock.IsAreaTool(Root.ToolSelected))
                 {
-                    Point[] outline = DrawingDirectionLock.AreaOutline(Root.ToolSelected,
-                        new Point(Root.CursorX0, Root.CursorY0), new Point(Root.CursorX, Root.CursorY), direction, CenteredAreaDrag);
+                    var start = new Point(Root.CursorX0, Root.CursorY0);
+                    var end = new Point(Root.CursorX, Root.CursorY);
+                    Point[] outline = DrawingDirectionLock.AreaOutline(Root.ToolSelected, start, end, direction, CenteredAreaDrag,
+                        areaAngle ?? DrawingDirectionLock.AreaDragAngle(start, end, finishing: true));
                     if (outline.Length != 0) AddAreaStroke(outline, Root.FilledSelected, false);
                 }
                 else if ((Root.ToolSelected == Tools.Line) && (!HitTouch))
@@ -3118,6 +3122,7 @@ namespace gInk
 
 
         private DrawingDirection screenDirection;
+        private double? screenAreaAngle;
         private bool CenteredAreaDrag => CurrentMouseButton == MouseButtons.Right || (int)CurrentMouseButton == 2;
         internal bool DrawingLockedBrush => screenDirection != DrawingDirection.Free && Root.ToolSelected == Tools.Hand;
         internal Point[] GetConstrainedAreaOutline()
@@ -3125,7 +3130,7 @@ namespace gInk
             if (screenDirection == DrawingDirection.Free || !DrawingDirectionLock.IsAreaTool(Root.ToolSelected) ||
                 Root.CursorX0 == int.MinValue || Root.CursorY0 == int.MinValue) return null;
             return DrawingDirectionLock.AreaOutline(Root.ToolSelected, new Point(Root.CursorX0, Root.CursorY0),
-                new Point(Root.CursorX, Root.CursorY), screenDirection, CenteredAreaDrag);
+                new Point(Root.CursorX, Root.CursorY), screenDirection, CenteredAreaDrag, screenAreaAngle);
         }
 
         private void SnapScreenEnd(DrawingDirection direction)
@@ -3143,6 +3148,7 @@ namespace gInk
                 !gpButtons.ClientRectangle.Contains(gpButtons.PointToClient(System.Windows.Forms.Cursor.Position))) Root.Whiteboards.SelectScreen();
             Console.WriteLine("CursorDown :" + e.Cursor.Tablet.DeviceKind.ToString());
             screenDirection = DrawingDirection.Free;
+            screenAreaAngle = null;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("!!!del");
@@ -3515,8 +3521,12 @@ namespace gInk
             }
             else if (screenDirection != DrawingDirection.Free)
             {
-                if (Root.CursorX0 != int.MinValue && !DrawingDirectionLock.IsAreaTool(Root.ToolSelected))
-                    SnapScreenEnd(screenDirection);
+                if (Root.CursorX0 != int.MinValue)
+                {
+                    if (!DrawingDirectionLock.IsAreaTool(Root.ToolSelected)) SnapScreenEnd(screenDirection);
+                    else if (screenDirection == DrawingDirection.Diagonal && !screenAreaAngle.HasValue)
+                        screenAreaAngle = DrawingDirectionLock.AreaDragAngle(new Point(Root.CursorX0, Root.CursorY0), e.Location);
+                }
             }
             else if (Root.ToolSelected != Tools.Hand)
                 MagneticEffect(Root.CursorX0, Root.CursorY0, ref Root.CursorX, ref Root.CursorY, Root.ToolSelected > Tools.Hand && Root.MagneticRadius > 0);

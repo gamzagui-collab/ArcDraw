@@ -50,10 +50,20 @@ namespace gInk
             return new Point(origin.X + Math.Sign(dx) * distance, origin.Y + Math.Sign(dy) * distance);
         }
 
-        internal static Point[] AreaOutline(int tool, Point start, Point end, DrawingDirection direction, bool centered)
+        internal static double? AreaDragAngle(Point start, Point end, bool finishing = false)
         {
             double dx = end.X - start.X, dy = end.Y - start.Y;
-            if (dx == 0 && dy == 0) return Array.Empty<Point>();
+            // Ignore a few pixels of initial pointer jitter before locking the axis.
+            double minimum = finishing ? 1 : 16;
+            return dx * dx + dy * dy >= minimum ? (double?)Math.Atan2(dy, dx) : null;
+        }
+
+        internal static Point[] AreaOutline(int tool, Point start, Point end, DrawingDirection direction, bool centered,
+            double? lockedAngle)
+        {
+            double dx = end.X - start.X, dy = end.Y - start.Y;
+            if ((dx == 0 && dy == 0) || (direction == DrawingDirection.Diagonal && !lockedAngle.HasValue))
+                return Array.Empty<Point>();
             double length, breadth, x, y, centerX, centerY;
             if (direction == DrawingDirection.Axis)
             {
@@ -66,15 +76,13 @@ namespace gInk
             }
             else
             {
-                double step = Math.PI / 4;
-                double angle = Math.Round(Math.Atan2(dy, dx) / step) * step;
-                x = Math.Cos(angle);
-                y = Math.Sin(angle);
-                length = dx * x + dy * y;
-                // Along-axis movement sets the length; sideways movement sets the width.
-                breadth = Math.Min(length * .9, Math.Max(length / 4, 2 * Math.Abs(dx * y - dy * x)));
-                centerX = start.X + (centered ? 0 : x * length / 2);
-                centerY = start.Y + (centered ? 0 : y * length / 2);
+                x = Math.Cos(lockedAngle.Value);
+                y = Math.Sin(lockedAngle.Value);
+                double along = dx * x + dy * y;
+                length = Math.Max(2, Math.Abs(along));
+                breadth = Math.Max(2, 2 * Math.Abs(dx * y - dy * x));
+                centerX = start.X + (centered ? 0 : x * along / 2);
+                centerY = start.Y + (centered ? 0 : y * along / 2);
                 if (centered) { length *= 2; breadth *= 2; }
             }
 
