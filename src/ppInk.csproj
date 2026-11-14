@@ -219,6 +219,7 @@
     <Compile Include="HeadlineCatalog.cs" />
     <Compile Include="ScreenFrame.cs" />
     <Compile Include="ScreenFrameAppBars.cs" />
+    <Compile Include="ScreenFrameAreaEditor.cs" />
     <Compile Include="ScreenFrameDisplay.cs" />
     <Compile Include="ScreenFrameCatalog.cs" />
     <Compile Include="NoteIdentity.cs" />

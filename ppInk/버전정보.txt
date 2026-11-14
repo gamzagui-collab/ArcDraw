@@ -1,3 +1,3 @@
-﻿ArcDraw v0.60 — 화면 액자 테마 검색과 확대 미리보기
-2026-11-14 08:40:33 KST
-EXE SHA256: fff1de3f9ec2a1c1889227fd4a71d92ebb3ccb5d939c543b6c9dd22a58d87f30
+﻿ArcDraw v0.61 — 화면 액자 장식과 작업 영역 편집
+2026-11-14 10:24:08 KST
+EXE SHA256: c6de1d0eb3d54e1706abb6c3a850c0f36cc3c864a55fb9854a49cf430ea0a6d8

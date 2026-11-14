@@ -19,11 +19,12 @@ namespace gInk
         private Label workAreaStatus, widthAmount;
         private Panel workAreaPreview;
         private ScreenFrameThemePicker gallery;
+        private ScreenFrameAreaEditor areaEditor;
         private bool previewingFrame;
         private bool fullscreen, disposed, reservationFailed;
         private Rectangle lastBounds;
         private int lastWidth, lastTheme = -1, lastOpacity = -1;
-        private Rectangle targetBounds, frameBounds, reservedWorkArea;
+        private Rectangle targetBounds, frameBounds, reservedWorkArea, reservationOuter;
         private Padding frameInsets;
 
         internal bool OptionsOpen => options?.Visible == true;
@@ -83,11 +84,14 @@ namespace gInk
             if (!reserve)
             {
                 reservations.Release();
+                reservationOuter = Rectangle.Empty;
                 fullscreen = false;
             }
+            Rectangle previousTarget = targetBounds;
             if (!ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out targetBounds, out Rectangle workArea))
             {
                 reservations.Release();
+                reservationOuter = Rectangle.Empty;
                 reservedWorkArea = Rectangle.Empty;
                 foreach (var edge in edges) edge?.Hide();
                 return;
@@ -99,11 +103,23 @@ namespace gInk
             Padding inset = ScreenFrameStyle.GetInsets(targetBounds.Size, width, theme);
             if (reserve)
             {
-                if (reservations.Reserve(targetBounds, inset, out Rectangle reservedBounds))
-                    bounds = reservedBounds;
-                else
+                Rectangle outer = previousTarget == targetBounds && !reservationOuter.IsEmpty ? reservationOuter : workArea;
+                Padding requested = ReservationInsets(outer, inset);
+                if (reservations.Reserve(targetBounds, requested, out Rectangle reservedBounds))
                 {
+                    bounds = reservationOuter = reservedBounds;
+                    if (!settings.ScreenFrameWorkArea.IsEmpty && reservedBounds != outer)
+                    {
+                        if (reservations.Reserve(targetBounds, ReservationInsets(reservedBounds, inset), out Rectangle adjusted))
+                            bounds = reservationOuter = adjusted;
+                        else reservationFailed = true;
+                    }
+                }
+                else
                     reservationFailed = true;
+                if (reservationFailed)
+                {
+                    reservationOuter = Rectangle.Empty;
                     if (ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out _, out Rectangle restored)) bounds = restored;
                 }
             }
@@ -159,6 +175,47 @@ namespace gInk
             lastWidth = width;
             lastTheme = settings.ScreenFrameTheme;
             lastOpacity = opacity;
+        }
+
+        private Padding ReservationInsets(Rectangle outer, Padding automatic)
+        {
+            if (settings.ScreenFrameWorkArea.IsEmpty) return automatic;
+            Rectangle custom = ScreenFrameAreaEditor.Constrain(
+                ScreenFrameAreaEditor.ScaleFromSettings(settings.ScreenFrameWorkArea, targetBounds), outer);
+            return new Padding(Math.Max(1, custom.Left - outer.Left), Math.Max(1, custom.Top - outer.Top),
+                Math.Max(1, outer.Right - custom.Right), Math.Max(1, outer.Bottom - custom.Bottom));
+        }
+
+        private void EditWorkArea(CheckBox enabled, CheckBox reserveArea)
+        {
+            if (areaEditor != null) { areaEditor.Activate(); return; }
+            using (new ScreenFrameDpiScope(true))
+            {
+                if (!ScreenFrameDisplay.Read(settings.ScreenFrameMonitor, out Rectangle monitor, out Rectangle work)) return;
+                Rectangle outer = reservationOuter.IsEmpty ? work : reservationOuter;
+                int width = Math.Max(3, Math.Min(monitor.Width, monitor.Height) * settings.ScreenFrameWidth / 100);
+                Padding inset = ScreenFrameStyle.GetInsets(monitor.Size, width, settings.ScreenFrameTheme);
+                Rectangle automatic = Rectangle.FromLTRB(outer.Left + inset.Left, outer.Top + inset.Top,
+                    outer.Right - inset.Right, outer.Bottom - inset.Bottom);
+                Rectangle initial = settings.ScreenFrameWorkArea.IsEmpty ? automatic :
+                    ScreenFrameAreaEditor.ScaleFromSettings(settings.ScreenFrameWorkArea, monitor);
+                areaEditor = new ScreenFrameAreaEditor(outer, initial);
+                areaEditor.Applied += bounds =>
+                {
+                    settings.ScreenFrameWorkArea = bounds.IsEmpty ? Rectangle.Empty : ScreenFrameAreaEditor.ScaleForSettings(bounds, monitor);
+                    settings.ScreenFrameEnabled = settings.ScreenFrameReserveWorkArea = true;
+                    enabled.Checked = true;
+                    reserveArea.Checked = true;
+                    Refresh();
+                    settings.SaveToolSettings();
+                };
+                areaEditor.FormClosed += delegate
+                {
+                    areaEditor = null;
+                    if (options?.Visible == true) options.Activate();
+                };
+                areaEditor.Show(options);
+            }
         }
 
         private void UpdateWorkAreaPreview()
@@ -235,6 +292,8 @@ namespace gInk
             workAreaPreview = new Panel { Name = "ScreenFrameWorkAreaPreview", Bounds = new Rectangle(14, 298, 264, 96) };
             workAreaPreview.Paint += PaintWorkAreaPreview;
             var done = new Button { Name = "CloseScreenFrameOptions", Text = "닫기", Bounds = new Rectangle(294, 366, 82, 28) };
+            var editArea = new Button { Name = "EditScreenFrameWorkArea", Text = "영역 편집", Bounds = new Rectangle(294, 330, 82, 28) };
+            editArea.Click += delegate { EditWorkArea(enabled, reserveArea); };
             void UpdateAvailability()
             {
                 expandTaskbar.Enabled = !reserveArea.Checked;
@@ -243,7 +302,13 @@ namespace gInk
             UpdateAvailability();
             var update = new Timer { Interval = 30 };
             update.Tick += delegate { update.Stop(); Refresh(); };
-            enabled.CheckedChanged += delegate { settings.ScreenFrameEnabled = enabled.Checked; Refresh(); settings.SaveToolSettings(); };
+            enabled.CheckedChanged += delegate
+            {
+                if (settings.ScreenFrameEnabled == enabled.Checked) return;
+                settings.ScreenFrameEnabled = enabled.Checked;
+                Refresh();
+                settings.SaveToolSettings();
+            };
             expandTaskbar.CheckedChanged += delegate
             {
                 settings.ScreenFrameExpandTaskbar = expandTaskbar.Checked;
@@ -252,8 +317,9 @@ namespace gInk
             };
             reserveArea.CheckedChanged += delegate
             {
-                settings.ScreenFrameReserveWorkArea = reserveArea.Checked;
                 UpdateAvailability();
+                if (settings.ScreenFrameReserveWorkArea == reserveArea.Checked) return;
+                settings.ScreenFrameReserveWorkArea = reserveArea.Checked;
                 Refresh();
                 settings.SaveToolSettings();
             };
@@ -319,7 +385,7 @@ namespace gInk
                 settings.SaveToolSettings();
             };
             options.Controls.AddRange(new Control[] { enabled, theme, monitor, width, widthAmount, expandTaskbar,
-                reserveArea, hideFullscreen, opacity, opacityAmount, workAreaStatus, workAreaPreview, done,
+                reserveArea, hideFullscreen, opacity, opacityAmount, workAreaStatus, workAreaPreview, editArea, done,
                 new Label { Text = "테마", Location = new Point(14, 47), AutoSize = true },
                 new Label { Text = "대상 화면", Location = new Point(14, 79), AutoSize = true },
                 new Label { Text = "안쪽 폭", Location = new Point(14, 117), AutoSize = true },
@@ -330,6 +396,7 @@ namespace gInk
 
         internal void CloseOptions()
         {
+            areaEditor?.Close();
             gallery?.Close();
             options?.Close();
         }

@@ -33,6 +33,7 @@ namespace gInk
         internal string ScreenFrameMonitor { get; set; }
         internal bool ScreenFrameExpandTaskbar { get; set; }
         internal bool ScreenFrameReserveWorkArea { get; set; }
+        internal Rectangle ScreenFrameWorkArea { get; set; }
         internal int ScreenFrameOpacity { get; set; } = 100;
         internal bool ScreenFrameHideFullscreen { get; set; } = true;
         private readonly List<int> favoriteScreenFrames = new List<int>();
@@ -80,6 +81,7 @@ namespace gInk
             ScreenFrameMonitor = null;
             ScreenFrameExpandTaskbar = false;
             ScreenFrameReserveWorkArea = false;
+            ScreenFrameWorkArea = Rectangle.Empty;
             ScreenFrameOpacity = 100;
             ScreenFrameHideFullscreen = true;
             favoriteScreenFrames.Clear();
@@ -263,6 +265,11 @@ namespace gInk
                 ScreenFrameMonitor = Attr(frame, "monitor");
                 ScreenFrameExpandTaskbar = bool.TryParse(Attr(frame, "expandTaskbar"), out bool expand) && expand;
                 ScreenFrameReserveWorkArea = bool.TryParse(Attr(frame, "reserveWorkArea"), out bool reserve) && reserve;
+                XElement area = frame.Element("WorkArea");
+                if (area != null && int.TryParse(Attr(area, "left"), out int left) && int.TryParse(Attr(area, "top"), out int top) &&
+                    int.TryParse(Attr(area, "right"), out int right) && int.TryParse(Attr(area, "bottom"), out int bottom) &&
+                    left >= 0 && top >= 0 && right <= 10000 && bottom <= 10000 && left < right && top < bottom)
+                    ScreenFrameWorkArea = Rectangle.FromLTRB(left, top, right, bottom);
                 if (int.TryParse(Attr(frame, "opacity"), NumberStyles.Integer, Invariant, out int opacity))
                     ScreenFrameOpacity = Math.Max(10, Math.Min(100, opacity));
                 if (bool.TryParse(Attr(frame, "hideFullscreen"), out bool hideFullscreen))
@@ -351,7 +358,7 @@ namespace gInk
             SaveHeadlineList(document, "FavoriteHeadlines", favoriteHeadlines);
             SaveHeadlineList(document, "RecentHeadlines", recentHeadlines);
             if (ScreenFrameEnabled || ScreenFrameTheme != 0 || ScreenFrameWidth != 2 || ScreenFrameExpandTaskbar ||
-                ScreenFrameReserveWorkArea || ScreenFrameOpacity != 100 || !ScreenFrameHideFullscreen ||
+                ScreenFrameReserveWorkArea || !ScreenFrameWorkArea.IsEmpty || ScreenFrameOpacity != 100 || !ScreenFrameHideFullscreen ||
                 favoriteScreenFrames.Count > 0 || recentScreenFrames.Count > 0 || !String.IsNullOrEmpty(ScreenFrameMonitor))
             {
                 var frame = new XElement("ScreenFrame", new XAttribute("enabled", ScreenFrameEnabled),
@@ -361,6 +368,10 @@ namespace gInk
                     new XAttribute("hideFullscreen", ScreenFrameHideFullscreen));
                 foreach (int index in favoriteScreenFrames) frame.Add(new XElement("Favorite", index));
                 foreach (int index in recentScreenFrames) frame.Add(new XElement("Recent", index));
+                if (!ScreenFrameWorkArea.IsEmpty)
+                    frame.Add(new XElement("WorkArea", new XAttribute("left", ScreenFrameWorkArea.Left),
+                        new XAttribute("top", ScreenFrameWorkArea.Top), new XAttribute("right", ScreenFrameWorkArea.Right),
+                        new XAttribute("bottom", ScreenFrameWorkArea.Bottom)));
                 document.Add(frame);
             }
             if (ScreenTextColor.HasValue || BrushColor.HasValue)

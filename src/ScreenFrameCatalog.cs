@@ -85,7 +85,7 @@ namespace gInk
             using (var decoded = new Bitmap(entry))
             using (Bitmap artwork = decoded.Clone(new Rectangle(Point.Empty, decoded.Size), PixelFormat.Format32bppArgb))
             {
-                byte[] pixels = ReadArtwork(artwork, SourceInsets(artwork.Size, number));
+                byte[] pixels = ReadArtwork(artwork, SourceInsets(artwork.Size, number), number);
                 cachedArtworkSize = artwork.Size;
                 cachedArtwork = pixels;
                 cachedArtworkNumber = number;
@@ -95,6 +95,10 @@ namespace gInk
 
         private static Padding SourceInsets(Size size, int number)
         {
+            // Place the joins past the complete clock, roots, waterfall and plants.
+            if (number == 10) return RelativeInsets(size, 26, 53, 58, 53);
+            if (number == 40) return RelativeInsets(size, 39, 33, 29, 43);
+            if (number == 95) return RelativeInsets(size, 39, 45, 37, 63);
             int index = (number - 1) * 4;
             int transition = Math.Max(4, size.Height / 9);
             return new Padding(size.Width * ArtworkOpenings[index] / 100 + transition,
@@ -103,7 +107,11 @@ namespace gInk
                 size.Height * ArtworkOpenings[index + 3] / 100 + transition);
         }
 
-        private static byte[] ReadArtwork(Bitmap artwork, Padding inset)
+        private static Padding RelativeInsets(Size size, int left, int top, int right, int bottom) =>
+            new Padding(size.Width * left / 100, size.Height * top / 100,
+                size.Width * right / 100, size.Height * bottom / 100);
+
+        private static byte[] ReadArtwork(Bitmap artwork, Padding inset, int number)
         {
             // Fade toward the open rectangle. The corner art stays opaque and each
             // inner side reaches zero alpha before the desktop opening starts.
@@ -135,7 +143,66 @@ namespace gInk
                 }
             }
             finally { artwork.UnlockBits(data); }
+            if (number == 40) MaskOpening(pixels, artwork.Size, new[]
+            {
+                new PointF(.28f,.10f), new PointF(.64f,.08f), new PointF(.79f,.11f), new PointF(.84f,.25f),
+                new PointF(.87f,.52f), new PointF(.82f,.62f), new PointF(.77f,.75f), new PointF(.65f,.86f),
+                new PointF(.41f,.82f), new PointF(.35f,.75f), new PointF(.28f,.74f), new PointF(.22f,.65f),
+                new PointF(.14f,.54f), new PointF(.16f,.37f), new PointF(.20f,.22f)
+            }, artwork);
+            if (number == 95) MaskOpening(pixels, artwork.Size, new[]
+            {
+                new PointF(.27f,.15f), new PointF(.64f,.11f), new PointF(.79f,.17f), new PointF(.86f,.32f),
+                new PointF(.87f,.54f), new PointF(.80f,.61f), new PointF(.71f,.71f), new PointF(.58f,.70f),
+                new PointF(.52f,.53f), new PointF(.43f,.67f), new PointF(.29f,.72f), new PointF(.20f,.64f),
+                new PointF(.17f,.47f), new PointF(.14f,.35f), new PointF(.19f,.25f)
+            }, artwork);
             return pixels;
+        }
+
+        private static void MaskOpening(byte[] pixels, Size size, PointF[] contour, Bitmap artwork)
+        {
+            // The artwork in these themes overlaps the opening irregularly.
+            // Rebuild the alpha channel from a contour that follows the decorations.
+            for (int i = 0; i < contour.Length; i++)
+                contour[i] = new PointF(contour[i].X * size.Width, contour[i].Y * size.Height);
+            using (var mask = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb))
+            {
+                using (Graphics g = Graphics.FromImage(mask))
+                {
+                    g.Clear(Color.White);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.FillPolygon(Brushes.Black, contour);
+                    for (int radius = 8; radius >= 1; radius--)
+                        using (var pen = new Pen(Color.FromArgb(28, Color.Black), radius * 2))
+                            g.DrawPolygon(pen, contour);
+                }
+                Rectangle bounds = new Rectangle(Point.Empty, size);
+                BitmapData art = artwork.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                BitmapData alpha = null;
+                try
+                {
+                    alpha = mask.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                    var colors = new byte[size.Width * 4];
+                    var values = new byte[colors.Length];
+                    for (int y = 0; y < size.Height; y++)
+                    {
+                        Marshal.Copy(IntPtr.Add(art.Scan0, y * art.Stride), colors, 0, colors.Length);
+                        Marshal.Copy(IntPtr.Add(alpha.Scan0, y * alpha.Stride), values, 0, values.Length);
+                        for (int x = 0; x < colors.Length; x += 4)
+                        {
+                            int opacity = values[x], offset = y * colors.Length + x;
+                            for (int c = 0; c < 3; c++) pixels[offset + c] = (byte)((colors[x + c] * opacity + 127) / 255);
+                            pixels[offset + 3] = (byte)opacity;
+                        }
+                    }
+                }
+                finally
+                {
+                    if (alpha != null) mask.UnlockBits(alpha);
+                    artwork.UnlockBits(art);
+                }
+            }
         }
 
         internal static void ReleaseArtwork()
@@ -159,11 +226,14 @@ namespace gInk
             if (theme < CategorySize) return new Padding(width);
             int number = theme - CategorySize + 1;
             GetArtwork(number);
+            if (UsesAnchoredOrnaments(number))
+                return GetOrnamentInsets(size, width, number, cachedArtworkSize);
             Padding inset = SourceInsets(cachedArtworkSize, number);
             // Anchor width to the visible ornament, including the soft edge, and
             // leave most of the display usable even at the largest slider value.
             int longest = Math.Max(Math.Max(inset.Left, inset.Right), Math.Max(inset.Top, inset.Bottom));
-            float scale = width / (float)longest;
+            float scale = Math.Min(width / (float)longest,
+                Math.Min(size.Width * .85f / inset.Horizontal, size.Height * .85f / inset.Vertical));
             return new Padding(Math.Max(1, (int)Math.Round(inset.Left * scale)),
                 Math.Max(1, (int)Math.Round(inset.Top * scale)),
                 Math.Max(1, (int)Math.Round(inset.Right * scale)),
@@ -184,6 +254,11 @@ namespace gInk
             int number = theme - CategorySize + 1;
             byte[] source = GetArtwork(number);
             Size sourceSize = cachedArtworkSize;
+            if (UsesAnchoredOrnaments(number))
+            {
+                DrawAnchoredOrnaments(target, size, strip, inset, number, source, sourceSize);
+                return;
+            }
             Padding original = SourceInsets(sourceSize, number);
             float[] columns = MapAxis(strip.Left, strip.Width, size.Width, sourceSize.Width, inset.Left, inset.Right, original.Left, original.Right);
             float[] rows = MapAxis(strip.Top, strip.Height, size.Height, sourceSize.Height, inset.Top, inset.Bottom, original.Top, original.Bottom);
@@ -223,31 +298,97 @@ namespace gInk
             finally { target.UnlockBits(data); }
         }
 
+        private static bool UsesAnchoredOrnaments(int number) => number == 10 || number == 40 || number == 95;
+
+        private static Padding GetOrnamentInsets(Size size, int width, int number, Size source)
+        {
+            Padding inset = SourceInsets(source, number);
+            int depth = Math.Max(Math.Max(inset.Left, inset.Right), Math.Max(inset.Top, inset.Bottom));
+            float scale = Math.Min(width / (float)depth, Math.Min(size.Width * .92f / source.Width, size.Height * .92f / source.Height));
+            return new Padding(Math.Max(1, (int)Math.Ceiling(inset.Left * scale)), Math.Max(1, (int)Math.Ceiling(inset.Top * scale)),
+                Math.Max(1, (int)Math.Ceiling(inset.Right * scale)), Math.Max(1, (int)Math.Ceiling(inset.Bottom * scale)));
+        }
+
+        private static void DrawAnchoredOrnaments(Bitmap target, Size size, Rectangle strip, Padding inset,
+            int number, byte[] source, Size sourceSize)
+        {
+            Padding layout = SourceInsets(sourceSize, number);
+            int depth = Math.Max(Math.Max(layout.Left, layout.Right), Math.Max(layout.Top, layout.Bottom));
+            int requested = Math.Max(Math.Max(inset.Left, inset.Right), Math.Max(inset.Top, inset.Bottom));
+            float scale = Math.Min(requested / (float)depth,
+                Math.Min(size.Width * .92f / sourceSize.Width, size.Height * .92f / sourceSize.Height));
+            using (Graphics g = Graphics.FromImage(target))
+            {
+                g.TranslateTransform(-strip.X, -strip.Y);
+                g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                Color first = number == 10 ? Color.DeepSkyBlue : Color.FromArgb(141, 160, 54);
+                Color second = number == 10 ? Color.Crimson : Color.FromArgb(237, 208, 129);
+                Rectangle canvas = new Rectangle(Point.Empty, size);
+                using (var gradient = new LinearGradientBrush(canvas, first, second, 28f))
+                using (var shadow = new Pen(Color.FromArgb(180, 13, 21, 24), Math.Max(2, 10 * scale)))
+                using (var line = new Pen(gradient, Math.Max(1, 3 * scale)))
+                {
+                    float edge = Math.Max(1, 4 * scale);
+                    g.DrawRectangle(shadow, edge, edge, size.Width - 2 * edge - 1, size.Height - 2 * edge - 1);
+                    g.DrawRectangle(line, edge, edge, size.Width - 2 * edge - 1, size.Height - 2 * edge - 1);
+                }
+                // Scale each illustration equally in both dimensions. Only the connecting rule spans the monitor.
+                DrawOrnament(g, strip, size, source, sourceSize, scale, layout.Left,
+                    number == 40 ? sourceSize.Height : layout.Top, false, false);
+                if (number != 40)
+                    DrawOrnament(g, strip, size, source, sourceSize, scale, layout.Left, layout.Bottom, false, true);
+                DrawOrnament(g, strip, size, source, sourceSize, scale, layout.Right, layout.Top, true, false);
+                DrawOrnament(g, strip, size, source, sourceSize, scale, layout.Right, layout.Bottom, true, true);
+            }
+        }
+
+        private static void DrawOrnament(Graphics g, Rectangle strip, Size size, byte[] source, Size sourceSize,
+            float scale, int width, int height, bool right, bool bottom)
+        {
+            var destination = new RectangleF(right ? size.Width - width * scale : 0,
+                bottom ? size.Height - height * scale : 0, width * scale, height * scale);
+            if (!destination.IntersectsWith(strip)) return;
+            using (var pixels = new Bitmap(width, height, PixelFormat.Format32bppPArgb))
+            {
+                var rect = new Rectangle(0, 0, width, height);
+                BitmapData data = pixels.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+                try
+                {
+                    var row = new byte[width * 4];
+                    int left = right ? sourceSize.Width - width : 0, top = bottom ? sourceSize.Height - height : 0;
+                    for (int y = 0; y < height; y++)
+                    {
+                        Buffer.BlockCopy(source, ((top + y) * sourceSize.Width + left) * 4, row, 0, row.Length);
+                        int vertical = height == sourceSize.Height ? 14 : bottom ? y : height - 1 - y;
+                        for (int x = 0; x < width; x++)
+                        {
+                            int distance = Math.Min(right ? x : width - 1 - x, vertical);
+                            if (distance >= 14) continue;
+                            for (int c = 0; c < 4; c++) row[x * 4 + c] = (byte)(row[x * 4 + c] * distance / 14);
+                        }
+                        Marshal.Copy(row, 0, IntPtr.Add(data.Scan0, y * data.Stride), row.Length);
+                    }
+                }
+                finally { pixels.UnlockBits(data); }
+                g.DrawImage(pixels, destination);
+            }
+        }
+
         private static float[] MapAxis(int start, int count, int targetLength, int sourceLength,
             int near, int far, int sourceNear, int sourceFar)
         {
             var coordinates = new float[count];
             float middle = (sourceLength - sourceNear - sourceFar) / (float)(targetLength - near - far);
             float nearRate = sourceNear / (float)near, farRate = sourceFar / (float)far;
-            // Smooth the change of scale at the two joins. Every strip samples
-            // the same continuous image, including across corner boundaries.
-            float blend = Math.Min(Math.Min(near, far) * .06f, (targetLength - near - far) * .15f);
             for (int i = 0; i < count; i++)
             {
                 float x = start + i + .5f;
-                float position = x * nearRate + (middle - nearRate) * SmoothStepDistance(x - near, blend) +
-                    (farRate - middle) * SmoothStepDistance(x - (targetLength - far), blend);
+                float position = x <= near ? x * nearRate : x >= targetLength - far
+                    ? sourceLength - (targetLength - x) * farRate
+                    : sourceNear + (x - near) * middle;
                 coordinates[i] = Math.Max(0, Math.Min(sourceLength - 1, position - .5f));
             }
             return coordinates;
-        }
-
-        private static float SmoothStepDistance(float distance, float radius)
-        {
-            if (distance <= -radius) return 0;
-            if (distance >= radius) return distance;
-            float t = (distance + radius) / (2 * radius);
-            return radius * t * t * t * (2 - t);
         }
     }
 
@@ -268,6 +409,9 @@ namespace gInk
         private readonly Panel grid;
         private readonly Button previous, next;
         private readonly Label page, empty, recentHeading, recentEmpty, resultCount;
+        private FrameMagnifier magnifier;
+        private Button hoveredTile;
+        private readonly Timer hoverTimer = new Timer { Interval = 30 };
         private int pageIndex;
         internal event Action<int> ThemeChosen;
 
@@ -316,6 +460,10 @@ namespace gInk
                     FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand
                 };
                 tile.Paint += (_, args) => PaintPreview(slot, args.Graphics);
+                tile.MouseLeave += delegate
+                {
+                    if (!tile.ClientRectangle.Contains(tile.PointToClient(Cursor.Position))) HideMagnifier();
+                };
                 tile.Click += delegate
                 {
                     ThemeChosen?.Invoke((int)tile.Tag);
@@ -353,6 +501,20 @@ namespace gInk
             cancel.Click += delegate { Close(); };
             Controls.Add(cancel);
             CancelButton = cancel;
+            hoverTimer.Tick += delegate
+            {
+                Point pointer = Cursor.Position;
+                Button current = null;
+                if ((ActiveForm == this || ActiveForm == magnifier) &&
+                    grid.ClientRectangle.Contains(grid.PointToClient(pointer)))
+                    current = tiles.FirstOrDefault(tile => tile.Visible && tile.ClientRectangle.Contains(tile.PointToClient(pointer)));
+                if (current == hoveredTile) return;
+                HideMagnifier();
+                hoveredTile = current;
+                if (current != null) ShowMagnifier(current);
+            };
+            Shown += delegate { hoverTimer.Start(); };
+            grid.Scroll += delegate { HideMagnifier(); };
             search.TextChanged += delegate { SetPage(0); };
             categories.SelectedIndexChanged += delegate
             {
@@ -397,6 +559,7 @@ namespace gInk
 
         private void ShowCategory()
         {
+            HideMagnifier();
             string query = search.Text.Trim();
             bool searching = query.Length != 0;
             bool showingFavorites = !searching && categories.SelectedIndex == 0;
@@ -478,6 +641,7 @@ namespace gInk
 
         internal void RefreshPreviews()
         {
+            HideMagnifier();
             for (int i = 0; i < previews.Length; i++)
             {
                 ClearPreview(i);
@@ -488,7 +652,11 @@ namespace gInk
         protected override void Dispose(bool disposing)
         {
             if (disposing)
+            {
+                hoverTimer.Dispose();
+                magnifier?.Dispose();
                 for (int i = 0; i < previews.Length; i++) ClearPreview(i);
+            }
             base.Dispose(disposing);
         }
 
@@ -502,34 +670,116 @@ namespace gInk
         {
             Button tile = tiles[index];
             if (!(tile.Tag is int theme)) return;
-            if (previews[index] == null)
-            {
-                var image = new Bitmap(previewBounds.Width, previewBounds.Height, PixelFormat.Format32bppPArgb);
-                try
-                {
-                    using (Graphics canvas = Graphics.FromImage(image))
-                    using (var checker = new SolidBrush(Color.FromArgb(34, 46, 64)))
-                    {
-                        canvas.Clear(Color.FromArgb(19, 29, 43));
-                        for (int y = 0; y < image.Height; y += 8)
-                        for (int x = y % 16; x < image.Width; x += 16)
-                            canvas.FillRectangle(checker, x, y, Math.Min(8, image.Width - x), Math.Min(8, image.Height - y));
-                        // Keep decorations legible even when the actual desktop border is very thin.
-                        int width = Math.Max(1, (int)Math.Round(image.Height * Math.Max(8, settings.ScreenFrameWidth) / 100.0));
-                        ScreenFrameStyle.Paint(canvas, image.Size, width, theme, ScreenFrameStyle.GetInsets(image.Size, width, theme));
-                    }
-                    previews[index] = image;
-                }
-                catch
-                {
-                    image.Dispose();
-                    throw;
-                }
-            }
+            if (previews[index] == null) previews[index] = CreatePreview(previewBounds.Size, theme, 12);
             g.DrawImageUnscaled(previews[index], previewBounds.Location);
             TextRenderer.DrawText(g, tile.AccessibleName, SystemFonts.MessageBoxFont,
                 new Rectangle(8, previewBounds.Bottom + 4, tile.Width - 16, 18), Color.FromArgb(28, 46, 65),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        }
+
+        private Bitmap CreatePreview(Size size, int theme, int minimumWidth)
+        {
+            var image = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb);
+            try
+            {
+                using (Graphics canvas = Graphics.FromImage(image))
+                using (var checker = new SolidBrush(Color.FromArgb(34, 46, 64)))
+                {
+                    canvas.Clear(Color.FromArgb(19, 29, 43));
+                    for (int y = 0; y < image.Height; y += 8)
+                    for (int x = y % 16; x < image.Width; x += 16)
+                        canvas.FillRectangle(checker, x, y, Math.Min(8, image.Width - x), Math.Min(8, image.Height - y));
+                    int width = Math.Max(1, (int)Math.Round(image.Height * Math.Max(minimumWidth, settings.ScreenFrameWidth) / 100.0));
+                    ScreenFrameStyle.Paint(canvas, image.Size, width, theme, ScreenFrameStyle.GetInsets(image.Size, width, theme));
+                }
+                return image;
+            }
+            catch
+            {
+                image.Dispose();
+                throw;
+            }
+        }
+
+        private void ShowMagnifier(Button tile)
+        {
+            if (!(tile.Tag is int theme)) return;
+            Rectangle work = Screen.FromControl(this).Bounds;
+            Rectangle anchor = tile.RectangleToScreen(tile.ClientRectangle);
+            Point pointer = Cursor.Position;
+            int width = Math.Min(760, work.Width - 24);
+            int height = Math.Min(width * 9 / 16, work.Height - 52);
+            width = Math.Min(width, height * 16 / 9);
+            if (width <= previewBounds.Width) return;
+            Size popup = new Size(width + 16, height + 40);
+            int x = anchor.Right + 10;
+            if (x + popup.Width > work.Right) x = anchor.Left - popup.Width - 10;
+            x = Math.Max(work.Left + 4, Math.Min(work.Right - popup.Width - 4, x));
+            int y = Math.Max(work.Top + 4, Math.Min(anchor.Top, work.Bottom - popup.Height - 4));
+            if (new Rectangle(x, y, popup.Width, popup.Height).Contains(pointer))
+            {
+                if (anchor.Bottom + 10 + popup.Height <= work.Bottom) y = anchor.Bottom + 10;
+                else if (anchor.Top - popup.Height - 10 >= work.Top) y = anchor.Top - popup.Height - 10;
+            }
+            magnifier = magnifier ?? new FrameMagnifier();
+            magnifier.Present(new Rectangle(new Point(x, y), popup), CreatePreview(new Size(width, height), theme, 28), tile.AccessibleName);
+            if (!magnifier.Visible) magnifier.Show(this);
+        }
+
+        private void HideMagnifier()
+        {
+            hoveredTile = null;
+            magnifier?.Hide();
+        }
+
+        private sealed class FrameMagnifier : NonActivatingToolbarWindow
+        {
+            private Bitmap image;
+            private string caption;
+
+            internal FrameMagnifier()
+            {
+                Name = "ScreenFrameMagnifier";
+                BackColor = Color.FromArgb(13, 25, 39);
+                DoubleBuffered = true;
+                // Layering makes the entire preview click-through.
+                Opacity = .99;
+            }
+
+            protected override CreateParams CreateParams
+            {
+                get { var parameters = base.CreateParams; parameters.ExStyle |= 0x80000 | 0x20; return parameters; }
+            }
+
+            protected override void WndProc(ref Message message)
+            {
+                if (message.Msg == 0x84) { message.Result = new IntPtr(-1); return; }
+                base.WndProc(ref message);
+            }
+
+            internal void Present(Rectangle bounds, Bitmap next, string name)
+            {
+                image?.Dispose();
+                image = next;
+                caption = name;
+                Bounds = bounds;
+                Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (image == null) return;
+                e.Graphics.DrawImageUnscaled(image, 8, 8);
+                TextRenderer.DrawText(e.Graphics, caption, Font, new Rectangle(8, image.Height + 13, image.Width, 20),
+                    Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) image?.Dispose();
+                base.Dispose(disposing);
+            }
         }
     }
 }
