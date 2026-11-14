@@ -1960,7 +1960,7 @@ namespace gInk
             return ani;
         }
 
-        private Stroke AddLineStroke(int CursorX0, int CursorY0, int CursorX, int CursorY)
+        private Stroke AddLineStroke(int CursorX0, int CursorY0, int CursorX, int CursorY, bool dashed = false)
         {
             Point[] pts = new Point[2];
             pts[0] = new Point(CursorX0, CursorY0);
@@ -1971,6 +1971,7 @@ namespace gInk
             st.DrawingAttributes = Root.FormCollection.IC.DefaultDrawingAttributes.Clone();
             st.DrawingAttributes.AntiAliased = true;
             st.DrawingAttributes.FitToCurve = false;
+            if (dashed) DrawingDirectionLock.SetDashed(st);
             setStrokeProperties(ref st, 0);
             Root.FormCollection.IC.Ink.Strokes.Add(st);
             if (st.ExtendedProperties.Contains(Root.FADING_PEN))
@@ -2053,7 +2054,7 @@ namespace gInk
             return bmpo;
         }
 
-        private Stroke AddArrowStroke(int CursorX0, int CursorY0, int CursorX, int CursorY)
+        private Stroke AddArrowStroke(int CursorX0, int CursorY0, int CursorX, int CursorY, bool dashed = false)
         // arrow at starting point
         {
             Point[] pts = new Point[2];
@@ -2086,6 +2087,7 @@ namespace gInk
             st.DrawingAttributes = Root.FormCollection.IC.DefaultDrawingAttributes.Clone();
             st.DrawingAttributes.AntiAliased = true;
             st.DrawingAttributes.FitToCurve = false;
+            if (dashed) DrawingDirectionLock.SetDashed(st);
             setStrokeProperties(ref st, 0);
             st.ExtendedProperties.Add(Root.ARROWSTART_GUID, i);
             st.ExtendedProperties.Add(Root.ARROWSTART_X_GUID, CursorX0);
@@ -2606,9 +2608,12 @@ namespace gInk
         private void IC_Stroke(object sender, InkCollectorStrokeEventArgs e)
         {
             DrawingDirection direction = screenDirection;
-            double? areaAngle = screenAreaAngle;
+            bool dashed = screenDashed || (screenLineDrag && DrawingDirectionLock.ControlDown);
+            Point? axisEnd = screenAreaDrag ? screenAreaAxis.EndAt(Root.FormDisplay.PointToClient(MousePosition)) : null;
             screenDirection = DrawingDirection.Free;
-            screenAreaAngle = null;
+            screenDashed = screenAreaDrag = screenLineDrag = false;
+            screenAreaAxis = default;
+            screenPreviewPen = null;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("del");
@@ -2617,7 +2622,8 @@ namespace gInk
             }
             Rectangle r = e.Stroke.GetBoundingBox(BoundingBoxMode.PointsOnly);
             bool HitTouch = Math.Max(r.Width, r.Height) < 2 * e.Stroke.DrawingAttributes.Width;    // To take into account PenWidth extension done by GetBoundingBox
-            if (direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+            bool constrained = direction != DrawingDirection.Free || axisEnd.HasValue || dashed;
+            if (constrained && Root.CursorX0 != int.MinValue)
             {
                 Point pointer = Root.FormDisplay.PointToClient(MousePosition);
                 HitTouch = Math.Abs(pointer.X - Root.CursorX0) < 2 && Math.Abs(pointer.Y - Root.CursorY0) < 2;
@@ -2679,6 +2685,7 @@ namespace gInk
                 Console.WriteLine("Hand");
                 //Stroke st = e.Stroke;// IC.Ink.Strokes[IC.Ink.Strokes.Count-1];
                 Stroke st = e.Stroke;// IC.Ink.Strokes[IC.Ink.Strokes.Count-1];
+                if (dashed) DrawingDirectionLock.SetDashed(st);
                 if (direction != DrawingDirection.Free)
                 {
                     if (st.ExtendedProperties.Contains(Root.ISHIDDEN_GUID))
@@ -2761,7 +2768,7 @@ namespace gInk
                     }
                     Console.WriteLine("Lasso capt " + InprogressSelection?.Count.ToString() ?? "0");
                 }
-                if (direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+                if (constrained && Root.CursorX0 != int.MinValue)
                 {
                     Point end = Root.FormDisplay.PointToClient(MousePosition);
                     Root.CursorX = end.X;
@@ -2770,19 +2777,18 @@ namespace gInk
                 }
                 IC.Ink.DeleteStroke(e.Stroke); // the stroke that was just inserted has to be replaced.
 
-                if (!HitTouch && direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue &&
+                if (!HitTouch && (direction != DrawingDirection.Free || axisEnd.HasValue) && Root.CursorX0 != int.MinValue &&
                     DrawingDirectionLock.IsAreaTool(Root.ToolSelected))
                 {
                     var start = new Point(Root.CursorX0, Root.CursorY0);
                     var end = new Point(Root.CursorX, Root.CursorY);
-                    Point[] outline = DrawingDirectionLock.AreaOutline(Root.ToolSelected, start, end, direction, CenteredAreaDrag,
-                        areaAngle ?? DrawingDirectionLock.AreaDragAngle(start, end, finishing: true));
+                    Point[] outline = DrawingDirectionLock.AreaOutline(Root.ToolSelected, start, end, CenteredAreaDrag, axisEnd);
                     if (outline.Length != 0) AddAreaStroke(outline, Root.FilledSelected, false);
                 }
                 else if ((Root.ToolSelected == Tools.Line) && (!HitTouch))
                 {
                     Console.WriteLine("Line");
-                    AddLineStroke(Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
+                    AddLineStroke(Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY, dashed);
                 }
                 //#else if ((Root.ToolSelected == Tools.Rect) && (Root.CursorX0 != Int32.MinValue))
                 else if ((Root.ToolSelected == Tools.Rect) && (!HitTouch))
@@ -2879,9 +2885,9 @@ namespace gInk
                 {
                     Console.WriteLine("Arrow");
                     if (((CurrentMouseButton == MouseButtons.Right) || ((int)CurrentMouseButton == 2)) ^ (Root.ToolSelected == Tools.StartArrow))
-                        AddArrowStroke(Root.CursorX, Root.CursorY, Root.CursorX0, Root.CursorY0);
+                        AddArrowStroke(Root.CursorX, Root.CursorY, Root.CursorX0, Root.CursorY0, dashed);
                     else
-                        AddArrowStroke(Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
+                        AddArrowStroke(Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY, dashed);
                 }
                 else if (Root.ToolSelected == Tools.NumberTag)
                 {
@@ -3122,15 +3128,46 @@ namespace gInk
 
 
         private DrawingDirection screenDirection;
-        private double? screenAreaAngle;
+        private AreaDragAxis screenAreaAxis;
+        private bool screenAreaDrag, screenLineDrag, screenDashed;
+        private DrawingAttributes screenPreviewPen;
+        internal bool ScreenDashed => screenDashed;
+        internal DrawingAttributes ScreenPreviewPen
+        {
+            get
+            {
+                DrawingAttributes pen = IC.DefaultDrawingAttributes;
+                if (!screenDashed) return pen;
+                if (screenPreviewPen == null)
+                {
+                    screenPreviewPen = pen.Clone();
+                    DrawingDirectionLock.SetDashed(screenPreviewPen);
+                }
+                return screenPreviewPen;
+            }
+        }
         private bool CenteredAreaDrag => CurrentMouseButton == MouseButtons.Right || (int)CurrentMouseButton == 2;
         internal bool DrawingLockedBrush => screenDirection != DrawingDirection.Free && Root.ToolSelected == Tools.Hand;
         internal Point[] GetConstrainedAreaOutline()
         {
-            if (screenDirection == DrawingDirection.Free || !DrawingDirectionLock.IsAreaTool(Root.ToolSelected) ||
+            if (!screenAreaDrag ||
                 Root.CursorX0 == int.MinValue || Root.CursorY0 == int.MinValue) return null;
+            var end = new Point(Root.CursorX, Root.CursorY);
+            Point? axisEnd = screenAreaAxis.EndAt(end);
+            if (!axisEnd.HasValue && screenDirection == DrawingDirection.Free) return null;
             return DrawingDirectionLock.AreaOutline(Root.ToolSelected, new Point(Root.CursorX0, Root.CursorY0),
-                new Point(Root.CursorX, Root.CursorY), screenDirection, CenteredAreaDrag, screenAreaAngle);
+                end, CenteredAreaDrag, axisEnd);
+        }
+
+        internal void DrawingControlChanged(bool down, Point pointer)
+        {
+            if (screenLineDrag && down) screenDashed = true;
+            if (!screenAreaDrag || Root.CursorX0 == int.MinValue || Root.CursorY0 == int.MinValue) return;
+            Point end = Root.FormDisplay.PointToClient(pointer);
+            Root.CursorX = end.X;
+            Root.CursorY = end.Y;
+            screenAreaAxis.SetControl(down, new Point(Root.CursorX0, Root.CursorY0), end);
+            Root.FormDisplay.InvalidateAreaPreview();
         }
 
         private void SnapScreenEnd(DrawingDirection direction)
@@ -3148,7 +3185,9 @@ namespace gInk
                 !gpButtons.ClientRectangle.Contains(gpButtons.PointToClient(System.Windows.Forms.Cursor.Position))) Root.Whiteboards.SelectScreen();
             Console.WriteLine("CursorDown :" + e.Cursor.Tablet.DeviceKind.ToString());
             screenDirection = DrawingDirection.Free;
-            screenAreaAngle = null;
+            screenAreaAxis = default;
+            screenDashed = screenAreaDrag = screenLineDrag = false;
+            screenPreviewPen = null;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("!!!del");
@@ -3156,7 +3195,14 @@ namespace gInk
             }
             if (!ZoomCapturing && !Root.EraserMode && !Root.LassoMode && !Root.PanMode && !Root.PointerMode &&
                 Root.Snapping == 0)
+            {
                 screenDirection = DrawingDirectionLock.ReadForTool(Root.ToolSelected);
+                screenAreaDrag = DrawingDirectionLock.IsAreaTool(Root.ToolSelected);
+                screenLineDrag = DrawingDirectionLock.IsLineTool(Root.ToolSelected);
+                screenDashed = screenLineDrag && DrawingDirectionLock.ControlDown;
+                if (screenAreaDrag && DrawingDirectionLock.ControlDown)
+                    screenAreaAxis.SetControl(true, Point.Empty, Point.Empty);
+            }
             if (ZoomCapturing)
             {
                 e.Stroke.ExtendedProperties.Add(Root.ISHIDDEN_GUID, true); // we set the ISTROKE_GUID in order to draw the inprogress as a line
@@ -3519,16 +3565,10 @@ namespace gInk
                 else
                     Root.CursorY = (int)(Root.CursorY0 + (Root.CursorX - Root.CursorX0) / ZoomScreenRatio * Math.Sign(Root.CursorY - Root.CursorY0) * Math.Sign(Root.CursorX - Root.CursorX0));
             }
-            else if (screenDirection != DrawingDirection.Free)
-            {
-                if (Root.CursorX0 != int.MinValue)
-                {
-                    if (!DrawingDirectionLock.IsAreaTool(Root.ToolSelected)) SnapScreenEnd(screenDirection);
-                    else if (screenDirection == DrawingDirection.Diagonal && !screenAreaAngle.HasValue)
-                        screenAreaAngle = DrawingDirectionLock.AreaDragAngle(new Point(Root.CursorX0, Root.CursorY0), e.Location);
-                }
-            }
-            else if (Root.ToolSelected != Tools.Hand)
+            else if (!screenAreaDrag && screenDirection != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+                SnapScreenEnd(screenDirection);
+            else if (Root.ToolSelected != Tools.Hand && !screenDashed && screenDirection == DrawingDirection.Free &&
+                !screenAreaAxis.EndAt(e.Location).HasValue)
                 MagneticEffect(Root.CursorX0, Root.CursorY0, ref Root.CursorX, ref Root.CursorY, Root.ToolSelected > Tools.Hand && Root.MagneticRadius > 0);
 
             /*if (LasteXY.X == 0 && LasteXY.Y == 0)

@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using Microsoft.Ink;
 
@@ -9,22 +10,24 @@ namespace gInk
     {
         Free,
         Axis,
-        Diagonal
+        EightWays
     }
 
     internal static class DrawingDirectionLock
     {
         internal static bool IsAreaTool(int tool) => tool == Tools.Rect || tool == Tools.Oval;
+        internal static bool IsLineTool(int tool) =>
+            tool == Tools.Hand || tool == Tools.Line || tool == Tools.StartArrow || tool == Tools.EndArrow;
+        internal static bool ControlDown => (GetAsyncKeyState(0x11) & 0x8000) != 0;
 
         internal static DrawingDirection ReadForTool(int tool) =>
-            tool == Tools.Hand || tool == Tools.Line || tool == Tools.StartArrow || tool == Tools.EndArrow || IsAreaTool(tool)
-                ? Read() : DrawingDirection.Free;
+            IsAreaTool(tool) ? (Read() == DrawingDirection.Free ? DrawingDirection.Free : DrawingDirection.Axis)
+                : IsLineTool(tool) ? Read() : DrawingDirection.Free;
 
         // A gesture keeps the mode it started with, even if the key is released before mouse-up.
         internal static DrawingDirection Read()
         {
-            if ((GetAsyncKeyState(0x11) & 0x8000) != 0) return DrawingDirection.Diagonal;
-            if ((GetAsyncKeyState(0x10) & 0x8000) != 0) return DrawingDirection.Axis;
+            if ((GetAsyncKeyState(0x10) & 0x8000) != 0) return DrawingDirection.EightWays;
             return DrawingDirection.Free;
         }
 
@@ -32,40 +35,45 @@ namespace gInk
         {
             if (direction == DrawingDirection.Free || origin == end) return end;
             int dx = end.X - origin.X, dy = end.Y - origin.Y;
-            if (direction == DrawingDirection.Axis)
+            int ax = Math.Abs(dx), ay = Math.Abs(dy);
+            if (Math.Min(ax, ay) <= Math.Max(ax, ay) * (Math.Sqrt(2) - 1))
                 return Math.Abs(dx) >= Math.Abs(dy) ? new Point(end.X, origin.Y) : new Point(origin.X, end.Y);
 
-            int distance = (Math.Abs(dx) + Math.Abs(dy) + 1) / 2;
+            int distance = (ax + ay + 1) / 2;
             return new Point(origin.X + (dx < 0 ? -distance : distance), origin.Y + (dy < 0 ? -distance : distance));
         }
 
         internal static Point SnapWithin(Point origin, Point end, DrawingDirection direction, Rectangle bounds)
         {
             Point snapped = Snap(origin, end, direction);
-            if (direction != DrawingDirection.Diagonal) return snapped;
             int dx = snapped.X - origin.X, dy = snapped.Y - origin.Y;
+            if (dx == 0 || dy == 0) return snapped;
             int distance = Math.Min(Math.Abs(dx), Math.Min(
                 dx < 0 ? origin.X - bounds.Left : bounds.Right - 1 - origin.X,
                 dy < 0 ? origin.Y - bounds.Top : bounds.Bottom - 1 - origin.Y));
             return new Point(origin.X + Math.Sign(dx) * distance, origin.Y + Math.Sign(dy) * distance);
         }
 
-        internal static double? AreaDragAngle(Point start, Point end, bool finishing = false)
+        internal static void SetDashed(DrawingAttributes attributes)
         {
-            double dx = end.X - start.X, dy = end.Y - start.Y;
-            // Ignore a few pixels of initial pointer jitter before locking the axis.
-            double minimum = finishing ? 1 : 16;
-            return dx * dx + dy * dy >= minimum ? (double?)Math.Atan2(dy, dx) : null;
+            ExtendedProperties properties = attributes.ExtendedProperties;
+            if (properties.Contains(Root.DASHED_LINE_GUID)) properties.Remove(Root.DASHED_LINE_GUID);
+            properties.Add(Root.DASHED_LINE_GUID, (int)DashStyle.Dash);
         }
 
-        internal static Point[] AreaOutline(int tool, Point start, Point end, DrawingDirection direction, bool centered,
-            double? lockedAngle)
+        internal static void SetDashed(Stroke stroke)
+        {
+            DrawingAttributes attributes = stroke.DrawingAttributes.Clone();
+            SetDashed(attributes);
+            stroke.DrawingAttributes = attributes;
+        }
+
+        internal static Point[] AreaOutline(int tool, Point start, Point end, bool centered, Point? axisEnd)
         {
             double dx = end.X - start.X, dy = end.Y - start.Y;
-            if ((dx == 0 && dy == 0) || (direction == DrawingDirection.Diagonal && !lockedAngle.HasValue))
-                return Array.Empty<Point>();
+            if (start == end && !axisEnd.HasValue) return Array.Empty<Point>();
             double length, breadth, x, y, centerX, centerY;
-            if (direction == DrawingDirection.Axis)
+            if (!axisEnd.HasValue)
             {
                 double side = Math.Max(Math.Abs(dx), Math.Abs(dy));
                 length = breadth = centered ? 2 * side : side;
@@ -76,11 +84,14 @@ namespace gInk
             }
             else
             {
-                x = Math.Cos(lockedAngle.Value);
-                y = Math.Sin(lockedAngle.Value);
+                double axisX = axisEnd.Value.X - start.X, axisY = axisEnd.Value.Y - start.Y;
+                double initialLength = Math.Sqrt(axisX * axisX + axisY * axisY);
+                if (initialLength == 0) return Array.Empty<Point>();
+                x = axisX / initialLength;
+                y = axisY / initialLength;
                 double along = dx * x + dy * y;
                 length = Math.Max(2, Math.Abs(along));
-                breadth = Math.Max(2, 2 * Math.Abs(dx * y - dy * x));
+                breadth = Math.Max(2, initialLength / 4 + 2 * Math.Abs(dy * x - dx * y));
                 centerX = start.X + (centered ? 0 : x * along / 2);
                 centerY = start.Y + (centered ? 0 : y * along / 2);
                 if (centered) { length *= 2; breadth *= 2; }
@@ -124,5 +135,20 @@ namespace gInk
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int key);
+    }
+
+    internal struct AreaDragAxis
+    {
+        private bool choosing;
+        private Point? end;
+
+        internal void SetControl(bool down, Point start, Point pointer)
+        {
+            if (down == choosing) return;
+            choosing = down;
+            end = !down && start != pointer ? (Point?)pointer : null;
+        }
+
+        internal Point? EndAt(Point pointer) => choosing ? pointer : end;
     }
 }

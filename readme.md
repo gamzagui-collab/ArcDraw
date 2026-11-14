@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.65-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.66-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.65 Ctrl 도형의 첫 각도 고정
+## v0.66 도형 끝점 지정과 점선 단축키
 
-Ctrl을 누른 채 사각형이나 타원을 그리면 처음 드래그한 방향을 기준으로 각도를 고정합니다. 같은 드래그에서 그 방향으로 움직이면 길이가, 옆으로 움직이면 폭이 바뀝니다. 화면과 노트에서 같은 방식으로 작동합니다.
+사각형·타원을 드래그하는 중 Ctrl을 누르면 시작점과 현재 포인터로 방향을 잡습니다. Ctrl을 떼면 그 위치가 축의 끝점이 되고, 마우스 드래그를 이어서 길이와 폭을 조절할 수 있습니다. Ctrl을 다시 누르면 새 끝점을 지정할 수 있습니다. 직선·화살표·자유펜은 Shift로 45도 간격에 맞추고, Ctrl을 누르고 그린 획은 점선으로 저장합니다.
 
-Windows Release|x86 빌드와 화면 사각형·노트 타원 마우스 검사에서 길이·폭을 바꾸는 동안 첫 각도가 유지되고 그대로 저장되는지 확인했습니다.
+Windows Release|x86 빌드와 실제 마우스·키보드 입력으로 화면 사각형과 노트 타원의 끝점 재지정 및 크기 조절, 45도 스냅과 점선 저장을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

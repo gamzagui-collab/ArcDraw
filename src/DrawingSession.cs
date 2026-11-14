@@ -186,7 +186,19 @@ namespace gInk
                 bool down = message.ToInt32() == 0x100 || message.ToInt32() == 0x104;
                 bool up = message.ToInt32() == 0x101 || message.ToInt32() == 0x105;
                 int bit=ModifierBit(key);
+                bool ctrlWasDown = (modifiers & 12) != 0;
                 if(bit!=0) {if(down)modifiers|=bit;else if(up)modifiers&=~bit;}
+                bool ctrlDown = (modifiers & 12) != 0;
+                if (ctrlWasDown != ctrlDown && DrawingEnabled)
+                {
+                    var pointer = System.Windows.Forms.Cursor.Position;
+                    WhiteboardLayerForm note = root.Whiteboards?.ActiveNote;
+                    Post(delegate
+                    {
+                        root.FormCollection?.DrawingControlChanged(ctrlDown, pointer);
+                        note?.NoteDrawingControlChanged(ctrlDown, pointer);
+                    });
+                }
                 bool firstPress=true;
                 if(key==9||key==0x1b||key==0x2e||key==0x5a) {if(down)firstPress=heldReservedKeys.Add(key);else if(up)heldReservedKeys.Remove(key);}
                 if (key == 0x14)

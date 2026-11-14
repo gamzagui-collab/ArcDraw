@@ -9,6 +9,7 @@ namespace gInk
     {
         private bool previewFrameValid, partialUploadDisabled;
         private int previewTool, previewX0, previewY0, previewX, previewY;
+        private bool previewDashed;
         private MouseButtons previewButton;
         private Rectangle previewBounds, uploadedBounds;
         private Rectangle? pendingFrameDirty;
@@ -28,7 +29,7 @@ namespace gInk
                   tool==Tools.StartArrow || tool==Tools.EndArrow || tool==Tools.ClipArt || c.DrawingLockedBrush))
                 return false;
             if(previewFrameValid && previewTool==tool && previewX0==Root.CursorX0 && previewY0==Root.CursorY0 &&
-                previewX==Root.CursorX && previewY==Root.CursorY && previewButton==c.CurrentMouseButton)
+                previewX==Root.CursorX && previewY==Root.CursorY && previewButton==c.CurrentMouseButton && previewDashed==c.ScreenDashed)
             { skippedPreviewFrames++; return true; }
 
             int x0=Root.CursorX0,y0=Root.CursorY0,x=Root.CursorX,y=Root.CursorY;
@@ -49,10 +50,12 @@ namespace gInk
             DrawCustomOnGraphic(gOutCanvus,Root.CursorX0,Root.CursorY0,Root.CursorX,Root.CursorY,areaOutline);
             previewFrameValid=true; previewBounds=next; previewTool=tool;
             previewX0=Root.CursorX0;previewY0=Root.CursorY0;previewX=Root.CursorX;previewY=Root.CursorY;
-            previewButton=c.CurrentMouseButton; handFrameValid=false; pendingFrameDirty=copy;
+            previewButton=c.CurrentMouseButton; previewDashed=c.ScreenDashed; handFrameValid=false; pendingFrameDirty=copy;
             UpdateFormDisplay(true,true);
             return true;
         }
+
+        internal void InvalidateAreaPreview() => previewFrameValid = false;
 
         private bool TryUploadDirtyFrame(IntPtr screenDc)
         {

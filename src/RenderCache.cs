@@ -82,7 +82,7 @@ namespace gInk
         {
             var c = Root.FormCollection;
             bool cache = !Root.DirectX && !Root.LassoMode && Root.Snapping == 0 &&
-                !c.SpotLightMode && !c.SpotLightTemp && !MemoSpotLight &&
+                !c.SpotLightMode && !c.SpotLightTemp && !MemoSpotLight && !c.ScreenDashed &&
                 !c.IC.DefaultDrawingAttributes.ExtendedProperties.Contains(Root.DASHED_LINE_GUID);
             int packets = stroke.PacketCount;
             if (cache && handFrameValid && handStrokeId == stroke.Id && handPackets == packets)
@@ -104,7 +104,7 @@ namespace gInk
                 BitBlt(OutcanvusDc, copy.Left, copy.Top, copy.Width, copy.Height, canvusDc, copy.Left, copy.Top, 0x00CC0020);
                 handCopiedPixels += (long)copy.Width * copy.Height;
             }
-            DrawOneStroke(gOutCanvus, stroke, c.IC.DefaultDrawingAttributes);
+            DrawOneStroke(gOutCanvus, stroke, c.ScreenPreviewPen);
             previewFrameValid=false; pendingFrameDirty=copy;
             handFrameValid = cache; handStrokeId = stroke.Id; handPackets = packets; handFrameBounds = bounds;
             return true;

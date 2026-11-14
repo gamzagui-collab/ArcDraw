@@ -308,7 +308,20 @@ namespace gInk
             {
                 ink.Enabled=false;
                 if(data.Ink.Length>0)using(var restored=new Ink())
-                {restored.Load(data.Ink);using(Strokes strokes=restored.Strokes)ink.Ink.AddStrokesAtRectangle(strokes,strokes.GetBoundingBox());}
+                {
+                    restored.Load(data.Ink);
+                    using (Strokes strokes = restored.Strokes)
+                    {
+                        foreach (Stroke stroke in strokes)
+                            if (stroke.ExtendedProperties.Contains(NoteToolGuid) ||
+                                stroke.DrawingAttributes.ExtendedProperties.Contains(Root.DASHED_LINE_GUID))
+                            {
+                                noteCustomInk = true;
+                                break;
+                            }
+                        ink.Ink.AddStrokesAtRectangle(strokes, strokes.GetBoundingBox());
+                    }
+                }
                 textItems.Clear();textItems.AddRange(CopyText(data.Text));SetDisplayName(data.Name);UserHidden=data.Hidden;
                 headlineFrameColor = data.HeadlineFrameColor;
                 headlineFillColor = data.HeadlineFillColor;

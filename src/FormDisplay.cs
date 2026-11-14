@@ -860,7 +860,7 @@ namespace gInk
         {
             if ((CursorX0 != int.MinValue) || (CursorY0 != int.MinValue))
             {
-                DrawingAttributes da = Root.FormCollection.IC.DefaultDrawingAttributes; ;
+                DrawingAttributes da = Root.FormCollection.ScreenPreviewPen;
                 DashStyle ds;
                 try
                 {
@@ -1289,7 +1289,7 @@ namespace gInk
                     if (stroke.Deleted) return;
                     DXInProgressGraphics.Clear(Color.Transparent);
                     if (Root.ToolSelected == Tools.Hand && !Root.FormCollection.DrawingLockedBrush)
-                        DrawOneStroke(DXInProgressGraphics, stroke, Root.FormCollection.IC.DefaultDrawingAttributes, DXInprogressBmp);
+                        DrawOneStroke(DXInProgressGraphics, stroke, Root.FormCollection.ScreenPreviewPen, DXInprogressBmp);
                     else
                         DrawCustomOnGraphic(DXInProgressGraphics, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
                     using (GameOverlay.Drawing.Image preview = CreateDirectXImage(DXInprogressBmp))
