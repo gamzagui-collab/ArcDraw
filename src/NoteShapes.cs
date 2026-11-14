@@ -69,8 +69,7 @@ namespace gInk
             // Initialize the entire gesture before calls that can pump messages.
             // A fast mouse-up must not be lost inside an Ink COM attribute getter.
             noteGesturePen=noteCurrentPen;noteGestureArrowLength=noteArrowLength;
-            noteGestureDirection = noteGestureTool == Tools.Hand || noteGestureTool == Tools.Line
-                ? DrawingDirectionLock.Read() : DrawingDirection.Free;
+            noteGestureDirection = DrawingDirectionLock.ReadForTool(noteGestureTool);
             noteStart=noteGestureTool==Tools.Poly&&notePolyline!=null?notePolyline[notePolyline.Length-1]:OnPaper(e.Location);
             noteEnd=OnPaper(e.Location);noteInputPoints.Clear();noteInputPoints.Add(noteStart);
             noteGesture=true;paper.Capture=true;
@@ -108,6 +107,8 @@ namespace gInk
         {
             if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free)return noteInputPoints.ToArray();
             Point a=noteStart,b=noteEnd;
+            if (noteGestureDirection != DrawingDirection.Free && DrawingDirectionLock.IsAreaTool(noteGestureTool))
+                return DrawingDirectionLock.AreaOutline(noteGestureTool, a, b, noteGestureDirection, noteGestureButton == MouseButtons.Right);
             if(noteGestureTool==Tools.Poly)
             {
                 var points=notePolyline==null?new List<Point>{a}:new List<Point>(notePolyline);points.Add(b);return points.ToArray();
@@ -134,7 +135,8 @@ namespace gInk
         }
 
         private Point NoteGesturePoint(Point point) =>
-            DrawingDirectionLock.SnapWithin(noteStart, OnPaper(point), noteGestureDirection, paper.ClientRectangle);
+            DrawingDirectionLock.IsAreaTool(noteGestureTool) ? OnPaper(point) :
+                DrawingDirectionLock.SnapWithin(noteStart, OnPaper(point), noteGestureDirection, paper.ClientRectangle);
 
         private void BeginLockedNoteBrush(InkCollectorCursorDownEventArgs args)
         {

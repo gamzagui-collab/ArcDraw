@@ -1844,16 +1844,7 @@ namespace gInk
                                    CursorY0 + (int)(dY * Math.Sin(Math.PI * (i + NB_ELLIPSE_PTS / 8) / (NB_ELLIPSE_PTS / 2))));
                 Console.WriteLine("{0} - {1} - {2}", i, pts[i].X, pts[i].Y);
             }
-            IC.Renderer.PixelToInkSpace(Root.FormDisplay.gOneStrokeCanvus, ref pts);
-            Stroke st = Root.FormCollection.IC.Ink.CreateStroke(pts);
-            st.DrawingAttributes = Root.FormCollection.IC.DefaultDrawingAttributes.Clone();
-            st.DrawingAttributes.AntiAliased = true;
-            st.DrawingAttributes.FitToCurve = Root.FitToCurve;
-            setStrokeProperties(ref st, FilledSelected);
-            Root.FormCollection.IC.Ink.Strokes.Add(st);
-            if (st.ExtendedProperties.Contains(Root.FADING_PEN))
-                FadingList.Add(st);
-            return st;
+            return AddAreaStroke(pts, FilledSelected, Root.FitToCurve, false);
         }
 
         private Stroke AddRectStroke(int CursorX0, int CursorY0, int CursorX, int CursorY, int FilledSelected)
@@ -1869,15 +1860,19 @@ namespace gInk
             pts[i++] = new Point(CursorX, CursorY0);
             pts[i++] = new Point((CursorX0 + CursorX) / 2, CursorY0);
             pts[i++] = new Point(CursorX0, CursorY0);
+            return AddAreaStroke(pts, FilledSelected, false);
+        }
 
+        private Stroke AddAreaStroke(Point[] pts, int filled, bool fitToCurve, bool hideNoFrame = true)
+        {
             IC.Renderer.PixelToInkSpace(Root.FormDisplay.gOneStrokeCanvus, ref pts);
             Stroke st = Root.FormCollection.IC.Ink.CreateStroke(pts);
             st.DrawingAttributes = Root.FormCollection.IC.DefaultDrawingAttributes.Clone();
-            if (FilledSelected == Filling.NoFrame)
+            if (hideNoFrame && filled == Filling.NoFrame)
                 st.DrawingAttributes.Transparency = 255;
             st.DrawingAttributes.AntiAliased = true;
-            st.DrawingAttributes.FitToCurve = false;
-            setStrokeProperties(ref st, FilledSelected);
+            st.DrawingAttributes.FitToCurve = fitToCurve;
+            setStrokeProperties(ref st, filled);
             Root.FormCollection.IC.Ink.Strokes.Add(st);
             if (st.ExtendedProperties.Contains(Root.FADING_PEN))
                 FadingList.Add(st);
@@ -2764,17 +2759,23 @@ namespace gInk
                     }
                     Console.WriteLine("Lasso capt " + InprogressSelection?.Count.ToString() ?? "0");
                 }
-                if (Root.ToolSelected == Tools.Line && direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+                if (direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
                 {
                     Point end = Root.FormDisplay.PointToClient(MousePosition);
                     Root.CursorX = end.X;
                     Root.CursorY = end.Y;
-                    SnapScreenEnd(direction);
+                    if (!DrawingDirectionLock.IsAreaTool(Root.ToolSelected)) SnapScreenEnd(direction);
                 }
                 IC.Ink.DeleteStroke(e.Stroke); // the stroke that was just inserted has to be replaced.
 
-                //#if ((Root.ToolSelected == Tools.Line) && (Root.CursorX0 != Int32.MinValue))
-                if ((Root.ToolSelected == Tools.Line) && (!HitTouch))
+                if (!HitTouch && direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue &&
+                    DrawingDirectionLock.IsAreaTool(Root.ToolSelected))
+                {
+                    Point[] outline = DrawingDirectionLock.AreaOutline(Root.ToolSelected,
+                        new Point(Root.CursorX0, Root.CursorY0), new Point(Root.CursorX, Root.CursorY), direction, CenteredAreaDrag);
+                    if (outline.Length != 0) AddAreaStroke(outline, Root.FilledSelected, false);
+                }
+                else if ((Root.ToolSelected == Tools.Line) && (!HitTouch))
                 {
                     Console.WriteLine("Line");
                     AddLineStroke(Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
@@ -3117,7 +3118,15 @@ namespace gInk
 
 
         private DrawingDirection screenDirection;
+        private bool CenteredAreaDrag => CurrentMouseButton == MouseButtons.Right || (int)CurrentMouseButton == 2;
         internal bool DrawingLockedBrush => screenDirection != DrawingDirection.Free && Root.ToolSelected == Tools.Hand;
+        internal Point[] GetConstrainedAreaOutline()
+        {
+            if (screenDirection == DrawingDirection.Free || !DrawingDirectionLock.IsAreaTool(Root.ToolSelected) ||
+                Root.CursorX0 == int.MinValue || Root.CursorY0 == int.MinValue) return null;
+            return DrawingDirectionLock.AreaOutline(Root.ToolSelected, new Point(Root.CursorX0, Root.CursorY0),
+                new Point(Root.CursorX, Root.CursorY), screenDirection, CenteredAreaDrag);
+        }
 
         private void SnapScreenEnd(DrawingDirection direction)
         {
@@ -3140,8 +3149,8 @@ namespace gInk
                 return;
             }
             if (!ZoomCapturing && !Root.EraserMode && !Root.LassoMode && !Root.PanMode && !Root.PointerMode &&
-                Root.Snapping == 0 && (Root.ToolSelected == Tools.Hand || Root.ToolSelected == Tools.Line))
-                screenDirection = DrawingDirectionLock.Read();
+                Root.Snapping == 0)
+                screenDirection = DrawingDirectionLock.ReadForTool(Root.ToolSelected);
             if (ZoomCapturing)
             {
                 e.Stroke.ExtendedProperties.Add(Root.ISHIDDEN_GUID, true); // we set the ISTROKE_GUID in order to draw the inprogress as a line
@@ -3504,8 +3513,11 @@ namespace gInk
                 else
                     Root.CursorY = (int)(Root.CursorY0 + (Root.CursorX - Root.CursorX0) / ZoomScreenRatio * Math.Sign(Root.CursorY - Root.CursorY0) * Math.Sign(Root.CursorX - Root.CursorX0));
             }
-            else if (screenDirection != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
-                SnapScreenEnd(screenDirection);
+            else if (screenDirection != DrawingDirection.Free)
+            {
+                if (Root.CursorX0 != int.MinValue && !DrawingDirectionLock.IsAreaTool(Root.ToolSelected))
+                    SnapScreenEnd(screenDirection);
+            }
             else if (Root.ToolSelected != Tools.Hand)
                 MagneticEffect(Root.CursorX0, Root.CursorY0, ref Root.CursorX, ref Root.CursorY, Root.ToolSelected > Tools.Hand && Root.MagneticRadius > 0);
 

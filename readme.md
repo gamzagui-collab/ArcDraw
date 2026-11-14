@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.63-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.64-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.63 브러시와 직선 방향 고정
+## v0.64 화살표와 도형 스냅
 
-화면이나 노트에서 브러시 또는 직선 도구를 선택하세요. Shift를 누른 채 그리기 시작하면 가로·세로로, Ctrl을 누르면 45도 대각선으로 고정됩니다.
+화면과 노트의 화살표는 Shift로 가로·세로, Ctrl로 45도 대각선에 맞춥니다. 사각형·타원은 Shift로 정사각형·원, Ctrl로 도형의 긴 축을 45도 간격에 맞춥니다. Ctrl로 도형을 그릴 때 축을 따라 길이를, 축에서 옆으로 벗어나면서 폭을 조절할 수 있습니다.
 
-Windows Release|x86 빌드와 실제 마우스 입력으로 화면·노트의 브러시와 직선 방향 고정 및 일반 자유펜을 확인했습니다.
+Windows Release|x86 빌드와 화면·노트의 실제 마우스 드래그로 화살표 각도, 정사각형과 원의 비율, 도형 축 스냅을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 

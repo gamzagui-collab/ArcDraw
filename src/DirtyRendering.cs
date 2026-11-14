@@ -32,10 +32,13 @@ namespace gInk
             { skippedPreviewFrames++; return true; }
 
             int x0=Root.CursorX0,y0=Root.CursorY0,x=Root.CursorX,y=Root.CursorY;
+            Point[] areaOutline=c.GetConstrainedAreaOutline();
             bool centered=c.CurrentMouseButton==MouseButtons.Right || (int)c.CurrentMouseButton==2;
             if(centered && (tool==Tools.Rect || tool==Tools.Oval || tool==Tools.ClipArt))
             { x0=2*x0-x; y0=2*y0-y; }
             Rectangle next=Rectangle.FromLTRB(Math.Min(x0,x),Math.Min(y0,y),Math.Max(x0,x)+1,Math.Max(y0,y)+1);
+            if(areaOutline!=null)
+                foreach(Point point in areaOutline)next=Rectangle.Union(next,new Rectangle(point, new Size(1,1)));
             int padding=4+Math.Abs(Root.HiMetricToPixel(c.IC.DefaultDrawingAttributes.Width));
             if(tool==Tools.StartArrow || tool==Tools.EndArrow)padding+=(int)Math.Ceiling(c.ArrowVarLen());
             next.Inflate(padding,padding); next.Intersect(ClientRectangle);
@@ -43,7 +46,7 @@ namespace gInk
             Rectangle copy=previewFrameValid?Rectangle.Intersect(ClientRectangle,Rectangle.Union(next,previewBounds)):ClientRectangle;
             BitBlt(OutcanvusDc,copy.Left,copy.Top,copy.Width,copy.Height,canvusDc,copy.Left,copy.Top,0x00CC0020);
             previewCopiedPixels+=(long)copy.Width*copy.Height;
-            DrawCustomOnGraphic(gOutCanvus,Root.CursorX0,Root.CursorY0,Root.CursorX,Root.CursorY);
+            DrawCustomOnGraphic(gOutCanvus,Root.CursorX0,Root.CursorY0,Root.CursorX,Root.CursorY,areaOutline);
             previewFrameValid=true; previewBounds=next; previewTool=tool;
             previewX0=Root.CursorX0;previewY0=Root.CursorY0;previewX=Root.CursorX;previewY=Root.CursorY;
             previewButton=c.CurrentMouseButton; handFrameValid=false; pendingFrameDirty=copy;

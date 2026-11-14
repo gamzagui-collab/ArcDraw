@@ -853,7 +853,10 @@ namespace gInk
             p.Dispose();
         }
 
-        public void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY)
+        public void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY) =>
+            DrawCustomOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, Root.FormCollection.GetConstrainedAreaOutline());
+
+        private void DrawCustomOnGraphic(Graphics g, int CursorX0, int CursorY0, int CursorX, int CursorY, Point[] areaOutline)
         {
             if ((CursorX0 != int.MinValue) || (CursorY0 != int.MinValue))
             {
@@ -871,6 +874,11 @@ namespace gInk
                 }
                 if (Root.FormCollection.ZoomCapturing)
                     DrawRectOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, da, ds);
+                else if (areaOutline != null)
+                {
+                    if (areaOutline.Length > 1)
+                        using (Pen pen = PenForDrawOn(da, ds)) g.DrawLines(pen, areaOutline);
+                }
                 //DrawRectOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY,Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count-1].DrawingAttributes);
                 else if ((Root.ToolSelected == Tools.Line) || (Root.ToolSelected == Tools.Poly) || Root.FormCollection.DrawingLockedBrush)
                     DrawLineOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, da, ds);

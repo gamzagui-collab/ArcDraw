@@ -14,6 +14,12 @@ namespace gInk
 
     internal static class DrawingDirectionLock
     {
+        internal static bool IsAreaTool(int tool) => tool == Tools.Rect || tool == Tools.Oval;
+
+        internal static DrawingDirection ReadForTool(int tool) =>
+            tool == Tools.Hand || tool == Tools.Line || tool == Tools.StartArrow || tool == Tools.EndArrow || IsAreaTool(tool)
+                ? Read() : DrawingDirection.Free;
+
         // A gesture keeps the mode it started with, even if the key is released before mouse-up.
         internal static DrawingDirection Read()
         {
@@ -42,6 +48,51 @@ namespace gInk
                 dx < 0 ? origin.X - bounds.Left : bounds.Right - 1 - origin.X,
                 dy < 0 ? origin.Y - bounds.Top : bounds.Bottom - 1 - origin.Y));
             return new Point(origin.X + Math.Sign(dx) * distance, origin.Y + Math.Sign(dy) * distance);
+        }
+
+        internal static Point[] AreaOutline(int tool, Point start, Point end, DrawingDirection direction, bool centered)
+        {
+            double dx = end.X - start.X, dy = end.Y - start.Y;
+            if (dx == 0 && dy == 0) return Array.Empty<Point>();
+            double length, breadth, x, y, centerX, centerY;
+            if (direction == DrawingDirection.Axis)
+            {
+                double side = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                length = breadth = centered ? 2 * side : side;
+                x = 1;
+                y = 0;
+                centerX = start.X + (centered ? 0 : (dx < 0 ? -side : side) / 2);
+                centerY = start.Y + (centered ? 0 : (dy < 0 ? -side : side) / 2);
+            }
+            else
+            {
+                double step = Math.PI / 4;
+                double angle = Math.Round(Math.Atan2(dy, dx) / step) * step;
+                x = Math.Cos(angle);
+                y = Math.Sin(angle);
+                length = dx * x + dy * y;
+                // Along-axis movement sets the length; sideways movement sets the width.
+                breadth = Math.Min(length * .9, Math.Max(length / 4, 2 * Math.Abs(dx * y - dy * x)));
+                centerX = start.X + (centered ? 0 : x * length / 2);
+                centerY = start.Y + (centered ? 0 : y * length / 2);
+                if (centered) { length *= 2; breadth *= 2; }
+            }
+
+            Point At(double along, double across) => new Point(
+                (int)Math.Round(centerX + along * x - across * y, MidpointRounding.AwayFromZero),
+                (int)Math.Round(centerY + along * y + across * x, MidpointRounding.AwayFromZero));
+            double halfLength = length / 2, halfBreadth = breadth / 2;
+            if (tool == Tools.Rect)
+                return new[] { At(-halfLength, -halfBreadth), At(halfLength, -halfBreadth),
+                    At(halfLength, halfBreadth), At(-halfLength, halfBreadth), At(-halfLength, -halfBreadth) };
+            var outline = new Point[73];
+            for (int i = 0; i < outline.Length - 1; i++)
+            {
+                double angle = i * 2 * Math.PI / (outline.Length - 1);
+                outline[i] = At(Math.Cos(angle) * halfLength, Math.Sin(angle) * halfBreadth);
+            }
+            outline[outline.Length - 1] = outline[0];
+            return outline;
         }
 
         internal static void Straighten(Stroke stroke, Renderer renderer, Graphics graphics, DrawingDirection direction,
