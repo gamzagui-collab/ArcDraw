@@ -815,6 +815,7 @@ namespace gInk
             paper.SizeChanged+=delegate {ResizeMemoEditor();};
             paper.Cursor = Cursors.Cross;
             InitializeNoteShapes();
+            paper.MouseDown += BeginLockedNoteBrush;
             paper.MouseDown += PaperMouseDown;
             paper.Paint += PaperPaint;
 
@@ -874,7 +875,9 @@ namespace gInk
             // Independent automatic ink repainting could otherwise cover text.
             layerInk.AutoRedraw = false;
             layerInk.DynamicRendering = true;
-            layerInk.Stroke += delegate { QueuePaperRefresh(); QueueHistorySnapshot(); };
+            layerInk.CursorDown += (_, args) => BeginLockedNoteBrush(args);
+            layerInk.MouseMove += (_, args) => UpdateLockedNoteBrush(args.Location);
+            layerInk.Stroke += (_, args) => { FinishLockedNoteBrush(args.Stroke); QueuePaperRefresh(); QueueHistorySnapshot(); };
             layerInk.StrokesDeleted += delegate { QueuePaperRefresh(); QueueHistorySnapshot(); };
             layerInk.Enabled = true;
             snapshotPending=true;

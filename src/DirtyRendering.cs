@@ -25,7 +25,7 @@ namespace gInk
                 c.SpotLightMode || c.SpotLightTemp || MemoSpotLight ||
                 Root.CursorX0==int.MinValue || Root.CursorY0==int.MinValue ||
                 !(tool==Tools.Line || tool==Tools.Poly || tool==Tools.Rect || tool==Tools.Oval ||
-                  tool==Tools.StartArrow || tool==Tools.EndArrow || tool==Tools.ClipArt))
+                  tool==Tools.StartArrow || tool==Tools.EndArrow || tool==Tools.ClipArt || c.DrawingLockedBrush))
                 return false;
             if(previewFrameValid && previewTool==tool && previewX0==Root.CursorX0 && previewY0==Root.CursorY0 &&
                 previewX==Root.CursorX && previewY==Root.CursorY && previewButton==c.CurrentMouseButton)

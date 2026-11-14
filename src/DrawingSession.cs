@@ -637,7 +637,6 @@ namespace gInk
                 ToolbarMoved = false;
                 MouseTimeDown = DateTime.Now;
                 btTool_Click(button, null);
-                FromHandToLineOnShift = false;
             };
             if (Matches(Root.Hotkey_Hand)) return Tool(btHand);
             if (Matches(Root.Hotkey_Line)) return Tool(btLine);

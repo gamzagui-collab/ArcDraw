@@ -111,6 +111,7 @@
     <Compile Include="Apng\Helper.cs" />
     <Compile Include="Apng\Frame.cs" />
     <Compile Include="BuildTimestamp.cs" />
+    <Compile Include="DrawingDirection.cs" />
     <Compile Include="CallForm.cs">
       <SubType>Form</SubType>
     </Compile>

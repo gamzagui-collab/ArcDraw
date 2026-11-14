@@ -115,7 +115,6 @@ namespace gInk
         private int PolyLineLastX = Int32.MinValue;
         private int PolyLineLastY = Int32.MinValue;
         private Stroke PolyLineInProgress = null;
-        private bool FromHandToLineOnShift = false;
 
         public bool SnapWithoutClosing = false;
 
@@ -2611,6 +2610,8 @@ namespace gInk
 
         private void IC_Stroke(object sender, InkCollectorStrokeEventArgs e)
         {
+            DrawingDirection direction = screenDirection;
+            screenDirection = DrawingDirection.Free;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("del");
@@ -2619,6 +2620,11 @@ namespace gInk
             }
             Rectangle r = e.Stroke.GetBoundingBox(BoundingBoxMode.PointsOnly);
             bool HitTouch = Math.Max(r.Width, r.Height) < 2 * e.Stroke.DrawingAttributes.Width;    // To take into account PenWidth extension done by GetBoundingBox
+            if (direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+            {
+                Point pointer = Root.FormDisplay.PointToClient(MousePosition);
+                HitTouch = Math.Abs(pointer.X - Root.CursorX0) < 2 && Math.Abs(pointer.Y - Root.CursorY0) < 2;
+            }
             //Console.WriteLine(string.Format("IC_Stroke X0={0} X0=X{1} / Type{2} / Hit{3}", Root.CursorX0, (Root.CursorX0== Root.CursorX)&&(Root.CursorY0 == Root.CursorY), e.Cursor.Tablet.DeviceKind.ToString(),HitTouch));
             movedStroke = null; // reset the moving object
             Root.FingerInAction = false;        // this is done a little before MouseUp ; but it looks like the one from MouseUp is not always done...
@@ -2676,11 +2682,18 @@ namespace gInk
                 Console.WriteLine("Hand");
                 //Stroke st = e.Stroke;// IC.Ink.Strokes[IC.Ink.Strokes.Count-1];
                 Stroke st = e.Stroke;// IC.Ink.Strokes[IC.Ink.Strokes.Count-1];
+                if (direction != DrawingDirection.Free)
+                {
+                    if (st.ExtendedProperties.Contains(Root.ISHIDDEN_GUID))
+                        st.ExtendedProperties.Remove(Root.ISHIDDEN_GUID);
+                    DrawingDirectionLock.Straighten(st, IC.Renderer, Root.FormDisplay.gOneStrokeCanvus, direction,
+                        Root.FormDisplay.PointToClient(MousePosition));
+                }
                 try
                 {
                     //if (e.Stroke.GetPoint(0).Equals(e.Stroke.GetPoint(1)) || e.Stroke.GetPoint(0).Equals(e.Stroke.GetPoint(2)))
                     //    st.SetPoints(st.GetPoints(1, st.GetPoints().Length - 1));
-                    if (e.Stroke.GetPoints().Length >= 3)
+                    if (direction == DrawingDirection.Free && e.Stroke.GetPoints().Length >= 3)
                         if (e.Stroke.GetPoint(0).Equals(e.Stroke.GetPoint(2)))
                             st.SetPoint(0, e.Stroke.GetPoint(1));
                 } catch { }
@@ -2750,6 +2763,13 @@ namespace gInk
                         InprogressSelection.Remove(e.Stroke);
                     }
                     Console.WriteLine("Lasso capt " + InprogressSelection?.Count.ToString() ?? "0");
+                }
+                if (Root.ToolSelected == Tools.Line && direction != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+                {
+                    Point end = Root.FormDisplay.PointToClient(MousePosition);
+                    Root.CursorX = end.X;
+                    Root.CursorY = end.Y;
+                    SnapScreenEnd(direction);
                 }
                 IC.Ink.DeleteStroke(e.Stroke); // the stroke that was just inserted has to be replaced.
 
@@ -3096,17 +3116,32 @@ namespace gInk
         Stroke movedStroke = null;
 
 
+        private DrawingDirection screenDirection;
+        internal bool DrawingLockedBrush => screenDirection != DrawingDirection.Free && Root.ToolSelected == Tools.Hand;
+
+        private void SnapScreenEnd(DrawingDirection direction)
+        {
+            Point point = DrawingDirectionLock.Snap(new Point(Root.CursorX0, Root.CursorY0),
+                new Point(Root.CursorX, Root.CursorY), direction);
+            Root.CursorX = point.X;
+            Root.CursorY = point.Y;
+        }
+
         private void IC_CursorDown(object sender, InkCollectorCursorDownEventArgs e)
         {
             Control hit = Control.FromHandle(WindowFromPoint(System.Windows.Forms.Cursor.Position));
             if (Root.Whiteboards != null && hit != null && hit.FindForm() == this &&
                 !gpButtons.ClientRectangle.Contains(gpButtons.PointToClient(System.Windows.Forms.Cursor.Position))) Root.Whiteboards.SelectScreen();
             Console.WriteLine("CursorDown :" + e.Cursor.Tablet.DeviceKind.ToString());
+            screenDirection = DrawingDirection.Free;
             if (e.Cursor.Inverted)
             {
                 Console.WriteLine("!!!del");
                 return;
             }
+            if (!ZoomCapturing && !Root.EraserMode && !Root.LassoMode && !Root.PanMode && !Root.PointerMode &&
+                Root.Snapping == 0 && (Root.ToolSelected == Tools.Hand || Root.ToolSelected == Tools.Line))
+                screenDirection = DrawingDirectionLock.Read();
             if (ZoomCapturing)
             {
                 e.Stroke.ExtendedProperties.Add(Root.ISHIDDEN_GUID, true); // we set the ISTROKE_GUID in order to draw the inprogress as a line
@@ -3114,7 +3149,7 @@ namespace gInk
                 e.Stroke.DrawingAttributes.Transparency = 0;
                 e.Stroke.DrawingAttributes.Width = Root.PixelToHiMetric(1);
             }
-            else if (Root.ToolSelected == Tools.Hand)
+            else if (Root.ToolSelected == Tools.Hand && !DrawingLockedBrush)
                 e.Stroke.ExtendedProperties.Add(Root.ISSTROKE_GUID, true); // we set the ISTROKE_GUID in order to draw the inprogress as a line
             else
                 e.Stroke.ExtendedProperties.Add(Root.ISHIDDEN_GUID, true); // Others should be hidden.
@@ -3254,7 +3289,7 @@ namespace gInk
                 Root.CursorX0 = e.X;
                 Root.CursorY0 = e.Y;
             }
-            if (Root.ToolSelected != Tools.Hand && !Root.LassoMode)
+            if (Root.ToolSelected != Tools.Hand && !Root.LassoMode && screenDirection == DrawingDirection.Free)
                 MagneticEffect(Root.CursorX0 - 1, Root.CursorY0, ref Root.CursorX0, ref Root.CursorY0, Root.MagneticRadius > 0); // analysis of magnetic will be done within the function
             if (Root.InkVisible)
             {
@@ -3469,6 +3504,8 @@ namespace gInk
                 else
                     Root.CursorY = (int)(Root.CursorY0 + (Root.CursorX - Root.CursorX0) / ZoomScreenRatio * Math.Sign(Root.CursorY - Root.CursorY0) * Math.Sign(Root.CursorX - Root.CursorX0));
             }
+            else if (screenDirection != DrawingDirection.Free && Root.CursorX0 != int.MinValue)
+                SnapScreenEnd(screenDirection);
             else if (Root.ToolSelected != Tools.Hand)
                 MagneticEffect(Root.CursorX0, Root.CursorY0, ref Root.CursorX, ref Root.CursorY, Root.ToolSelected > Tools.Hand && Root.MagneticRadius > 0);
 
@@ -5974,7 +6011,6 @@ namespace gInk
                 if (pressed && !LastEraserStatus && Root.Hotkey_Eraser.ModifierMatch(control, alt, shift, win))
                 {
                     SelectPen(-1);
-                    FromHandToLineOnShift = false;
                 }
                 LastEraserStatus = pressed;
 
@@ -6024,7 +6060,6 @@ namespace gInk
                 if (pressed && !LastPanStatus && Root.Hotkey_Pan.ModifierMatch(control, alt, shift, win))
                 {
                     btPan_Click(null, null);//SelectPen(-3);
-                    FromHandToLineOnShift = false;
                 }
                 LastPanStatus = pressed;
 
@@ -6035,7 +6070,6 @@ namespace gInk
                         btScaleRot_Click(0, null);
                     else
                         btScaleRot_Click(1, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastScaleRotStatus = pressed;
 
@@ -6064,7 +6098,6 @@ namespace gInk
                 if (pressed && !LastVideoStatus && Root.Hotkey_Video.ModifierMatch(control, alt, shift, win))
                 {
                     btVideo_Click(null, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastVideoStatus = pressed;
 
@@ -6072,7 +6105,6 @@ namespace gInk
                 if (pressed && !LastDockStatus && Root.Hotkey_DockUndock.ModifierMatch(control, alt, shift, win))
                 {
                     btDock_Click(null, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastDockStatus = pressed;
 
@@ -6084,7 +6116,6 @@ namespace gInk
                     else
                         MouseTimeDown = DateTime.Now;
                     btSnap_Click(btSnap, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastSnapStatus = pressed;
 
@@ -6095,20 +6126,6 @@ namespace gInk
                 }
                 LastHandStatus = pressed;
 
-                // if shift is pressed in handtool we go to line tool temporaly
-                if (Root.AltAsOneCommand >= 1)
-                {
-                    if (Root.ToolSelected == Tools.Hand && (shift || control))
-                    {
-                        btTool_Click(btLine, null);
-                        FromHandToLineOnShift = true;
-                    }
-                    if (FromHandToLineOnShift && !(shift || control))
-                    {
-                        btTool_Click(btHand, null);
-                        FromHandToLineOnShift = false;
-                    }
-                }
                 pressed = (GetKeyState(Root.Hotkey_Line.Key) & 0x8000) == 0x8000;
                 if (pressed && !LastLineStatus && Root.Hotkey_Line.ModifierMatch(control, alt, shift, win))
                 {
@@ -6120,7 +6137,6 @@ namespace gInk
                 if (pressed && !LastRectStatus && Root.Hotkey_Rect.ModifierMatch(control, alt, shift, win))
                 {
                     btTool_Click(btRect, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastRectStatus = pressed;
 
@@ -6128,7 +6144,6 @@ namespace gInk
                 if (pressed && !LastOvalStatus && Root.Hotkey_Oval.ModifierMatch(control, alt, shift, win))
                 {
                     btTool_Click(btOval, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastOvalStatus = pressed;
 
@@ -6144,14 +6159,12 @@ namespace gInk
                     MouseTimeDown = DateTime.Now;
                     LastArrowStatus = pressed; // btSave will be long... to prevent to restart process...
                     btTool_Click(btArrow, null);
-                    FromHandToLineOnShift = false;
                 }
                 if (LastArrowStatus && pressed && DateTime.Now.CompareTo(LongHkPress) > 0)
                 {
                     LongHkPress = DateTime.Now.AddYears(1);
                     MouseTimeDown = DateTime.FromBinary(0);
                     btTool_Click(btArrow, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastArrowStatus = pressed;
 
@@ -6160,7 +6173,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     btTool_Click(btNumb, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastNumbStatus = pressed;
 
@@ -6169,7 +6181,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     btTool_Click(btText, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastTextStatus = pressed;
 
@@ -6185,7 +6196,6 @@ namespace gInk
                 if (pressed && !LastMoveStatus && Root.Hotkey_Move.ModifierMatch(control, alt, shift, win))
                 {
                     btPan_Click(null, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastMoveStatus = pressed;
 
@@ -6207,7 +6217,6 @@ namespace gInk
                 if (pressed && !LastClipArtStatus && Root.Hotkey_ClipArt.ModifierMatch(control, alt, shift, win))
                 {
                     btTool_Click(btClipArt, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastClipArtStatus = pressed;
 
@@ -6216,7 +6225,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     btTool_Click(btClip1, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastClipArt1Status = pressed;
 
@@ -6225,7 +6233,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     btTool_Click(btClip2, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastClipArt2Status = pressed;
 
@@ -6234,7 +6241,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     btTool_Click(btClip3, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastClipArt3Status = pressed;
 
@@ -6243,7 +6249,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     PenWidth_Change(Root.PenWidth_Delta);
-                    FromHandToLineOnShift = false;
                 }
                 LastPenWidthPlus = pressed;
 
@@ -6252,7 +6257,6 @@ namespace gInk
                 {
                     MouseTimeDown = DateTime.Now;
                     PenWidth_Change(-Root.PenWidth_Delta);
-                    FromHandToLineOnShift = false;
                 }
                 LastPenWidthMinus = pressed;
 
@@ -6263,7 +6267,6 @@ namespace gInk
                         StartStopPickUpColor(1);
                     else
                         StartStopPickUpColor(0);
-                    FromHandToLineOnShift = false;
                 }
                 LastColorPickupStatus = pressed;
 
@@ -6271,7 +6274,6 @@ namespace gInk
                 if (pressed && !LastLassoStatus && Root.Hotkey_Lasso.ModifierMatch(control, alt, shift, win))
                 {
                     btLasso_Click(null, null);
-                    FromHandToLineOnShift = false;
                 }
                 LastLassoStatus = pressed;
 
@@ -6280,7 +6282,6 @@ namespace gInk
                 {
                     if (Root.CurrentPen >= 0)
                         btColor_LongClick(btPen[Root.CurrentPen]);
-                    FromHandToLineOnShift = false;
                 }
                 LastColorEditStatus = pressed;
 
@@ -6289,7 +6290,6 @@ namespace gInk
                 {
                     if (Root.CurrentPen >= 0)
                         SelectNextLineStyle(btPen[Root.CurrentPen]);
-                    FromHandToLineOnShift = false;
                 }
                 LastLineStyleStatus = pressed;
 

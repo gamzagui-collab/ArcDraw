@@ -19,6 +19,12 @@ namespace gInk
         private int noteTool=Tools.Invalid,noteGestureTool,noteGestureFill,notePolylineId=-1;
         private Point[] notePolyline;
         private Point noteStart,noteEnd;
+        private DrawingDirection noteGestureDirection, noteBrushDirection;
+        private bool noteBrushActive;
+        private DrawingDirection pressedNoteDirection;
+        private Stroke noteBrushStroke;
+        private Point lockedNoteStart, lockedNoteEnd;
+        private DrawingAttributes lockedNotePen;
         private MouseButtons noteGestureButton;
         private DrawingAttributes noteGesturePen;
         private DrawingAttributes noteCurrentPen;
@@ -63,6 +69,8 @@ namespace gInk
             // Initialize the entire gesture before calls that can pump messages.
             // A fast mouse-up must not be lost inside an Ink COM attribute getter.
             noteGesturePen=noteCurrentPen;noteGestureArrowLength=noteArrowLength;
+            noteGestureDirection = noteGestureTool == Tools.Hand || noteGestureTool == Tools.Line
+                ? DrawingDirectionLock.Read() : DrawingDirection.Free;
             noteStart=noteGestureTool==Tools.Poly&&notePolyline!=null?notePolyline[notePolyline.Length-1]:OnPaper(e.Location);
             noteEnd=OnPaper(e.Location);noteInputPoints.Clear();noteInputPoints.Add(noteStart);
             noteGesture=true;paper.Capture=true;
@@ -72,21 +80,23 @@ namespace gInk
         private void NoteShapeMouseMove(object sender,MouseEventArgs e)
         {
             if(!noteGesture)return;
-            Point next=OnPaper(e.Location);if(next==noteEnd)return;
+            Point next=NoteGesturePoint(e.Location);if(next==noteEnd)return;
             Rectangle old=PreviewBounds();noteEnd=next;
-            if(noteGestureTool==Tools.Hand)noteInputPoints.Add(next);
+            if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free)noteInputPoints.Add(next);
             paper.Invalidate(Rectangle.Union(old,PreviewBounds()));
         }
         private void NoteShapeMouseUp(object sender,MouseEventArgs e)
         {
             if(!noteGesture||e.Button!=noteGestureButton)return;
-            noteEnd=OnPaper(e.Location);if(noteGestureTool==Tools.Hand&&noteInputPoints[noteInputPoints.Count-1]!=noteEnd)noteInputPoints.Add(noteEnd);
+            Rectangle old = PreviewBounds();
+            noteEnd=NoteGesturePoint(e.Location);
+            if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free && noteInputPoints[noteInputPoints.Count-1]!=noteEnd)noteInputPoints.Add(noteEnd);
             Point[] points=NoteGeometry();Rectangle dirty=PreviewBounds();bool moved=false;
             foreach(Point point in points)if(point!=points[0]){moved=true;break;}
             noteCommitBlocked=false;
             if(moved)pendingNotePath=new NotePath {Points=points,Pen=noteGesturePen,Tool=noteGestureTool,Fill=noteGestureFill,
                 ReplaceId=noteGestureTool==Tools.Poly?notePolylineId:-1};
-            noteGesture=false;noteGesturePen=null;paper.Capture=false;noteInputPoints.Clear();paper.Invalidate(dirty);
+            noteGesture=false;noteGesturePen=null;paper.Capture=false;noteInputPoints.Clear();paper.Invalidate(Rectangle.Union(old, dirty));
             if(pendingNotePath!=null)QueueInkWork();
         }
         private void CancelNoteGesture()
@@ -96,7 +106,7 @@ namespace gInk
         }
         private Point[] NoteGeometry()
         {
-            if(noteGestureTool==Tools.Hand)return noteInputPoints.ToArray();
+            if(noteGestureTool==Tools.Hand && noteGestureDirection == DrawingDirection.Free)return noteInputPoints.ToArray();
             Point a=noteStart,b=noteEnd;
             if(noteGestureTool==Tools.Poly)
             {
@@ -121,6 +131,97 @@ namespace gInk
                 return new[]{a,b,first,b,second};
             }
             return new[]{a,b};
+        }
+
+        private Point NoteGesturePoint(Point point) =>
+            DrawingDirectionLock.SnapWithin(noteStart, OnPaper(point), noteGestureDirection, paper.ClientRectangle);
+
+        private void BeginLockedNoteBrush(InkCollectorCursorDownEventArgs args)
+        {
+            noteBrushDirection = DrawingDirection.Free;
+            noteBrushActive = false;
+            noteBrushStroke = null;
+            lockedNotePen = null;
+            if (closing || sessionSuspended || textMode || lastEraser || args.Cursor.Inverted || noteTool != Tools.Hand)
+                return;
+            noteBrushActive = true;
+            noteBrushStroke = args.Stroke;
+            DrawingDirection direction = pressedNoteDirection != DrawingDirection.Free
+                ? pressedNoteDirection : DrawingDirectionLock.Read();
+            if (direction == DrawingDirection.Free) return;
+            using (Graphics graphics = paper.CreateGraphics())
+            {
+                lockedNoteStart = args.Stroke.GetPoint(0);
+                layerInk.Renderer.InkSpaceToPixel(graphics, ref lockedNoteStart);
+            }
+            ShowLockedNoteBrush(args.Stroke, lockedNoteStart, direction);
+        }
+
+        private void BeginLockedNoteBrush(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || noteCustomMode || closing || textMode || lastEraser || noteTool != Tools.Hand) return;
+            pressedNoteDirection = DrawingDirectionLock.Read();
+            if (!noteBrushActive || lockedNotePen != null || pressedNoteDirection == DrawingDirection.Free) return;
+            if (noteBrushStroke != null)
+                ShowLockedNoteBrush(noteBrushStroke, e.Location, pressedNoteDirection);
+        }
+
+        private void ShowLockedNoteBrush(Stroke stroke, Point origin, DrawingDirection direction)
+        {
+            lockedNoteStart = lockedNoteEnd = OnPaper(origin);
+            lockedNotePen = stroke.DrawingAttributes.Clone();
+            noteBrushDirection = direction;
+            // Keep the native stroke for pressure and pen-up, and paint the snapped preview.
+            stroke.DrawingAttributes.Transparency = 255;
+            paper.Invalidate(LockedNoteBrushBounds());
+        }
+
+        private void UpdateLockedNoteBrush(Point point)
+        {
+            if (closing) return;
+            if (noteBrushActive && lockedNotePen == null && noteBrushStroke != null)
+            {
+                DrawingDirection direction = DrawingDirectionLock.Read();
+                if (direction != DrawingDirection.Free)
+                {
+                    Point origin = noteBrushStroke.GetPoint(0);
+                    using (Graphics graphics = paper.CreateGraphics())
+                        layerInk.Renderer.InkSpaceToPixel(graphics, ref origin);
+                    ShowLockedNoteBrush(noteBrushStroke, origin, direction);
+                }
+            }
+            if (lockedNotePen == null) return;
+            Point end = DrawingDirectionLock.SnapWithin(lockedNoteStart, OnPaper(point), noteBrushDirection, paper.ClientRectangle);
+            if (end == lockedNoteEnd) return;
+            Rectangle old = LockedNoteBrushBounds();
+            lockedNoteEnd = end;
+            paper.Invalidate(Rectangle.Union(old, LockedNoteBrushBounds()));
+        }
+
+        private Rectangle LockedNoteBrushBounds()
+        {
+            var bounds = Rectangle.FromLTRB(Math.Min(lockedNoteStart.X, lockedNoteEnd.X), Math.Min(lockedNoteStart.Y, lockedNoteEnd.Y),
+                Math.Max(lockedNoteStart.X, lockedNoteEnd.X) + 1, Math.Max(lockedNoteStart.Y, lockedNoteEnd.Y) + 1);
+            bounds.Inflate(notePreviewWidth + 4, notePreviewWidth + 4);
+            return bounds;
+        }
+
+        private void FinishLockedNoteBrush(Stroke stroke)
+        {
+            if (!noteBrushActive) return;
+            noteBrushActive = false;
+            noteBrushStroke = null;
+            DrawingAttributes pen = lockedNotePen;
+            DrawingDirection direction = pen != null ? noteBrushDirection :
+                pressedNoteDirection != DrawingDirection.Free ? pressedNoteDirection : DrawingDirectionLock.Read();
+            pressedNoteDirection = DrawingDirection.Free;
+            lockedNotePen = null;
+            if (pen != null) stroke.DrawingAttributes = pen;
+            if (!closing && direction != DrawingDirection.Free)
+                using (Graphics graphics = paper.CreateGraphics())
+                    DrawingDirectionLock.Straighten(stroke, layerInk.Renderer, graphics, direction,
+                        OnPaper(paper.PointToClient(MousePosition)), paper.ClientRectangle);
+            noteBrushDirection = DrawingDirection.Free;
         }
         private Rectangle PreviewBounds()
         {
@@ -212,6 +313,8 @@ namespace gInk
         }
         private void DrawNotePreview(Graphics g)
         {
+            if (lockedNotePen != null)
+                DrawNotePath(g, new[] { lockedNoteStart, lockedNoteEnd }, lockedNotePen, Filling.Empty, true);
             if(!noteGesture||noteGesturePen==null)return;
             DrawNotePath(g,NoteGeometry(),noteGesturePen,noteGestureFill,true);
         }

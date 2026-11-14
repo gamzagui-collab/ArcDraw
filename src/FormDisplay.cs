@@ -872,7 +872,7 @@ namespace gInk
                 if (Root.FormCollection.ZoomCapturing)
                     DrawRectOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, da, ds);
                 //DrawRectOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY,Root.FormCollection.IC.Ink.Strokes[Root.FormCollection.IC.Ink.Strokes.Count-1].DrawingAttributes);
-                else if ((Root.ToolSelected == Tools.Line) || (Root.ToolSelected == Tools.Poly))
+                else if ((Root.ToolSelected == Tools.Line) || (Root.ToolSelected == Tools.Poly) || Root.FormCollection.DrawingLockedBrush)
                     DrawLineOnGraphic(g, CursorX0, CursorY0, CursorX, CursorY, da, ds);
                 else if ((Root.ToolSelected == Tools.Rect) || (Root.ToolSelected == Tools.ClipArt) || (Root.ToolSelected == Tools.PatternLine && Root.FormCollection.PatternLineSteps == 0))
                     if ((Root.FormCollection.CurrentMouseButton == MouseButtons.Right) || ((int)(Root.FormCollection.CurrentMouseButton) == 2))
@@ -1184,7 +1184,8 @@ namespace gInk
 				if (strokes.Count > 0)
 				{
 					Stroke stroke = strokes[strokes.Count - 1];
-					if ((!stroke.Deleted) && (!Root.FormCollection.ZoomCapturing)&&(Root.ToolSelected == Tools.Hand))
+					if ((!stroke.Deleted) && (!Root.FormCollection.ZoomCapturing)&&(Root.ToolSelected == Tools.Hand) &&
+                        !Root.FormCollection.DrawingLockedBrush)
                     {
                         if(PrepareHandFrame(stroke))UpdateFormDisplay(true,true);
                     }
@@ -1279,7 +1280,7 @@ namespace gInk
                     Stroke stroke = strokes[strokes.Count - 1];
                     if (stroke.Deleted) return;
                     DXInProgressGraphics.Clear(Color.Transparent);
-                    if (Root.ToolSelected == Tools.Hand)
+                    if (Root.ToolSelected == Tools.Hand && !Root.FormCollection.DrawingLockedBrush)
                         DrawOneStroke(DXInProgressGraphics, stroke, Root.FormCollection.IC.DefaultDrawingAttributes, DXInprogressBmp);
                     else
                         DrawCustomOnGraphic(DXInProgressGraphics, Root.CursorX0, Root.CursorY0, Root.CursorX, Root.CursorY);
