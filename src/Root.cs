@@ -382,6 +382,7 @@ namespace gInk
         public List<string> ArrowTail = new List<string>();
 
         public NotifyIcon trayIcon;
+        private ArcDrawUpdates updates;
         internal ScreenFrame ScreenFrame { get; private set; }
 		public ContextMenu trayMenu;
 		public FormCollection FormCollection;
@@ -550,6 +551,7 @@ namespace gInk
 			trayMenu.MenuItems.Add(Local.MenuEntryAbout + "...", OnAbout);
 			trayMenu.MenuItems.Add(Local.MenuEntryOptions + "...", OnOptions);
             trayMenu.MenuItems.Add("화면 액자…", OnScreenFrame);
+            trayMenu.MenuItems.Add("업데이트 확인…", OnCheckForUpdates);
 			trayMenu.MenuItems.Add("-");
 			trayMenu.MenuItems.Add(Local.MenuEntryExit, OnExit);
 
@@ -627,6 +629,7 @@ namespace gInk
 
         private void TrayIcon_BalloonTipClicked(object sender, EventArgs e)
 		{
+            if (updates?.OpenNotification() == true) return;
             //string snapbasepath = SnapshotBasePath;
             //snapbasepath = Environment.ExpandEnvironmentVariables(snapbasepath);
             //System.Diagnostics.Process.Start(snapbasepath);            
@@ -814,6 +817,9 @@ namespace gInk
 
         public void ShowBalloonSnapshot()
 		{
+            updates?.DismissNotification();
+            trayIcon.BalloonTipTitle = "";
+            trayIcon.BalloonTipText = Local.NotificationSnapshot;
 			trayIcon.ShowBalloonTip(3000);
 		}
 
@@ -2817,14 +2823,47 @@ namespace gInk
 			trayMenu.MenuItems.Add(Local.MenuEntryAbout + "...", OnAbout);
 			trayMenu.MenuItems.Add(Local.MenuEntryOptions + "...", OnOptions);
             trayMenu.MenuItems.Add("화면 액자…", OnScreenFrame);
+            trayMenu.MenuItems.Add("업데이트 확인…", OnCheckForUpdates);
 			trayMenu.MenuItems.Add("-");
 			trayMenu.MenuItems.Add(Local.MenuEntryExit, OnExit);
 		}
 
         private void OnScreenFrame(object sender, EventArgs e) => ScreenFrame.ShowOptions();
 
+        internal void StartUpdateCheck()
+        {
+            if (updates == null) updates = new ArcDrawUpdates(this);
+            updates.Check(false);
+        }
+
+        private void OnCheckForUpdates(object sender, EventArgs e)
+        {
+            if (updates == null) updates = new ArcDrawUpdates(this);
+            updates.Check(true);
+        }
+
+        internal void ExitForUpdate(Action launchInstaller)
+        {
+            FormCollection drawing = FormCollection;
+            if (drawing?.Visible == true)
+            {
+                if (drawing.ScreenContentBusy || drawing.IC.CollectingInk || Whiteboards.HasBusyInk ||
+                    FormDisplay.ScreenTextEditor?.Visible == true)
+                    throw new InvalidOperationException("현재 입력을 마친 뒤 다시 시도해 주세요.");
+                if (drawing.IC.Ink.Strokes.Count > 0)
+                {
+                    string folder = Path.GetFullPath(Environment.ExpandEnvironmentVariables(SaveStrokesPath));
+                    Directory.CreateDirectory(folder);
+                    drawing.SaveStrokes(Path.Combine(folder, "AutoSave.strokes.txt"));
+                }
+            }
+            launchInstaller();
+            OnExit(this, EventArgs.Empty);
+        }
+
         private void OnExit(object sender, EventArgs e)
 		{
+            updates?.Dispose();
 			if (DrawingSession != null) DrawingSession.Dispose();
             ScreenFrame?.Dispose();
 			UnsetHotkey();

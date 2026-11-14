@@ -43,11 +43,21 @@ namespace gInk
         [STAThread]
 		static void Main(string [] args)
 		{
+            if (args.Length > 0 && args[0] == ArcDrawUpdateInstaller.WorkerArgument)
+            {
+                ArcDrawUpdateInstaller.Run(args);
+                return;
+            }
             if (args.Length == 2 && args[0] == ScreenFrameAppBars.WorkerArgument)
             {
                 ScreenFrameAppBars.RunWorker(args[1]);
                 return;
             }
+            RunApplication(args);
+        }
+
+        private static void RunApplication(string[] args)
+        {
             // force loading of local DLL 
             Console.WriteLine("version " + Assembly.GetExecutingAssembly().GetName().Version.ToString() + " built on " + Build.Timestamp);
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");  // This ensure proper String processing whatever Operating Language
@@ -153,6 +163,13 @@ namespace gInk
                 Console.WriteLine(string.Format("Found: {0} - {1}", a.FullName,a.Location));
             }
 
+            EventHandler checkUpdates = null;
+            checkUpdates = delegate
+            {
+                Application.Idle -= checkUpdates;
+                frm.Root.StartUpdateCheck();
+            };
+            Application.Idle += checkUpdates;
             Application.Run();
             FreeConsole();
 		}

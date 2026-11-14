@@ -5,7 +5,7 @@
 **Windows 화면 필기와 독립적인 화이트보드 노트를 함께 사용하는 앱입니다.**
 ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테마 등을 추가했습니다.
 
-**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.61-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
+**[Windows 실행 ZIP 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest/download/ArcDraw-v0.62-windows-x86.zip)** · [릴리스 안내](https://github.com/gamzagui-collab/ArcDraw/releases)
 
 ## 실행 방법
 
@@ -50,11 +50,11 @@ ppInk/gInk를 바탕으로 노트별 텍스트, CAPS 입력 전환, 툴바 테�
 
 화면 또는 노트를 선택한 뒤 삭제·실행 취소를 사용하세요. 노트를 선택한 뒤 T로 상단부터 메모합니다. 기존 배치 글자는 제목 우클릭에서 편집하며 제목 옆 ✎로 이름과 해당 노트 메모의 글꼴·크기·색상을 바꿉니다.
 
-## v0.61 화면 액자 장식과 작업 영역 편집
+## v0.62 GitHub 업데이트 알림과 설치
 
-테마 카드 위에 마우스를 올리면 확대 미리보기가 나타나고, 카드에서 벗어나면 닫힙니다. 카드를 누르면 현재 화면에 바로 적용됩니다. 스피드런, 숲속 감성, 자연명상의 장식은 비율을 유지하고 연결 테두리를 새로 그립니다. 화면 액자 → 영역 편집에서 반투명 상자의 안쪽을 끌어 옮기거나 가장자리를 끌어 크기를 바꿀 수 있습니다. 적용을 누르면 Windows 작업 영역을 저장하고, 자동 영역을 누르면 테마에 맞춘 자동 여백으로 돌아갑니다.
+ArcDraw 시작 시 GitHub의 최신 정식 릴리스를 확인합니다. 새 버전 알림을 누르거나 트레이 메뉴에서 업데이트 확인을 선택하세요. 확인 후 다운로드한 ZIP과 설치 파일의 SHA-256을 검증하고, 앱을 정상 종료한 뒤 교체 및 재시작합니다. 노트와 설정을 보존하며, 교체한 이전 파일은 Windows 사용자 폴더의 ArcDraw/Updates에 보관합니다. v0.61 이전 사용자는 v0.62를 한 번 직접 설치해야 합니다.
 
-Windows Release|x86 빌드, 확대 미리보기와 즉시 적용, 작업 영역 이동·크기 조절·적용·저장·원복을 확인했습니다.
+Windows Release|x86 빌드, GitHub 응답과 새 버전 감지, 해시 불일치 거부, 격리 환경의 교체·백업·재실행을 확인했습니다.
 
 자세한 사용법은 [설정 안내](docs/SETTINGS_KO.md)를 참고하세요.
 
