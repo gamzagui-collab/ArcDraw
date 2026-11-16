@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.92](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.92)
+
+- **판타지 장식** 10종(SVG)과 **귀여운 액자** 10종(원본 투명 PNG)을 추가했습니다. 내장 액자는 총 130종입니다.
+- **화면 액자 → 테마 → AI 제작 프롬프트 복사하기**에서 주제, 해상도, 추가 요청사항을 입력할 수 있습니다. 해상도는 대상 화면을 기본값으로 사용하며 복사한 프롬프트에 화면 비율과 SVG viewBox가 반영됩니다.
+- **전체 인코딩**은 내장 SVG 120종을 미리 변환합니다. PNG 액자는 바로 사용할 수 있습니다.
+
 ## [v0.91](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.91)
 
 - **화면 액자 → 테두리 폭**으로 액자 바깥을 화면 가장자리에 고정한 채 안쪽으로 차지하는 폭을 조절합니다.
