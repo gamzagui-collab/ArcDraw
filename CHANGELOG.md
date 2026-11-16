@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.87](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.87)
+
+- **사이버펑크 네온** 액자 미리보기의 메모리 급증과 테마 선택 중 발생하는 오류를 수정했습니다.
+- 액자를 그릴 수 없을 때 액자와 작업 영역 예약을 해제해 앱을 계속 사용할 수 있습니다.
+
 ## [v0.86](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.86)
 
 - 내장 화면 액자를 SVG로 제작된 **엔틱 골드**, **모던 크롬**, **사이버펑크 네온** 세 가지로 교체했습니다.
