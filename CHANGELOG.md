@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.91](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.91)
+
+- **화면 액자 → 테두리 폭**으로 액자 바깥을 화면 가장자리에 고정한 채 안쪽으로 차지하는 폭을 조절합니다.
+- 범위는 80~120%이며 100%는 원본입니다. 모서리는 가로와 세로를 같은 비율로 조정합니다.
+- 폭을 조절할 때 이미 인코딩한 SVG의 PNG 캐시를 사용합니다.
+
 ## [v0.90](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.90)
 
 - SVG 화면 액자의 첫 변환은 백그라운드에서 진행되며 선택 창에 **인코딩 중**이 표시됩니다.
