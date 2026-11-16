@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.93](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.93)
+
+- **내 액자 추가**에서 SVG, PNG, JPEG를 여러 개 선택할 수 있습니다. 일부 파일을 열 수 없어도 나머지는 가져옵니다.
+- 4K 벡터 **설원** 액자 10종을 131~140번으로 추가했습니다. 내장 테마는 총 140종이고, 전체 인코딩은 SVG 130종을 대상으로 합니다.
+
 ## [v0.92](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.92)
 
 - **판타지 장식** 10종(SVG)과 **귀여운 액자** 10종(원본 투명 PNG)을 추가했습니다. 내장 액자는 총 130종입니다.
