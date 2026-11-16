@@ -2,9 +2,11 @@
 
 ArcDraw는 **지금 보고 있는 Windows 화면 위에 바로 그리거나 글을 쓰는 무료 도구**입니다. 화상회의에서 화면을 설명하거나 강의와 발표에 주석을 달 수 있습니다. 화이트보드 노트, 발표 제목이나 자막을 띄우는 헤드라인, 화면 가장자리를 꾸미는 액자도 제공합니다.
 
+[![최신 버전 다운로드](assets/download-latest.png)](https://github.com/gamzagui-collab/ArcDraw/releases/latest)
+
 ![9초 ArcDraw 시연. 보고서에 펜으로 표시하고, 화이트보드 노트를 띄운 뒤 Ctrl+F4로 화면 액자를 켰다 끕니다.](assets/screenshots/arcdraw-demo.gif)
 
-[최신 버전 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 버전](https://github.com/gamzagui-collab/ArcDraw/releases) · [버전별 변경 사항](CHANGELOG.md)
+[모든 버전](https://github.com/gamzagui-collab/ArcDraw/releases) · [버전별 변경 사항](CHANGELOG.md)
 
 ## 실제 사용 화면
 
