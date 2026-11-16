@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.86](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.86)
+
+- 내장 화면 액자를 SVG로 제작된 **엔틱 골드**, **모던 크롬**, **사이버펑크 네온** 세 가지로 교체했습니다.
+- **내 액자 추가**에서 SVG, 투명 PNG, JPEG를 사용할 수 있습니다. SVG는 표시 영역에 맞춰 PNG를 생성하고, JPEG는 가운데 단색 배경을 투명하게 처리합니다.
+- Windows 화면 배율이 100%를 넘을 때 테마 메뉴도 대상 화면의 실제 픽셀 해상도를 표시합니다.
+
 ## [v0.85](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.85)
 
 - 내장 이미지 액자 100종을 투명 PNG로 바꾸고, 확대·축소할 때 가장자리 번짐과 얇은 장식의 손실을 줄였습니다.
