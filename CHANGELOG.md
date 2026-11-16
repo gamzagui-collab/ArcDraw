@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.90](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.90)
+
+- SVG 화면 액자의 첫 변환은 백그라운드에서 진행되며 선택 창에 **인코딩 중**이 표시됩니다.
+- 변환한 투명 PNG는 해상도별로 보관하며 앱을 다시 켜도 사용합니다. 기존 12개 보관 제한을 없앴습니다.
+- **화면 액자 → 테마 → 전체 인코딩**으로 내장 110종을 현재 표시 영역에 맞춰 준비합니다. 취소 후 다시 시작하면 저장된 항목을 건너뜁니다.
+
 ## [v0.89](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.89)
 
 - 화면 액자 메뉴에 SVG 110종을 추가하고 클래식, 게임, 요리, 여행 등 11개 분류로 나눴습니다.
