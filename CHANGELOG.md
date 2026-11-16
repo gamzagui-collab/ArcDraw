@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.85](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.85)
+
+- 내장 이미지 액자 100종을 투명 PNG로 바꾸고, 확대·축소할 때 가장자리 번짐과 얇은 장식의 손실을 줄였습니다.
+- **내 액자 추가** 버튼 아래에 PNG 전용, 가운데 투명, 대상 화면 권장 해상도 안내를 추가했습니다.
+
 ## [v0.84](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.84)
 
 - 가운데가 투명한 PNG를 **화면 액자 → 테마 → 내 액자 추가**에서 가져올 수 있습니다. 가져온 액자는 원본 비율과 투명도를 유지합니다.
