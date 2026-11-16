@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.88](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.88)
+
+- 즐겨찾기가 비어 있으면 테마 창에서 기본 액자를 먼저 보여줍니다. 최근 사용은 즐겨찾기에서 확인할 수 있습니다.
+- SVG 액자 카드와 마우스를 올렸을 때의 확대 미리보기를 키우고, 얇은 선이 보이도록 배경과 그리기 방식을 바꿨습니다.
+
 ## [v0.87](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.87)
 
 - **사이버펑크 네온** 액자 미리보기의 메모리 급증과 테마 선택 중 발생하는 오류를 수정했습니다.
