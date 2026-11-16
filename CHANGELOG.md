@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.84](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.84)
+
+- 가운데가 투명한 PNG를 **화면 액자 → 테마 → 내 액자 추가**에서 가져올 수 있습니다. 가져온 액자는 원본 비율과 투명도를 유지합니다.
+- 테마 카드에서 원본 해상도를 확인하고, 대상 화면과 같은 해상도나 FHD·QHD·4K 등으로 거를 수 있습니다.
+- 내장 이미지 액자의 어두운 배경 번짐과 가장자리 장식의 늘어짐을 줄였습니다.
+
 ## [v0.83](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.83)
 
 - 액자를 켜면 화면 상단 중앙에 실제 종료 단축키가 표시됩니다.
