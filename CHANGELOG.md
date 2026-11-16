@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.89](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.89)
+
+- 화면 액자 메뉴에 SVG 110종을 추가하고 클래식, 게임, 요리, 여행 등 11개 분류로 나눴습니다.
+- 전체 액자는 001~110번 또는 이름으로 검색합니다. 기존 세 액자의 즐겨찾기와 최근 사용 기록을 유지합니다.
+- 액자 크기를 80~100%로 조절할 수 있습니다. 가로·세로 비율과 중앙 위치를 유지하고 크기를 자동저장합니다.
+- 16:9 벡터 원본을 화면 크기에 맞춰 표시합니다. 아이콘에는 Font Awesome Free (CC BY 4.0)를 사용했습니다.
+
 ## [v0.88](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.88)
 
 - 즐겨찾기가 비어 있으면 테마 창에서 기본 액자를 먼저 보여줍니다. 최근 사용은 즐겨찾기에서 확인할 수 있습니다.
