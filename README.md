@@ -4,6 +4,26 @@ ArcDraw는 **지금 보고 있는 Windows 화면 위에 바로 그리거나 글�
 
 [최신 버전 다운로드](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 버전](https://github.com/gamzagui-collab/ArcDraw/releases) · [버전별 변경 사항](CHANGELOG.md)
 
+## 실제 사용 화면
+
+### 화면 위에 그리기
+
+다른 앱에 열어 둔 보고서 위에 펜으로 표시하고, 화살표로 설명할 부분을 가리킵니다.
+
+![월별 참여도 그래프 위에 붉은 밑줄, 화살표, 원을 그린 ArcDraw 화면](assets/screenshots/screen-drawing.png)
+
+### 화이트보드 노트
+
+발표 순서와 회의 메모를 별도 노트에 적고, 설명 중인 화면 옆에 띄울 수 있습니다.
+
+![발표 준비 화면 위에 열린 발표 순서와 회의 메모 노트](assets/screenshots/whiteboard-notes.png)
+
+### 화면 액자
+
+방송 대기 화면에 사이버펑크 테마를 적용한 모습입니다. 상단 중앙에는 액자를 끄는 단축키가 표시됩니다.
+
+![방송 대기 화면 가장자리에 청록색과 분홍색 화면 액자를 두른 모습](assets/screenshots/screen-frame.png)
+
 ## 처음 사용하기
 
 1. 릴리스의 **ArcDraw-v버전-windows-x86.zip**을 새 폴더에 모두 풀고 **ArcDraw.exe**를 실행합니다.
