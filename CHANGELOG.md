@@ -2,6 +2,10 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.97](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.97)
+
+- v0.96 실행 파일의 내부 버전이 0.95로 남아 같은 업데이트를 반복 안내하고 설치 시 버전 불일치로 거부하던 문제를 수정했습니다.
+
 ## [v0.96](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.96)
 
 - Caps Lock을 켠 그리기 상태에서 자유펜은 ←/→로 빠른 색상을 이전·다음 순서로 고릅니다. 빠른 색상은 툴바의 색상 설정에서 1~12개로 구성할 수 있습니다.
@@ -95,3 +99,4 @@
 - 브라우저에서 동영상을 전체화면으로 보거나 F11을 눌러도 액자가 화면에 유지됩니다.
 
 이전 버전의 다운로드 및 배포 정보는 [릴리스 목록](https://github.com/gamzagui-collab/ArcDraw/releases)에서 확인할 수 있습니다.
+
