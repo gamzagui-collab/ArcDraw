@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.94](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.94)
+
+- Caps Lock을 켠 그리기 상태에서 휠 버튼을 누르면 일반 클릭과 창 드래그를 할 수 있습니다. 메모장과 작업표시줄에서도 첫 누름부터 동작합니다.
+- 툴바 설정의 테마를 주제별 전체 미리보기로 고를 수 있습니다. 카드에 마우스를 올리면 확대되고, 클릭하면 선택 창을 닫지 않고 바로 적용됩니다.
+- 툴바의 잠금 아이콘을 열면 가장자리와 모서리를 끌어 너비·높이를 조절할 수 있습니다. 잠금을 열어 둔 동안에는 그리기가 멈춥니다.
+
 ## [v0.93](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.93)
 
 - **내 액자 추가**에서 SVG, PNG, JPEG를 여러 개 선택할 수 있습니다. 일부 파일을 열 수 없어도 나머지는 가져옵니다.
