@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.95](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.95)
+
+- Caps Lock을 켠 상태에서도 툴바 잠금 아이콘을 클릭하면 열린 상태와 닫힌 상태가 즉시 표시됩니다.
+- 잠금을 연 뒤 툴바 가장자리 또는 모서리를 끌어 너비와 높이를 조절하는 입력을 수정했습니다.
+
 ## [v0.94](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.94)
 
 - Caps Lock을 켠 그리기 상태에서 휠 버튼을 누르면 일반 클릭과 창 드래그를 할 수 있습니다. 메모장과 작업표시줄에서도 첫 누름부터 동작합니다.
