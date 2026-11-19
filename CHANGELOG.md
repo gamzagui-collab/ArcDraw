@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.96](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.96)
+
+- Caps Lock을 켠 그리기 상태에서 자유펜은 ←/→로 빠른 색상을 이전·다음 순서로 고릅니다. 빠른 색상은 툴바의 색상 설정에서 1~12개로 구성할 수 있습니다.
+- 클립아트 도구에서는 같은 키로 등록된 클립아트를 이전·다음 순서로 고릅니다.
+- 컬러팝 SVG 액자 10종을 141~150번으로 추가했습니다. 내장 액자는 총 150종이며 그중 SVG는 140종입니다.
+
 ## [v0.95](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.95)
 
 - Caps Lock을 켠 상태에서도 툴바 잠금 아이콘을 클릭하면 열린 상태와 닫힌 상태가 즉시 표시됩니다.
