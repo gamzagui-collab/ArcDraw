@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.98](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.98)
+
+- 설정창의 초기 표시 속도와 툴바 크기 조절 반응을 개선했습니다.
+- 툴바와 설정 카드가 함께 이동합니다. 자물쇠는 실행할 때 잠긴 상태로 시작합니다.
+- 자물쇠를 열면 화면 중앙에 큰 안내 문구가 표시됩니다. 그리기 전환은 Caps Lock으로 조작합니다.
+
 ## [v0.97](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.97)
 
 - v0.96 실행 파일의 내부 버전이 0.95로 남아 같은 업데이트를 반복 안내하고 설치 시 버전 불일치로 거부하던 문제를 수정했습니다.
@@ -99,4 +105,3 @@
 - 브라우저에서 동영상을 전체화면으로 보거나 F11을 눌러도 액자가 화면에 유지됩니다.
 
 이전 버전의 다운로드 및 배포 정보는 [릴리스 목록](https://github.com/gamzagui-collab/ArcDraw/releases)에서 확인할 수 있습니다.
-
