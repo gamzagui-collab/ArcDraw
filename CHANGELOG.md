@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.100](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.100)
+
+- Caps Lock 필기 모드에서 ←/→로 빠른 색상과 클립아트를 이전/다음 순서로 고르는 기능을 복원했습니다.
+- 일반 설정창의 체크박스와 클립아트·돋보기·배경·텍스트·측정 항목을 겹치지 않게 정렬했습니다.
+
 ## [v0.99](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.99)
 
 - 클립아트 관리창의 제목과 파일 표시를 ArcDraw로 정리하고, 목록과 버튼 디자인을 개선했습니다.
