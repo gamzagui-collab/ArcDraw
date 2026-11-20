@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.99](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.99)
+
+- 클립아트 관리창의 제목과 파일 표시를 ArcDraw로 정리하고, 목록과 버튼 디자인을 개선했습니다.
+- 새 사용자 데이터 폴더는 `%APPDATA%\ArcDraw`입니다. 기존 설정과 필기는 첫 실행 때 복사하며 원본은 보존합니다.
+- 기본 클립아트와 새 캡처·필기의 저장 위치 이름을 ArcDraw로 바꿨습니다. 기존 필기 파일도 계속 읽습니다.
+
 ## [v0.98](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.98)
 
 - 설정창의 초기 표시 속도와 툴바 크기 조절 반응을 개선했습니다.
