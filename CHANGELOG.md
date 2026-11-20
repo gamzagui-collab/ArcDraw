@@ -2,6 +2,14 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.101](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.101)
+
+- AI 액자 프롬프트에서 게임 스크린샷을 가상 화면 배경으로 열어 지도·채팅창 등의 장식 최소화 영역을 직접 표시할 수 있습니다. 사진은 프롬프트에 첨부되지 않으며 영역 좌표만 복사됩니다.
+- 제작할 액자 수를 1~10개에서 고를 수 있습니다. 기본값은 10개입니다.
+- 설정·노트 버튼을 도구 툴바에 틈 없이 붙는 한 열로 정리하고, 노트 이름에 마우스를 올리면 전체 이름을 표시합니다.
+- 액자 설정에 바깥쪽 이동(0~-50%)을 추가했습니다. 화면 밖으로 나간 부분은 잘라 표시합니다.
+- 자물쇠는 실행할 때 잠기고, 열면 중앙 안내와 보라색 버튼으로 크기 조절 상태를 보여줍니다.
+
 ## [v0.100](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.100)
 
 - Caps Lock 필기 모드에서 ←/→로 빠른 색상과 클립아트를 이전/다음 순서로 고르는 기능을 복원했습니다.
