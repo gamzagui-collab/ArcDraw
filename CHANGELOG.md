@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.106](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.106)
+
+- 붓의 끝선 질감에서 **매끄럽게**와 **붓 질감**을 선택할 수 있습니다. 새 붓 획에 선택값을 저장해 다시 열어도 모양을 유지합니다.
+- 매끄러운 모드에서 작은 손떨림을 줄이고 완만한 곡선을 잇되 뚜렷한 방향 전환은 각지게 남깁니다. 선 보정률로 강도를 조절합니다.
+- 설정 파일이 없는 첫 실행에서도 화살표 기본값을 채워 툴바 초기화 오류를 막았습니다.
+
 ## [v0.105](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.105)
 
 - 자유펜과 별도로 이동 속도와 머무름 시간에 따라 굵기가 변하는 붓 도구를 추가했습니다. 툴바에는 글자 대신 붓 아이콘을 표시합니다.
@@ -151,4 +157,3 @@
 - 브라우저에서 동영상을 전체화면으로 보거나 F11을 눌러도 액자가 화면에 유지됩니다.
 
 이전 버전의 다운로드 및 배포 정보는 [릴리스 목록](https://github.com/gamzagui-collab/ArcDraw/releases)에서 확인할 수 있습니다.
-
