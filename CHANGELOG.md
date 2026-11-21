@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.104](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.104)
+
+- 텍스트 도구를 선택하고 입력창을 닫은 상태에서 ←/→로 글자색을 빠른 색상 순서대로 바꿉니다. 입력 중에는 커서 이동을 유지합니다.
+- 클립아트 선택창이 툴바가 있는 화면 밖으로 열리지 않도록 위치를 조정했습니다.
+- 실행할 때 새 버전을 안내하고, 실행 중에는 한 시간마다 다시 확인합니다. 트레이 메뉴에도 업데이트 상태를 표시합니다.
+
 ## [v0.103](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.103)
 
 - 화면 텍스트를 입력하다가 바깥을 클릭하면 확정하고, 다음 위치를 클릭하면 바로 새 텍스트를 입력할 수 있습니다.
