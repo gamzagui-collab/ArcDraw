@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.105](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.105)
+
+- 자유펜과 별도로 이동 속도와 머무름 시간에 따라 굵기가 변하는 붓 도구를 추가했습니다. 툴바에는 글자 대신 붓 아이콘을 표시합니다.
+- 붓 선택 시 선 굵기 조절 막대 아래에서 굵기 변화, 선 보정률, 속도 반응을 바로 조절할 수 있습니다. 설정은 다시 실행해도 유지됩니다.
+- 붓 획에 곡선 보정과 끝선 테이퍼를 적용해 둥근 선의 겹침을 줄였습니다. 필기 저장과 실행 취소에도 연결했습니다.
+- 접힌 툴바에서는 크기 조절 자물쇠를 조작할 수 없고, 펼친 상태에서 잠금을 바꾸면 아이콘이 즉시 바뀝니다.
+
 ## [v0.104](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.104)
 
 - 텍스트 도구를 선택하고 입력창을 닫은 상태에서 ←/→로 글자색을 빠른 색상 순서대로 바꿉니다. 입력 중에는 커서 이동을 유지합니다.
@@ -144,3 +151,4 @@
 - 브라우저에서 동영상을 전체화면으로 보거나 F11을 눌러도 액자가 화면에 유지됩니다.
 
 이전 버전의 다운로드 및 배포 정보는 [릴리스 목록](https://github.com/gamzagui-collab/ArcDraw/releases)에서 확인할 수 있습니다.
+
