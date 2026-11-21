@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.103](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.103)
+
+- 화면 텍스트를 입력하다가 바깥을 클릭하면 확정하고, 다음 위치를 클릭하면 바로 새 텍스트를 입력할 수 있습니다.
+- Ctrl을 누른 채 그린 선·도형·클립아트·텍스트를 클릭해 선택하고 Ctrl+드래그로 이동할 수 있습니다.
+- 기본 클립아트를 새 스티커 30종으로 교체했습니다. 기존 사용자 추가 이미지는 보존합니다.
+- 실제 사용 횟수가 많은 클립아트를 앞에 표시하며, 클립아트 도구의 ←/→도 이 순서를 따릅니다.
+
 ## [v0.102](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.102)
 
 - 화면 텍스트를 배치한 직후 바로 입력할 수 있고, 현재 선택한 팔레트 색상을 글자에 적용합니다.
