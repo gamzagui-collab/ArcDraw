@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.107](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.107)
+
+- 텍스트 도구로 기존 글자를 클릭해 바로 수정하고, 글자 크기 조절 막대 아래의 반투명 10행 글꼴 목록을 드래그해 고릅니다. 선택한 글꼴은 편집 중인 글자에 즉시 적용됩니다.
+- 자유펜 **P**, 속도 붓 **B**, 이동 **H**, 필기 표시·숨기기 **`**, 색 추출 **V**를 기본 단축키로 정리했습니다. 기본 빠른 클립아트에는 엄지 위를 표시합니다.
+- 설정의 앱 표시 언어에 한국어를 추가하고, 툴바의 추가 도구와 개별 그리기 도구 표시 여부를 설정할 수 있게 했습니다.
+- 화살표는 자유 각도로 세밀하게 그리며 Shift를 누를 때만 방향이 고정됩니다. 드래그 중 완성된 화살촉을 미리 보고, 마우스를 놓는 쪽에 화살촉이 생깁니다.
+
 ## [v0.106](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.106)
 
 - 붓의 끝선 질감에서 **매끄럽게**와 **붓 질감**을 선택할 수 있습니다. 새 붓 획에 선택값을 저장해 다시 열어도 모양을 유지합니다.
@@ -157,3 +164,4 @@
 - 브라우저에서 동영상을 전체화면으로 보거나 F11을 눌러도 액자가 화면에 유지됩니다.
 
 이전 버전의 다운로드 및 배포 정보는 [릴리스 목록](https://github.com/gamzagui-collab/ArcDraw/releases)에서 확인할 수 있습니다.
+
