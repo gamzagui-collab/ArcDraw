@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.102](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.102)
+
+- 화면 텍스트를 배치한 직후 바로 입력할 수 있고, 현재 선택한 팔레트 색상을 글자에 적용합니다.
+- 자유펜·선·도형·화살표·연속선의 ←/→ 빠른 색상 전환과 Ctrl+Z 실행 취소를 복구했습니다.
+- Caps Lock 필기 중 Esc가 다른 앱으로 전달되는 문제를 수정하고, 열린 자물쇠 상태를 더 분명하게 표시합니다.
+- 세로 한 열 배치를 추가하고, 세로 툴바와 설정 카드의 너비를 맞췄습니다. ArcDraw 정보는 설정창으로 옮겼습니다.
+
 ## [v0.101](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.101)
 
 - AI 액자 프롬프트에서 게임 스크린샷을 가상 화면 배경으로 열어 지도·채팅창 등의 장식 최소화 영역을 직접 표시할 수 있습니다. 사진은 프롬프트에 첨부되지 않으며 영역 좌표만 복사됩니다.
