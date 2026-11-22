@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.108](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.108)
+
+- 새 **지시선 텍스트** 도구로 화살표를 그린 뒤 끝점 옆에 바로 글을 입력합니다. 굵기 조절 막대 아래에서 글자 위치를 오른쪽·왼쪽·위·아래로 고르고, 선택한 방향을 기억합니다.
+- 처음 실행할 때 개인 설정 파일이 없어도 기본 설정을 만들어 저장 오류를 방지합니다. 단축키 설정 화면에는 실제 동작에 사용되는 기본 키가 표시됩니다.
+- 텍스트 글꼴 목록이 도구 툴바를 가리지 않도록 배치하고, 기존 글을 클릭해 편집할 때 클릭한 위치에 커서를 둡니다.
+- 옮긴 툴바의 위치를 저장해 다음 실행에서 복원합니다.
+
 ## [v0.107](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.107)
 
 - 텍스트 도구로 기존 글자를 클릭해 바로 수정하고, 글자 크기 조절 막대 아래의 반투명 10행 글꼴 목록을 드래그해 고릅니다. 선택한 글꼴은 편집 중인 글자에 즉시 적용됩니다.
