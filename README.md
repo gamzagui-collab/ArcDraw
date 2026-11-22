@@ -30,7 +30,7 @@ ArcDraw는 **지금 보고 있는 Windows 화면 위에 바로 그리거나 글�
 
 ## 처음 사용하기
 
-1. 릴리스의 **ArcDraw-v버전-windows-x86.zip**을 새 폴더에 모두 풀고 **ArcDraw.exe**를 실행합니다.
+1. 릴리스의 **ArcDraw-windows-x86.zip**을 다운로드해 압축을 풉니다. 생성된 **ArcDraw** 폴더에서 **ArcDraw.exe**를 실행합니다.
 2. 화면의 ArcDraw 아이콘을 누르거나 **Ctrl+Alt+G**로 툴바를 엽니다.
 3. **Caps Lock**을 켜면 그리기와 노트 조작을 시작할 수 있습니다. 끄면 Windows 화면을 평소처럼 조작할 수 있습니다. 툴바가 열려 있을 때 **Alt**를 누르고 있으면 도구 단축키가 표시됩니다.
 
