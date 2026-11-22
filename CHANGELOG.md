@@ -2,6 +2,13 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.110](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.110)
+
+- 실행 폴더의 기본 클립아트·UI 이미지·고지 파일을 하위 폴더로 정리해 ArcDraw.exe를 쉽게 찾을 수 있게 했습니다. 자동 업데이트도 이동된 경로를 처리합니다.
+- 헤드라인을 화면 맨 위까지 올릴 수 있습니다. 제목줄이 화면 밖에 있어도 본문 이동 손잡이로 다시 옮길 수 있습니다.
+- 붓에 고정·시간·속도 필압 방식과 4단계 손떨림 보정을 추가했습니다. 변화하는 태블릿 필압을 감지해 적용합니다.
+- 붓의 첫 입력을 가늘게 시작하도록 조정했습니다. 이후 이동 속도나 머무는 시간에 따라 굵기가 변합니다.
+
 ## [v0.109](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.109)
 
 - 작업표시줄의 ArcDraw 아이콘을 우클릭해 **툴바 열기**와 **시작 아이콘 표시**를 사용할 수 있습니다. 메뉴에서 설치 버전과 업데이트 날짜도 확인합니다.
