@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.109](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.109)
+
+- 작업표시줄의 ArcDraw 아이콘을 우클릭해 **툴바 열기**와 **시작 아이콘 표시**를 사용할 수 있습니다. 메뉴에서 설치 버전과 업데이트 날짜도 확인합니다.
+- 앱을 다시 열면 저장한 툴바 위치를 첫 표시부터 복원합니다. 전용 이동 버튼은 일반 드래그 설정과 관계없이 사용할 수 있습니다.
+- 새 다운로드 파일은 **ArcDraw-windows-x86.zip**, 압축을 풀면 생기는 폴더는 **ArcDraw**입니다. 기존 버전명 패키지의 자동 업데이트도 지원합니다.
+
 ## [v0.108](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.108)
 
 - 새 **지시선 텍스트** 도구로 화살표를 그린 뒤 끝점 옆에 바로 글을 입력합니다. 굵기 조절 막대 아래에서 글자 위치를 오른쪽·왼쪽·위·아래로 고르고, 선택한 방향을 기억합니다.
