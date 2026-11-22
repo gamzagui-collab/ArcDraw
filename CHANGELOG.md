@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.111](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.111)
+
+- 붓의 최소 굵기를 조절할 수 있습니다. 빠른 획은 약 1px까지 가늘어지고, 시작점에서 약 0.35초 동안 선택한 필압 굵기로 이어집니다.
+- 붓 질감의 가로 이음새를 없애고 붓결이 그리는 방향을 따르도록 고쳤습니다.
+- 붓 끝 보정은 마우스를 놓은 뒤 적용됩니다. **끝 보정 범위**에서 끝점부터 가늘어질 길이를 0~160px로 조절할 수 있습니다. 이전에 저장한 획의 모양은 유지됩니다.
+
 ## [v0.110](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.110)
 
 - 실행 폴더의 기본 클립아트·UI 이미지·고지 파일을 하위 폴더로 정리해 ArcDraw.exe를 쉽게 찾을 수 있게 했습니다. 자동 업데이트도 이동된 경로를 처리합니다.
