@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.113](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.113)
+
+- 헤드라인을 화면 위쪽으로 옮길 때 본문 이동 손잡이에서 붓 자국이 그려지지 않도록 했습니다.
+- 지시선 텍스트를 화살표의 시작점 옆에 배치합니다. 같은 도구로 기존 지시선을 클릭하면 글을 수정할 수 있습니다.
+- 기존 지시선의 글이나 화살표를 각각 드래그해 위치를 옮길 수 있습니다. 이전 버전에서 만든 지시선도 가까운 글과 화살표를 연결해 편집합니다.
+
 ## [v0.112](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.112)
 
 - 인터넷에서 받은 압축 파일의 DLL에 보안 표시가 남아 있을 때 일부 회사 PC에서 실행 직후 권한 오류가 발생하던 설정 충돌을 고쳤습니다.
