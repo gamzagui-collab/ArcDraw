@@ -2,6 +2,11 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.114](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.114)
+
+- 원이나 다른 도구로 그린 뒤에도 Caps Lock을 다시 누를 필요 없이 R·O 등 설정한 도구 단축키로 바로 전환할 수 있습니다.
+- 헤드라인을 화면 맨 위로 옮겼을 때 본문 이동 손잡이가 실제로 드래그되도록 입력 경로를 고쳤습니다. 드래그 중에는 손잡이 색이 바뀌며 붓 자국은 남지 않습니다.
+
 ## [v0.113](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.113)
 
 - 헤드라인을 화면 위쪽으로 옮길 때 본문 이동 손잡이에서 붓 자국이 그려지지 않도록 했습니다.
