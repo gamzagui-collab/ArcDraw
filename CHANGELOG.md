@@ -2,6 +2,12 @@
 
 [최신 버전 받기](https://github.com/gamzagui-collab/ArcDraw/releases/latest) · [모든 릴리스](https://github.com/gamzagui-collab/ArcDraw/releases) · [사용설명서](docs/USER_GUIDE_KO.md) · [단축키](docs/SHORTCUTS_KO.md)
 
+## [v0.112](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.112)
+
+- 인터넷에서 받은 압축 파일의 DLL에 보안 표시가 남아 있을 때 일부 회사 PC에서 실행 직후 권한 오류가 발생하던 설정 충돌을 고쳤습니다.
+- 사각형과 원을 그릴 때 자동 자석 보정으로 크기가 튀지 않도록 했습니다. 짧은 드래그도 펜 굵기와 무관하게 반영합니다.
+- 원의 미리보기와 완성된 도형이 같은 경계를 사용하도록 맞췄습니다.
+
 ## [v0.111](https://github.com/gamzagui-collab/ArcDraw/releases/tag/v0.111)
 
 - 붓의 최소 굵기를 조절할 수 있습니다. 빠른 획은 약 1px까지 가늘어지고, 시작점에서 약 0.35초 동안 선택한 필압 굵기로 이어집니다.
